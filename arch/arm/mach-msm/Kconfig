@@ -3170,6 +3170,12 @@ config PROJECT_NAME
           Support for Project Name
 
 
+config MSM_CPU_VOLTAGE_CONTROL
+	bool "Userspace CPU Voltage Control"
+	default y
+	help
+	  This enables userspace CPU Voltage Control.
+
 endif
 
 config PERFLOCK
@@ -3177,6 +3183,12 @@ config PERFLOCK
     depends on HTC_PNPMGR
     default n
     bool "HTC Performance Lock"
+
+config MSM_SLEEPER
+	bool "Limit max frequency while screen is off"
+	default y
+	help
+	  Limit max frequency while screen is off
 
 config HTC_DEBUG_RBCPR_8226
     depends on ARCH_MSM8226

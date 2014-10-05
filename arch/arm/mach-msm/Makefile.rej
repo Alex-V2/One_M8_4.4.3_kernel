@@ -1,0 +1,7 @@
+--- arch/arm/mach-msm/Makefile
++++ arch/arm/mach-msm/Makefile
+@@ -478,3 +478,4 @@
+ obj-$(CONFIG_HTC_MONITOR) += htc_monitor.o
+ 
+ obj-$(CONFIG_LCD_KCAL) += htc_kcal_ctrl.o
++obj-$(CONFIG_MSM_SLEEPER) += msm-sleeper.o

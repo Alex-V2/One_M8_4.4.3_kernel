@@ -1,0 +1,11 @@
+--- arch/arm/mach-msm/Kconfig
++++ arch/arm/mach-msm/Kconfig
+@@ -3177,3 +3177,8 @@
+     default n
+     bool "HTC Performance Lock"
+ 
++config MSM_SLEEPER
++	bool "Limit max frequency while screen is off"
++	default y
++	help
++	  Limit max frequency while screen is off
