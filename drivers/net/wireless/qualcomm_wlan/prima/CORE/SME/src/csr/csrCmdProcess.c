@@ -53,7 +53,7 @@
 #include "csrInsideApi.h"
 #include "smeInside.h"
 #include "smsDebug.h"
-
+#include "macTrace.h"
 
 
 
@@ -62,22 +62,24 @@ eHalStatus csrMsgProcessor( tpAniSirGlobal pMac,  void *pMsgBuf )
     eHalStatus status = eHAL_STATUS_SUCCESS;
     tSirSmeRsp *pSmeRsp = (tSirSmeRsp *)pMsgBuf;
 
-    smsLog( pMac, LOG2, "  Message %d[0x%04X] received in curState %d and substate %d",
-                pSmeRsp->messageType, pSmeRsp->messageType, 
-                pMac->roam.curState[pSmeRsp->sessionId],
-                pMac->roam.curSubState[pSmeRsp->sessionId] );
+    smsLog(pMac, LOG2, FL("Message %d[0x%04X] received in curState %s"
+           "and substate %s"),
+           pSmeRsp->messageType, pSmeRsp->messageType,
+           macTraceGetcsrRoamState(pMac->roam.curState[pSmeRsp->sessionId]),
+           macTraceGetcsrRoamSubState(
+           pMac->roam.curSubState[pSmeRsp->sessionId]));
 
-    // Process the message based on the state of the roaming states...
+    
     
 #if defined( ANI_RTT_DEBUG )
     if(!pAdapter->fRttModeEnabled)
     {
-#endif//RTT    
+#endif
         switch (pMac->roam.curState[pSmeRsp->sessionId])
         {
         case eCSR_ROAMING_STATE_SCANNING: 
         {
-            //Are we in scan state
+            
 #if defined( ANI_EMUL_ASSOC )
             emulScanningStateMsgProcessor( pAdapter, pMBBufHdr );
 #else
@@ -88,14 +90,14 @@ eHalStatus csrMsgProcessor( tpAniSirGlobal pMac,  void *pMsgBuf )
         
         case eCSR_ROAMING_STATE_JOINED: 
         {
-            //are we in joined state
+            
             csrRoamJoinedStateMsgProcessor( pMac, pMsgBuf );
             break;
         }
         
         case eCSR_ROAMING_STATE_JOINING:
         {
-            //are we in roaming states
+            
 #if defined( ANI_EMUL_ASSOC )
             emulRoamingStateMsgProcessor( pAdapter, pMBBufHdr );
 #endif
@@ -103,12 +105,9 @@ eHalStatus csrMsgProcessor( tpAniSirGlobal pMac,  void *pMsgBuf )
             break;
         }
 
-        //For all other messages, we ignore it        
+        
         default:
         {
-            /*To work-around an issue where checking for set/remove key base on connection state is no longer 
-            * workable due to failure or finding the condition meets both SAP and infra/IBSS requirement.
-            */
             if( (eWNI_SME_SETCONTEXT_RSP == pSmeRsp->messageType) ||
                 (eWNI_SME_REMOVEKEY_RSP == pSmeRsp->messageType) )
             {
@@ -122,11 +121,11 @@ eHalStatus csrMsgProcessor( tpAniSirGlobal pMac,  void *pMsgBuf )
             break;
         }
         
-        }//switch
+        }
         
 #if defined( ANI_RTT_DEBUG )
     }
-#endif//RTT
+#endif
 
     return (status);
 }

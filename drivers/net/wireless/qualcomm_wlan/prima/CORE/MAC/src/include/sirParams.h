@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -39,25 +39,11 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * Airgo Networks, Inc proprietary. All rights reserved.
- * This file sirParams.h contains the common parameter definitions, which
- * are not dependent on threadX API. These can be used by all Firmware
- * modules.
- *
- * Author:      Sandesh Goel
- * Date:        04/13/2002
- * History:-
- * Date            Modified by    Modification Information
- * --------------------------------------------------------------------
- */
-
 #ifndef __SIRPARAMS_H
 #define __SIRPARAMS_H
 
 # include "sirTypes.h"
 
-// Firmware wide constants
 
 #define SIR_MAX_PACKET_SIZE     2048
 #define SIR_MAX_NUM_CHANNELS    64
@@ -67,17 +53,17 @@
 
 typedef enum
 {
-    PHY_SINGLE_CHANNEL_CENTERED     = 0,        // 20MHz IF bandwidth centered on IF carrier
-    PHY_DOUBLE_CHANNEL_LOW_PRIMARY  = 1,        // 40MHz IF bandwidth with lower 20MHz supporting the primary channel
-    PHY_DOUBLE_CHANNEL_HIGH_PRIMARY = 3,        // 40MHz IF bandwidth with higher 20MHz supporting the primary channel
+    PHY_SINGLE_CHANNEL_CENTERED     = 0,        
+    PHY_DOUBLE_CHANNEL_LOW_PRIMARY  = 1,        
+    PHY_DOUBLE_CHANNEL_HIGH_PRIMARY = 3,        
 #ifdef WLAN_FEATURE_11AC
-    PHY_QUADRUPLE_CHANNEL_20MHZ_LOW_40MHZ_CENTERED = 4, //20/40MHZ offset LOW 40/80MHZ offset CENTERED
-    PHY_QUADRUPLE_CHANNEL_20MHZ_CENTERED_40MHZ_CENTERED = 5, //20/40MHZ offset CENTERED 40/80MHZ offset CENTERED
-    PHY_QUADRUPLE_CHANNEL_20MHZ_HIGH_40MHZ_CENTERED = 6, //20/40MHZ offset HIGH 40/80MHZ offset CENTERED
-    PHY_QUADRUPLE_CHANNEL_20MHZ_LOW_40MHZ_LOW = 7,//20/40MHZ offset LOW 40/80MHZ offset LOW
-    PHY_QUADRUPLE_CHANNEL_20MHZ_HIGH_40MHZ_LOW = 8, //20/40MHZ offset HIGH 40/80MHZ offset LOW
-    PHY_QUADRUPLE_CHANNEL_20MHZ_LOW_40MHZ_HIGH = 9, //20/40MHZ offset LOW 40/80MHZ offset HIGH
-    PHY_QUADRUPLE_CHANNEL_20MHZ_HIGH_40MHZ_HIGH = 10,//20/40MHZ offset-HIGH 40/80MHZ offset HIGH
+    PHY_QUADRUPLE_CHANNEL_20MHZ_LOW_40MHZ_CENTERED = 4, 
+    PHY_QUADRUPLE_CHANNEL_20MHZ_CENTERED_40MHZ_CENTERED = 5, 
+    PHY_QUADRUPLE_CHANNEL_20MHZ_HIGH_40MHZ_CENTERED = 6, 
+    PHY_QUADRUPLE_CHANNEL_20MHZ_LOW_40MHZ_LOW = 7,
+    PHY_QUADRUPLE_CHANNEL_20MHZ_HIGH_40MHZ_LOW = 8, 
+    PHY_QUADRUPLE_CHANNEL_20MHZ_LOW_40MHZ_HIGH = 9, 
+    PHY_QUADRUPLE_CHANNEL_20MHZ_HIGH_40MHZ_HIGH = 10,
 #endif
     PHY_CHANNEL_BONDING_STATE_MAX   = 11
 }ePhyChanBondState;
@@ -101,13 +87,23 @@ typedef enum {
 #endif
    IBSS_HEARTBEAT_OFFLOAD = 26,
    WLAN_PERIODIC_TX_PTRN = 28,
+#ifdef FEATURE_WLAN_TDLS
+   ADVANCE_TDLS = 29,
+#endif
 
 #ifdef FEATURE_WLAN_BATCH_SCAN
    BATCH_SCAN = 30,
 #endif
-   UPDATE_CHANNEL_LIST = 35,
 
-   //MAX_FEATURE_SUPPORTED = 128
+   FW_IN_TX_PATH          = 31,
+   EXTENDED_NSOFFLOAD_SLOT = 32,
+   CH_SWITCH_V1           = 33,
+   HT40_OBSS_SCAN         = 34,
+   UPDATE_CHANNEL_LIST    = 35,
+   WLAN_MCADDR_FLT        = 36,
+   WLAN_CH144             = 37,
+
+   
 } placeHolderInCapBitmap;
 
 typedef enum eSriLinkState {
@@ -116,13 +112,13 @@ typedef enum eSriLinkState {
     eSIR_LINK_POSTASSOC_STATE   = 2,
     eSIR_LINK_AP_STATE          = 3,
     eSIR_LINK_IBSS_STATE        = 4,
-    // BT-AMP Case
+    
     eSIR_LINK_BTAMP_PREASSOC_STATE  = 5,
     eSIR_LINK_BTAMP_POSTASSOC_STATE  = 6,
     eSIR_LINK_BTAMP_AP_STATE  = 7,
     eSIR_LINK_BTAMP_STA_STATE  = 8,
 
-    // Reserved for HAL internal use
+    
     eSIR_LINK_LEARN_STATE       = 9,
     eSIR_LINK_SCAN_STATE        = 10,
     eSIR_LINK_FINISH_SCAN_STATE = 11,
@@ -133,138 +129,79 @@ typedef enum eSriLinkState {
 } tSirLinkState;
 
 
-/// Message queue structure used across Sirius project.
-/// NOTE: this structure should be multiples of a word size (4bytes)
-/// as this is used in tx_queue where it expects to be multiples of 4 bytes.
 typedef struct sSirMsgQ
 {
     tANI_U16 type;
-    /*
-     * This field can be used as sequence number/dialog token for matching
-     * requests and responses.
-     */
     tANI_U16 reserved;
-    /**
-     * Based on the type either a bodyptr pointer into
-     * memory or bodyval as a 32 bit data is used.
-     * bodyptr: is always a freeable pointer, one should always
-     * make sure that bodyptr is always freeable.
-     *
-     * Messages should use either bodyptr or bodyval; not both !!!.
-     */
     void *bodyptr;
     tANI_U32 bodyval;
+
+    void *callback;
+
 } tSirMsgQ, *tpSirMsgQ;
 
-/// Mailbox Message Structure Define
 typedef struct sSirMbMsg
 {
     tANI_U16 type;
 
-    /**
-     * This length includes 4 bytes of header, that is,
-     * 2 bytes type + 2 bytes msgLen + n*4 bytes of data.
-     * This field is byte length.
-     */
     tANI_U16 msgLen;
 
-    /**
-     * This is the first data word in the mailbox message.
-     * It is followed by n words of data.
-     * NOTE: data[1] is not a place holder to store data
-     * instead to dereference the message body.
-     */
     tANI_U32 data[1];
 } tSirMbMsg, *tpSirMbMsg;
 
-/// Mailbox Message Structure for P2P
 typedef struct sSirMbMsgP2p
 {
     tANI_U16 type;
 
-    /**
-     * This length includes 4 bytes of header, that is,
-     * 2 bytes type + 2 bytes msgLen + n*4 bytes of data.
-     * This field is byte length.
-     */
     tANI_U16 msgLen;
 
     tANI_U8 sessionId;
     tANI_U8 noack;
     tANI_U16 wait;
 
-    /**
-     * This is the first data word in the mailbox message.
-     * It is followed by n words of data.
-     * NOTE: data[1] is not a place holder to store data
-     * instead to dereference the message body.
-     */
     tANI_U32 data[1];
 } tSirMbMsgP2p, *tpSirMbMsgP2p;
 
-/// Message queue definitions
-//  msgtype(2bytes) reserved(2bytes) bodyptr(4bytes) bodyval(4bytes)
-//  NOTE tSirMsgQ should be always multiples of WORD(4Bytes)
-//  All Queue Message Size are multiples of word Size (4 bytes)
 #define SYS_MSG_SIZE            (sizeof(tSirMsgQ)/4)
 
-/// gHalMsgQ
 
 #define SYS_HAL_MSG_SIZE        SYS_MSG_SIZE
 
-/// gMMHhiPriorityMsgQ
 
 #define SYS_MMH_HI_PRI_MSG_SIZE SYS_MSG_SIZE
 
-/// gMMHprotocolMsgQ
 
 #define SYS_MMH_PROT_MSG_SIZE   SYS_MSG_SIZE
 
-/// gMMHdebugMsgQ
 
 #define SYS_MMH_DEBUG_MSG_SIZE  SYS_MSG_SIZE
 
-/// gMAINTmsgQ
 
 #define SYS_MNT_MSG_SIZE        SYS_MSG_SIZE
 
-/// LIM Message Queue
 
 #define SYS_LIM_MSG_SIZE        SYS_MSG_SIZE
 
-/// ARQ Message Queue
 
 #define SYS_ARQ_MSG_SIZE        SYS_MSG_SIZE
 
-/// Scheduler Message Queue
 
 #define SYS_SCH_MSG_SIZE        SYS_MSG_SIZE
 
-/// PMM Message Queue
 
 #define SYS_PMM_MSG_SIZE        SYS_MSG_SIZE
 
-/// TX Message Queue
 
-#define SYS_TX_MSG_SIZE         (sizeof(void *)/4)  // Message pointer size
+#define SYS_TX_MSG_SIZE         (sizeof(void *)/4)  
 
-/// RX Message Queue
 
-#define SYS_RX_MSG_SIZE         (sizeof(void *)/4)  // Message pointer size
+#define SYS_RX_MSG_SIZE         (sizeof(void *)/4)  
 
-/// PTT  Message Queue
-#define SYS_NIM_PTT_MSG_SIZE    SYS_MSG_SIZE  // Message pointer size
+#define SYS_NIM_PTT_MSG_SIZE    SYS_MSG_SIZE  
 
 
 
-/* *************************************** *
- *                                         *
- *        Block pool configuration         *
- *                                         *
- * *************************************** */
 
-// The following values specify the number of blocks to be created
-// for each block pool size.
 
 #define SIR_BUF_BLK_32_NUM           64
 #define SIR_BUF_BLK_64_NUM           128
@@ -283,25 +220,9 @@ typedef struct sSirMbMsgP2p
 #define SIR_BUF_BLK_2048_NUM         2
 #define SIR_BUF_BLK_2304_NUM         0
 
-/* ******************************************* *
- *                                             *
- *         SIRIUS MESSAGE TYPES                *
- *                                             *
- * ******************************************* */
 
 
-/*
- * The following message types have bounds defined for each module for
- * inter thread/module communications.
- * Each module will get 256 message types in total.
- * Note that message type definitions for mailbox messages for
- * communication with Host are in wniApi.h file.
- *
- * Any addition/deletion to this message list should also be
- * reflected in the halUtil_getMsgString() routine.
- */
 
-// HAL message types
 #define SIR_HAL_MSG_TYPES_BEGIN            (SIR_HAL_MODULE_ID << 8)
 #define SIR_HAL_ITC_MSG_TYPES_BEGIN        (SIR_HAL_MSG_TYPES_BEGIN+0x20)
 #define SIR_HAL_RADAR_DETECTED_IND         SIR_HAL_ITC_MSG_TYPES_BEGIN
@@ -317,9 +238,6 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_CCA_CHANGE_MODE            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 10)
 #define SIR_HAL_TIMER_WRAP_AROUND_STATS_COLLECT_REQ   (SIR_HAL_ITC_MSG_TYPES_BEGIN + 11)
 
-/*
- * New Taurus related messages
- */
 #define SIR_HAL_ADD_STA_REQ                (SIR_HAL_ITC_MSG_TYPES_BEGIN + 13)
 #define SIR_HAL_ADD_STA_RSP                (SIR_HAL_ITC_MSG_TYPES_BEGIN + 14)
 #define SIR_HAL_DELETE_STA_REQ             (SIR_HAL_ITC_MSG_TYPES_BEGIN + 15)
@@ -392,7 +310,6 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_DELBA_IND                  (SIR_HAL_ITC_MSG_TYPES_BEGIN + 72)
 #define SIR_HAL_DEL_BA_IND                 (SIR_HAL_ITC_MSG_TYPES_BEGIN + 73)
 
-//message from sme to initiate delete block ack session.
 #define SIR_HAL_DELBA_REQ                  (SIR_HAL_ITC_MSG_TYPES_BEGIN + 74)
 #define SIR_HAL_IBSS_STA_ADD               (SIR_HAL_ITC_MSG_TYPES_BEGIN + 75)
 #define SIR_HAL_TIMER_ADJUST_ADAPTIVE_THRESHOLD_IND   (SIR_HAL_ITC_MSG_TYPES_BEGIN + 76)
@@ -437,9 +354,7 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_GET_NOISE_REQ              (SIR_HAL_ITC_MSG_TYPES_BEGIN + 116)
 #define SIR_HAL_GET_NOISE_RSP              (SIR_HAL_ITC_MSG_TYPES_BEGIN + 117)
 
-/* Messages to support transmit_halt and transmit_resume */
 #define SIR_HAL_TRANSMISSION_CONTROL_IND   (SIR_HAL_ITC_MSG_TYPES_BEGIN + 118)
-/* Indication from LIM to HAL to Initialize radar interrupt */
 #define SIR_HAL_INIT_RADAR_IND             (SIR_HAL_ITC_MSG_TYPES_BEGIN + 119)
 
 #define SIR_HAL_BEACON_PRE_IND             (SIR_HAL_ITC_MSG_TYPES_BEGIN + 120)
@@ -449,7 +364,6 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_EXIT_UAPSD_RSP             (SIR_HAL_ITC_MSG_TYPES_BEGIN + 124)
 #define SIR_HAL_LOW_RSSI_IND               (SIR_HAL_ITC_MSG_TYPES_BEGIN + 125)
 #define SIR_HAL_BEACON_FILTER_IND          (SIR_HAL_ITC_MSG_TYPES_BEGIN + 126)
-/// PE <-> HAL WOWL messages
 #define SIR_HAL_WOWL_ADD_BCAST_PTRN        (SIR_HAL_ITC_MSG_TYPES_BEGIN + 127)
 #define SIR_HAL_WOWL_DEL_BCAST_PTRN        (SIR_HAL_ITC_MSG_TYPES_BEGIN + 128)
 #define SIR_HAL_WOWL_ENTER_REQ             (SIR_HAL_ITC_MSG_TYPES_BEGIN + 129)
@@ -458,21 +372,17 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_WOWL_EXIT_RSP              (SIR_HAL_ITC_MSG_TYPES_BEGIN + 132)
 #define SIR_HAL_TX_COMPLETE_IND            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 133)
 #define SIR_HAL_TIMER_RA_COLLECT_AND_ADAPT (SIR_HAL_ITC_MSG_TYPES_BEGIN + 134)
-/// PE <-> HAL statistics messages
 #define SIR_HAL_GET_STATISTICS_REQ         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 135)
 #define SIR_HAL_GET_STATISTICS_RSP         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 136)
 #define SIR_HAL_SET_KEY_DONE               (SIR_HAL_ITC_MSG_TYPES_BEGIN + 137)
 
-/// PE <-> HAL BTC messages
 #define SIR_HAL_BTC_SET_CFG                (SIR_HAL_ITC_MSG_TYPES_BEGIN + 138)
 #define SIR_HAL_SIGNAL_BT_EVENT            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 139)
 #define SIR_HAL_HANDLE_FW_MBOX_RSP            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 140)
 #define SIR_HAL_UPDATE_PROBE_RSP_TEMPLATE_IND     (SIR_HAL_ITC_MSG_TYPES_BEGIN + 141)
 
-/* PE <-> HAL addr2 mismatch message */
 #define SIR_LIM_ADDR2_MISS_IND             (SIR_HAL_ITC_MSG_TYPES_BEGIN + 142)
 #ifdef FEATURE_OEM_DATA_SUPPORT
-/* PE <-> HAL OEM_DATA RELATED MESSAGES */
 #define SIR_HAL_START_OEM_DATA_REQ         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 143)
 #define SIR_HAL_START_OEM_DATA_RSP       (SIR_HAL_ITC_MSG_TYPES_BEGIN + 144)
 #define SIR_HAL_FINISH_OEM_DATA_REQ      (SIR_HAL_ITC_MSG_TYPES_BEGIN + 145)
@@ -483,7 +393,6 @@ typedef struct sSirMbMsgP2p
 
 #define SIR_HAL_SEND_MSG_COMPLETE          (SIR_HAL_ITC_MSG_TYPES_BEGIN + 148)
 
-/// PE <-> HAL Host Offload message
 #define SIR_HAL_SET_HOST_OFFLOAD           (SIR_HAL_ITC_MSG_TYPES_BEGIN + 149)
 
 #define SIR_HAL_ADD_STA_SELF_REQ           (SIR_HAL_ITC_MSG_TYPES_BEGIN + 150)
@@ -500,9 +409,8 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_AGGR_ADD_TS_RSP            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 158)
 #define SIR_HAL_AGGR_QOS_REQ               (SIR_HAL_ITC_MSG_TYPES_BEGIN + 159)
 #define SIR_HAL_AGGR_QOS_RSP               (SIR_HAL_ITC_MSG_TYPES_BEGIN + 160)
-#endif /* WLAN_FEATURE_VOWIFI_11R */
+#endif 
 
-/* P2P <-> HAL P2P msg */
 #define SIR_HAL_SET_P2P_GO_NOA_REQ         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 161)
 #define SIR_HAL_P2P_NOA_ATTR_IND           (SIR_HAL_ITC_MSG_TYPES_BEGIN + 162)
 #define SIR_HAL_P2P_NOA_START_IND          (SIR_HAL_ITC_MSG_TYPES_BEGIN + 163)
@@ -513,19 +421,18 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_WLAN_SUSPEND_IND               (SIR_HAL_ITC_MSG_TYPES_BEGIN + 166)
 #define SIR_HAL_WLAN_RESUME_REQ                (SIR_HAL_ITC_MSG_TYPES_BEGIN + 167)
 
-/// PE <-> HAL Keep Alive message
 #define SIR_HAL_SET_KEEP_ALIVE             (SIR_HAL_ITC_MSG_TYPES_BEGIN + 168)
 
 #ifdef WLAN_NS_OFFLOAD
 #define SIR_HAL_SET_NS_OFFLOAD             (SIR_HAL_ITC_MSG_TYPES_BEGIN + 169)
-#endif //WLAN_NS_OFFLOAD
+#endif 
 
 #ifdef FEATURE_WLAN_SCAN_PNO
 #define SIR_HAL_SET_PNO_REQ                (SIR_HAL_ITC_MSG_TYPES_BEGIN + 170)
 #define SIR_HAL_SET_PNO_CHANGED_IND        (SIR_HAL_ITC_MSG_TYPES_BEGIN + 171)
 #define SIR_HAL_UPDATE_SCAN_PARAMS         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 172)
 #define SIR_HAL_SET_RSSI_FILTER_REQ        (SIR_HAL_ITC_MSG_TYPES_BEGIN + 173)
-#endif // FEATURE_WLAN_SCAN_PNO
+#endif 
 
 
 #define SIR_HAL_SET_TX_PER_TRACKING_REQ             (SIR_HAL_ITC_MSG_TYPES_BEGIN + 174)
@@ -536,7 +443,7 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_PACKET_COALESCING_FILTER_MATCH_COUNT_REQ    (SIR_HAL_ITC_MSG_TYPES_BEGIN + 177)
 #define SIR_HAL_PACKET_COALESCING_FILTER_MATCH_COUNT_RSP    (SIR_HAL_ITC_MSG_TYPES_BEGIN + 178)
 #define SIR_HAL_RECEIVE_FILTER_CLEAR_FILTER_REQ             (SIR_HAL_ITC_MSG_TYPES_BEGIN + 179)
-#endif // WLAN_FEATURE_PACKET_FILTERING
+#endif 
 
 #define SIR_HAL_SET_POWER_PARAMS_REQ (SIR_HAL_ITC_MSG_TYPES_BEGIN + 180)
 
@@ -544,7 +451,7 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_GTK_OFFLOAD_REQ            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 181)
 #define SIR_HAL_GTK_OFFLOAD_GETINFO_REQ    (SIR_HAL_ITC_MSG_TYPES_BEGIN + 182)
 #define SIR_HAL_GTK_OFFLOAD_GETINFO_RSP    (SIR_HAL_ITC_MSG_TYPES_BEGIN + 183)
-#endif //WLAN_FEATURE_GTK_OFFLOAD
+#endif 
 
 #ifdef FEATURE_WLAN_CCX
 #define SIR_HAL_TSM_STATS_REQ              (SIR_HAL_ITC_MSG_TYPES_BEGIN + 184)
@@ -554,7 +461,7 @@ typedef struct sSirMbMsgP2p
 
 #ifdef WLAN_WAKEUP_EVENTS
 #define SIR_HAL_WAKE_REASON_IND            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 186)
-#endif //WLAN_WAKEUP_EVENTS
+#endif 
 
 #define SIR_HAL_SET_TM_LEVEL_REQ           (SIR_HAL_ITC_MSG_TYPES_BEGIN + 187)
 
@@ -563,7 +470,6 @@ typedef struct sSirMbMsgP2p
 #endif
 
 #ifdef FEATURE_WLAN_TDLS
-/// PE <-> HAL TDLS messages
 #define SIR_HAL_TDLS_LINK_ESTABLISH        (SIR_HAL_ITC_MSG_TYPES_BEGIN + 189)
 #define SIR_HAL_TDLS_LINK_TEARDOWN         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 190)
 #endif
@@ -580,7 +486,6 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_EXCLUDE_UNENCRYPTED_IND    (SIR_HAL_ITC_MSG_TYPES_BEGIN + 196)
 #endif
 #ifdef FEATURE_WLAN_TDLS
-/// PE <-> HAL TDLS messages
 #define SIR_HAL_TDLS_LINK_ESTABLISH_REQ (SIR_HAL_ITC_MSG_TYPES_BEGIN + 197)
 #define SIR_HAL_TDLS_LINK_ESTABLISH_REQ_RSP (SIR_HAL_ITC_MSG_TYPES_BEGIN + 198)
 #define SIR_HAL_TDLS_IND (SIR_HAL_ITC_MSG_TYPES_BEGIN + 199)
@@ -588,6 +493,7 @@ typedef struct sSirMbMsgP2p
 
 #define SIR_HAL_START_SCAN_OFFLOAD_REQ     (SIR_HAL_ITC_MSG_TYPES_BEGIN + 197)
 #define SIR_HAL_START_SCAN_OFFLOAD_RSP     (SIR_HAL_ITC_MSG_TYPES_BEGIN + 198)
+#define SIR_HAL_UPDATE_CHAN_LIST_REQ       (SIR_HAL_ITC_MSG_TYPES_BEGIN + 199)
 #define SIR_HAL_UPDATE_CHAN_LIST_RSP       (SIR_HAL_ITC_MSG_TYPES_BEGIN + 200)
 #define SIR_HAL_STOP_SCAN_OFFLOAD_REQ      (SIR_HAL_ITC_MSG_TYPES_BEGIN + 201)
 #define SIR_HAL_STOP_SCAN_OFFLOAD_RSP      (SIR_HAL_ITC_MSG_TYPES_BEGIN + 202)
@@ -608,65 +514,45 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_STOP_BATCH_SCAN_IND        (SIR_HAL_ITC_MSG_TYPES_BEGIN + 212)
 #define SIR_HAL_TRIGGER_BATCH_SCAN_RESULT_IND (SIR_HAL_ITC_MSG_TYPES_BEGIN + 213)
 #endif
+#define SIR_HAL_RATE_UPDATE_IND            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 217)
 
 #define SIR_HAL_SET_MAX_TX_POWER_PER_BAND_REQ \
         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 214)
 #define SIR_HAL_SET_MAX_TX_POWER_PER_BAND_RSP \
         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 215)
 
-#define SIR_HAL_MSG_TYPES_END              (SIR_HAL_ITC_MSG_TYPES_BEGIN + 0xFF)
-// CFG message types
+#define SIR_HAL_BCN_MISS_RATE_REQ         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 216)
+
+#define SIR_HAL_MSG_TYPES_END              (SIR_HAL_MSG_TYPES_BEGIN + 0x1FF)
 #define SIR_CFG_MSG_TYPES_BEGIN        (SIR_CFG_MODULE_ID << 8)
 #define SIR_CFG_ITC_MSG_TYPES_BEGIN    (SIR_CFG_MSG_TYPES_BEGIN+0xB0)
 #define SIR_CFG_PARAM_UPDATE_IND       (SIR_CFG_ITC_MSG_TYPES_BEGIN)
 #define SIR_CFG_DOWNLOAD_COMPLETE_IND  (SIR_CFG_ITC_MSG_TYPES_BEGIN + 1)
 #define SIR_CFG_MSG_TYPES_END          (SIR_CFG_MSG_TYPES_BEGIN+0xFF)
 
-// LIM message types
 #define SIR_LIM_MSG_TYPES_BEGIN        (SIR_LIM_MODULE_ID << 8)
 #define SIR_LIM_ITC_MSG_TYPES_BEGIN    (SIR_LIM_MSG_TYPES_BEGIN+0xB0)
 
-// Messages to/from HAL
-// Removed as part of moving HAL down to FW
 
-// Message from ISR upon TFP retry interrupt
 #define SIR_LIM_RETRY_INTERRUPT_MSG        (SIR_LIM_ITC_MSG_TYPES_BEGIN + 3)
-// Message from BB Transport
 #define SIR_BB_XPORT_MGMT_MSG              (SIR_LIM_ITC_MSG_TYPES_BEGIN + 4)
-// UNUSED                                  SIR_LIM_ITC_MSG_TYPES_BEGIN + 6
-// Message from ISR upon SP's Invalid session key interrupt
 #define SIR_LIM_INV_KEY_INTERRUPT_MSG      (SIR_LIM_ITC_MSG_TYPES_BEGIN + 7)
-// Message from ISR upon SP's Invalid key ID interrupt
 #define SIR_LIM_KEY_ID_INTERRUPT_MSG       (SIR_LIM_ITC_MSG_TYPES_BEGIN + 8)
-// Message from ISR upon SP's Replay threshold reached interrupt
 #define SIR_LIM_REPLAY_THRES_INTERRUPT_MSG (SIR_LIM_ITC_MSG_TYPES_BEGIN + 9)
-// Message from HDD after the TD dummy packet is cleaned up
 #define SIR_LIM_TD_DUMMY_CALLBACK_MSG      (SIR_LIM_ITC_MSG_TYPES_BEGIN + 0xA)
-// Message from SCH when the STA is ready to be deleted
 #define SIR_LIM_SCH_CLEAN_MSG              (SIR_LIM_ITC_MSG_TYPES_BEGIN + 0xB)
-// Message from ISR upon Radar Detection
 #define SIR_LIM_RADAR_DETECT_IND           (SIR_LIM_ITC_MSG_TYPES_BEGIN + 0xC)
 
-/////////////////////////////////////
-// message id Available
-////////////////////////////////////
 
-#define SIR_HAL_UPDATE_CHAN_LIST_REQ       (SIR_HAL_ITC_MSG_TYPES_BEGIN + 229)
 
-// Message from Hal to send out a DEL-TS indication
 #define SIR_LIM_DEL_TS_IND                  (SIR_LIM_ITC_MSG_TYPES_BEGIN + 0xE)
-//Message from HAL to send BA global timer timeout
 #define SIR_LIM_ADD_BA_IND                  (SIR_LIM_ITC_MSG_TYPES_BEGIN + 0xF)
-//Indication from HAL to delete all the BA sessions when the BA activity check timer is disabled
 #define SIR_LIM_DEL_BA_ALL_IND                  (SIR_LIM_ITC_MSG_TYPES_BEGIN + 0x10)
-//Indication from HAL to delete Station context
 #define SIR_LIM_DELETE_STA_CONTEXT_IND          (SIR_LIM_ITC_MSG_TYPES_BEGIN + 0x11)
-//Indication from HAL to delete BA
 #define SIR_LIM_DEL_BA_IND                      (SIR_LIM_ITC_MSG_TYPES_BEGIN + 0x12)
 #define SIR_LIM_UPDATE_BEACON                   (SIR_LIM_ITC_MSG_TYPES_BEGIN + 0x13)
 
 
-// LIM Timeout messages
 #define SIR_LIM_TIMEOUT_MSG_START      ((SIR_LIM_MODULE_ID  << 8) + 0xD0)
 #define SIR_LIM_MIN_CHANNEL_TIMEOUT    SIR_LIM_TIMEOUT_MSG_START
 #define SIR_LIM_MAX_CHANNEL_TIMEOUT    (SIR_LIM_TIMEOUT_MSG_START + 1)
@@ -676,13 +562,10 @@ typedef struct sSirMbMsgP2p
 #define SIR_LIM_ASSOC_FAIL_TIMEOUT     (SIR_LIM_TIMEOUT_MSG_START + 5)
 #define SIR_LIM_REASSOC_FAIL_TIMEOUT   (SIR_LIM_TIMEOUT_MSG_START + 6)
 #define SIR_LIM_HEART_BEAT_TIMEOUT     (SIR_LIM_TIMEOUT_MSG_START + 7)
-// currently unused                    SIR_LIM_TIMEOUT_MSG_START + 0x8
-// Link Monitoring Messages
 #define SIR_LIM_CHANNEL_SCAN_TIMEOUT     (SIR_LIM_TIMEOUT_MSG_START + 0xA)
 #define SIR_LIM_PROBE_HB_FAILURE_TIMEOUT (SIR_LIM_TIMEOUT_MSG_START + 0xB)
 #define SIR_LIM_ADDTS_RSP_TIMEOUT        (SIR_LIM_TIMEOUT_MSG_START + 0xC)
 #define SIR_LIM_LINK_TEST_DURATION_TIMEOUT (SIR_LIM_TIMEOUT_MSG_START + 0x13)
-#define SIR_LIM_HASH_MISS_THRES_TIMEOUT  (SIR_LIM_TIMEOUT_MSG_START + 0x16)
 #define SIR_LIM_CNF_WAIT_TIMEOUT         (SIR_LIM_TIMEOUT_MSG_START + 0x17)
 #define SIR_LIM_KEEPALIVE_TIMEOUT        (SIR_LIM_TIMEOUT_MSG_START + 0x18)
 #define SIR_LIM_UPDATE_OLBC_CACHEL_TIMEOUT (SIR_LIM_TIMEOUT_MSG_START + 0x19)
@@ -718,7 +601,6 @@ typedef struct sSirMbMsgP2p
 #define SIR_LIM_CONVERT_ACTIVE_CHANNEL_TO_PASSIVE (SIR_LIM_TIMEOUT_MSG_START + 0x2C)
 #define SIR_LIM_MSG_TYPES_END            (SIR_LIM_MSG_TYPES_BEGIN+0xFF)
 
-// SCH message types
 #define SIR_SCH_MSG_TYPES_BEGIN        (SIR_SCH_MODULE_ID << 8)
 #define SIR_SCH_CHANNEL_SWITCH_REQUEST (SIR_SCH_MSG_TYPES_BEGIN)
 #define SIR_SCH_START_SCAN_REQ         (SIR_SCH_MSG_TYPES_BEGIN + 1)
@@ -726,35 +608,25 @@ typedef struct sSirMbMsgP2p
 #define SIR_SCH_END_SCAN_NTF           (SIR_SCH_MSG_TYPES_BEGIN + 3)
 #define SIR_SCH_MSG_TYPES_END          (SIR_SCH_MSG_TYPES_BEGIN+0xFF)
 
-// PMM message types
 #define SIR_PMM_MSG_TYPES_BEGIN        (SIR_PMM_MODULE_ID << 8)
 #define SIR_PMM_CHANGE_PM_MODE         (SIR_PMM_MSG_TYPES_BEGIN)
-#define SIR_PMM_CHANGE_IMPS_MODE       (SIR_PMM_MSG_TYPES_BEGIN + 1)        //for Idle mode power save
+#define SIR_PMM_CHANGE_IMPS_MODE       (SIR_PMM_MSG_TYPES_BEGIN + 1)        
 #define SIR_PMM_MSG_TYPES_END          (SIR_PMM_MSG_TYPES_BEGIN+0xFF)
 
-// MNT message types
 #define SIR_MNT_MSG_TYPES_BEGIN        (SIR_MNT_MODULE_ID << 8)
 #define SIR_MNT_RELEASE_BD             (SIR_MNT_MSG_TYPES_BEGIN + 0)
 #define SIR_MNT_MSG_TYPES_END          (SIR_MNT_MSG_TYPES_BEGIN + 0xFF)
 
-// DVT message types
 #define SIR_DVT_MSG_TYPES_BEGIN        (SIR_DVT_MODULE_ID << 8)
 #define SIR_DVT_ITC_MSG_TYPES_BEGIN    (SIR_DVT_MSG_TYPES_BEGIN+0x0F)
 #define SIR_DVT_MSG_TYPES_END          (SIR_DVT_ITC_MSG_TYPES_BEGIN+0xFFF)
 
 
-//PTT message types
 #define SIR_PTT_MSG_TYPES_BEGIN            0x3000
 #define SIR_PTT_MSG_TYPES_END              0x3300
 
 
-/* ****************************************** *
- *                                            *
- *         EVENT TYPE Defintions              *
- *                                            *
- * ****************************************** */
 
-// MMH Events that are used in other modules to post events to MMH
 # define SIR_HAL_MMH_TXMB_READY_EVT     0x00000002
 # define SIR_HAL_MMH_RXMB_DONE_EVT      0x00000004
 # define SIR_HAL_MMH_MSGQ_NE_EVT        0x00000008
@@ -765,9 +637,7 @@ typedef struct sSirMbMsgP2p
 
 # define SIR_TST_XMIT_MSG_QS_EMPTY_EVT     0x00000080
 
-//added for OBSS
 
-//Param Change Bitmap sent to HAL
 #define PARAM_BCN_INTERVAL_CHANGED                      (1 << 0)
 #define PARAM_SHORT_PREAMBLE_CHANGED                 (1 << 1)
 #define PARAM_SHORT_SLOT_TIME_CHANGED                 (1 << 2)

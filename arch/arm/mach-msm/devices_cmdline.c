@@ -108,6 +108,25 @@ char *board_mid(void)
 }
 EXPORT_SYMBOL(board_mid);
 
+static int android_rom_type;
+static int __init board_rom_type_setup(char *rom_type)
+{
+	pr_info("%s: rom type %s\r\n", __func__, rom_type);
+	if (!strcmp(rom_type, "NORMAL"))
+		android_rom_type = 0;
+	else if (!strcmp(rom_type, "STOCKUI"))
+		android_rom_type = 1;
+
+	return 1;
+}
+__setup("androidboot.rom_type=", board_rom_type_setup);
+
+int board_rom_type(void)
+{
+	return android_rom_type;
+}
+EXPORT_SYMBOL(board_rom_type);
+
 static int mfg_mode;
 static int fullramdump_flag;
 static int recovery_9k_ramdump;

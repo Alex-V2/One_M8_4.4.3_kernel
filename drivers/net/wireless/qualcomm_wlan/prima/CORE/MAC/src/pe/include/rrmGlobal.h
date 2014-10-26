@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -39,8 +39,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * */
 
 #if !defined( __RRMGLOBAL_H )
 #define __RRMGLOBAL_H
@@ -65,6 +63,13 @@ typedef enum eRrmRetStatus
     eRRM_FAILURE
 } tRrmRetStatus;
 
+typedef enum eRrmMsgReqSource
+{
+    eRRM_MSG_SOURCE_LEGACY_CCX  = 1, 
+    eRRM_MSG_SOURCE_11K         = 2, 
+    eRRM_MSG_SOURCE_CCX_UPLOAD  = 3  
+} tRrmMsgReqSource;
+
 typedef struct sSirChannelInfo
 {
    tANI_U8 regulatoryClass;
@@ -73,23 +78,24 @@ typedef struct sSirChannelInfo
 
 typedef struct sSirBeaconReportReqInd
 {
-   tANI_U16     messageType; // eWNI_SME_BEACON_REPORT_REQ_IND
+   tANI_U16     messageType; 
    tANI_U16     length;
    tSirMacAddr  bssId;
-   tANI_U16     measurementDuration[SIR_CCX_MAX_MEAS_IE_REQS];   //ms
-   tANI_U16     randomizationInterval; //ms
+   tANI_U16     measurementDuration[SIR_CCX_MAX_MEAS_IE_REQS];   
+   tANI_U16     randomizationInterval; 
    tSirChannelInfo channelInfo;
-   tSirMacAddr      macaddrBssid;   //0: wildcard
-   tANI_U8      fMeasurementtype[SIR_CCX_MAX_MEAS_IE_REQS];  //0:Passive, 1: Active, 2: table mode
-   tAniSSID     ssId;              //May be wilcard.
+   tSirMacAddr      macaddrBssid;   
+   tANI_U8      fMeasurementtype[SIR_CCX_MAX_MEAS_IE_REQS];  
+   tAniSSID     ssId;              
    tANI_U16      uDialogToken;
-   tSirChannelList channelList; //From AP channel report.
+   tSirChannelList channelList; 
+   tRrmMsgReqSource msgSource;
 } tSirBeaconReportReqInd, * tpSirBeaconReportReqInd;
 
 
 typedef struct sSirBeaconReportXmitInd
 {
-   tANI_U16    messageType; // eWNI_SME_BEACON_REPORT_RESP_XMIT_IND
+   tANI_U16    messageType; 
    tANI_U16    length;
    tSirMacAddr bssId;
    tANI_U16     uDialogToken;
@@ -102,11 +108,11 @@ typedef struct sSirBeaconReportXmitInd
 
 typedef struct sSirNeighborReportReqInd
 {
-   tANI_U16     messageType; // eWNI_SME_NEIGHBOR_REPORT_REQ_IND
+   tANI_U16     messageType; 
    tANI_U16     length;
-   tSirMacAddr  bssId;  //For the session.
-   tANI_U16     noSSID; //TRUE - dont include SSID in the request.
-                        //FALSE  include the SSID. It may be null (wildcard)
+   tSirMacAddr  bssId;  
+   tANI_U16     noSSID; 
+                        
    tSirMacSSid  ucSSID;  
 } tSirNeighborReportReqInd, * tpSirNeighborReportReqInd;
                                    
@@ -120,10 +126,10 @@ typedef struct sSirNeighborBssDescription
    tANI_U8         phyType;
    union sSirNeighborBssidInfo {
          struct _rrmInfo {
-                tANI_U32      fApPreauthReachable:2;  //see IEEE 802.11k Table 7-43a
+                tANI_U32      fApPreauthReachable:2;  
                 tANI_U32      fSameSecurityMode:1;
                 tANI_U32      fSameAuthenticator:1;
-                tANI_U32      fCapSpectrumMeasurement:1; //see IEEE 802.11k Table 7-95d
+                tANI_U32      fCapSpectrumMeasurement:1; 
                 tANI_U32      fCapQos:1; 
                 tANI_U32      fCapApsd:1; 
                 tANI_U32      fCapRadioMeasurement:1; 
@@ -147,16 +153,16 @@ typedef struct sSirNeighborBssDescription
          } ccxInfo;
    } bssidInfo;
  
-   //Optional sub IEs....ignoring for now.
+   
 }tSirNeighborBssDescription, *tpSirNeighborBssDescripton;
 
 typedef struct sSirNeighborReportInd
 {
-   tANI_U16     messageType; // eWNI_SME_NEIGHBOR_REPORT_IND
+   tANI_U16     messageType; 
    tANI_U16     length;
    tANI_U16     numNeighborReports;
-   tSirMacAddr  bssId;  //For the session.
-   //tSirResultCodes    statusCode;
+   tSirMacAddr  bssId;  
+   
    tSirNeighborBssDescription sNeighborBssDescription[1];
 } tSirNeighborReportInd, * tpSirNeighborReportInd;
 
@@ -166,8 +172,6 @@ typedef struct sRRMBeaconReportRequestedIes
    tANI_U8 *pElementIds;
 }tRRMBeaconReportRequestedIes, *tpRRMBeaconReportRequestedIes;
 
-//Reporting detail defines.
-//Reference - IEEE Std 802.11k-2008 section 7.3.2.21.6 Table 7-29h
 #define BEACON_REPORTING_DETAIL_NO_FF_IE 0
 #define BEACON_REPORTING_DETAIL_ALL_FF_REQ_IE 1
 #define BEACON_REPORTING_DETAIL_ALL_FF_IE 2
@@ -175,8 +179,8 @@ typedef struct sRRMBeaconReportRequestedIes
 
 typedef struct sRRMReq
 {
-   tANI_U8 dialog_token; //In action frame;
-   tANI_U8 token; //Within individual request;
+   tANI_U8 dialog_token; 
+   tANI_U8 token; 
    tANI_U8 type;
    union {
       struct {
@@ -184,6 +188,7 @@ typedef struct sRRMReq
          tRRMBeaconReportRequestedIes reqIes;
       }Beacon;
    }request;
+   tANI_U8 sendEmptyBcnRpt;
 }tRRMReq, *tpRRMReq;
 
 typedef struct sRRMCaps
@@ -222,19 +227,18 @@ typedef struct sRRMCaps
 typedef struct sRrmPEContext
 {
    tANI_U8  rrmEnable;
-   //tChannelList APchannelReport;
-   tANI_U32   startTSF[2]; //Used during scan/measurement to store the start TSF. this is not used directly in beacon reports.
-                           //This value is stored into bssdescription and beacon report gets it from bss decsription.
+   
+   tANI_U32   startTSF[2]; 
+                           
    tRRMCaps   rrmEnabledCaps;
    tPowerdBm  txMgmtPower;
-   tANI_U8  DialogToken; //Dialog token for the request initiated from station.
+   tANI_U8  DialogToken; 
    tpRRMReq pCurrentReq;
 }tRrmPEContext, *tpRrmPEContext;
 
-// 2008 11k spec reference: 18.4.8.5 RCPI Measurement
 #define RCPI_LOW_RSSI_VALUE   (-110)
 #define RCPI_MAX_VALUE        (220)
 #define CALCULATE_RCPI(rssi)  (((rssi) + 110) * 2)
 
 
-#endif //#if defined __RRMGLOBAL_H
+#endif 

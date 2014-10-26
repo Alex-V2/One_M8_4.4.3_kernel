@@ -226,8 +226,8 @@ static int kgsl_drv_full_cache_threshold_store(struct device *dev,
 	int ret;
 	unsigned int thresh = 0;
 
-	ret = kgsl_sysfs_store(buf, count, &thresh);
-	if (ret != count)
+	ret = kgsl_sysfs_store(buf, &thresh);
+	if (ret)
 		return ret;
 
 	kgsl_driver.full_cache_threshold = thresh;
@@ -384,11 +384,37 @@ static void kgsl_page_alloc_free(struct kgsl_memdesc *memdesc)
 		for_each_sg(memdesc->sg, sg, sglen, i) {
 			if (sg->length == 0)
 				break;
+			if (memdesc->sg_backup && sg->page_link != memdesc->sg_backup[i].page_link) {
+				
+				struct scatterlist *sg2 = &memdesc->sg_backup[i];
+
+				pr_warn("%s: memdesc=%p {size=%u sglen=%d/%d, ts=%lu, created since %d msec}\n",
+					__func__, memdesc, memdesc->size, memdesc->sglen, memdesc->sglen_alloc,
+					memdesc->sg_create, jiffies_to_msecs(jiffies - memdesc->sg_create));
+				pr_warn("%s: sg=%p [%d/%d] {page=0x%lx, len=%u, off=%u, dma=%u}\n",
+					__func__, sg, i, sglen, sg->page_link, sg->length, sg->offset, sg->dma_address);
+				pr_warn("%s: sg_backup=%p [%d/%d] {page=0x%lx, len=%u, off=%u, dma=%u}\n",
+					__func__, sg2, i, sglen, sg2->page_link, sg2->length, sg2->offset, sg2->dma_address);
+				continue;
+			} else if (!IS_ALIGNED(sg->length, PAGE_SIZE) || sg->offset || sg->dma_address) {
+				
+				pr_warn("%s: memdesc=%p {size=%u sglen=%d/%d, ts=%lu, created since %d msec}\n",
+					__func__, memdesc, memdesc->size, memdesc->sglen, memdesc->sglen_alloc,
+					memdesc->sg_create, jiffies_to_msecs(jiffies - memdesc->sg_create));
+				pr_warn("%s: sg=%p [%d/%d] {page=0x%lx, len=%u, off=%u, dma=%u}\n",
+					__func__, sg, i, sglen, sg->page_link, sg->length, sg->offset, sg->dma_address);
+				continue;
+			}
 			size = 1 << get_order(sg->length);
 			for (j = 0; j < size; j++)
 				ClearPageKgsl(nth_page(sg_page(sg), j));
 			__free_pages(sg_page(sg), get_order(sg->length));
 		}
+
+	if (memdesc->sg_backup) {
+		kgsl_sg_free(memdesc->sg_backup, sglen);
+		memdesc->sg_backup = NULL;
+	}
 
 	if (priv)
 		kgsl_process_sub_stats(priv, KGSL_MEM_ENTRY_PAGE_ALLOC, memdesc->size);
@@ -631,6 +657,10 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 
 	memdesc->sglen = sglen;
 	memdesc->size = size;
+	memdesc->sg_create = jiffies;
+	memdesc->sg_backup = kgsl_sg_copy(memdesc->sg, memdesc->sglen);
+	if (memdesc->sg_backup)
+		kmemleak_not_leak(memdesc->sg_backup);
 
 	for (j = 0; j < pcount; j += step) {
 		step = min(step, pcount - j);

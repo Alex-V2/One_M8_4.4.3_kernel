@@ -190,6 +190,7 @@ struct msm_gpio_set_tbl {
 
 struct msm_camera_gpio_num_info {
 	uint16_t gpio_num[20]; 
+	uint8_t valid[20];
 };
 
 struct msm_camera_gpio_conf {
@@ -505,6 +506,7 @@ struct msm_mhl_platform_data {
 
 struct msm_i2c_platform_data {
 	int clk_freq;
+	bool clk_ctl_xfer;
 	uint32_t rmutex;
 	const char *rsl_id;
 	uint32_t pm_lat;

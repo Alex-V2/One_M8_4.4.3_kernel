@@ -4,7 +4,9 @@
 #include <linux/init.h>
 
 extern const char linux_banner[];
+extern const char linux_banner_stockui[];
 extern const char linux_proc_banner[];
+extern const char linux_proc_banner_stockui[];
 
 #define KERN_EMERG	"<0>"	
 #define KERN_ALERT	"<1>"	

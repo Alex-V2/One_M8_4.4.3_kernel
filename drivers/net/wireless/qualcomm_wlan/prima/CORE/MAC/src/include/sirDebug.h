@@ -39,17 +39,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- *
- *
- * Airgo Networks, Inc proprietary. All rights reserved.
- * Author:      Sandesh Goel
- * Date:        02/25/02
- * History:-
- * Date            Modified by    Modification Information
- * --------------------------------------------------------------------
- *
- */
 
 #ifndef __POL_DEBUG_H__
 #define __POL_DEBUG_H__
@@ -103,7 +92,7 @@
 #define PELOG4(p) { }
 
 
-#else /* WLAN_MDM_CODE_REDUCTION_OPT */
+#else 
 
 #ifdef PE_DEBUG_LOGE
 #define PELOGE(p) { p }
@@ -141,7 +130,7 @@
 #define PELOG4(p) { }
 #endif
 
-#endif /* WLAN_MDM_CODE_REDUCTION_OPT */
+#endif 
 
 #define FL(x)    "%s: %d: "\
                  x, __func__, __LINE__

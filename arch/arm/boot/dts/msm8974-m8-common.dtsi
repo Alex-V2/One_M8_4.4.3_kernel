@@ -61,6 +61,7 @@
                         mcu,Chip_mode-gpio    = <&msmgpio 53 0x00>;
                         mcu,ALS_goldh  = <0x17>;
                         mcu,ALS_goldl  = <0x4D>;
+                        mcu,proximity_debu_info = <1>;
                 };
         };
 
@@ -232,7 +233,7 @@
 		mgr,wire_alt = <2>;	/*uart alt*/
                 mgr,hs_typenum   = <2>;
                 mgr,hs_type      = <2 1>;
-                mgr,adc_max      = <1557 254>;
+                mgr,adc_max      = <1541 254>;
                 mgr,adc_min      = <255 0>;
 	};
 
@@ -606,6 +607,7 @@
 	qcom,lower-vin-min = <4200>;
 	qcom,stored-pre-delta-vddmax-mv= <(-1)>;
 	qcom,stored-batt-magic-num= <(-1)>;
+	qcom,is-aicl-adapter-wa-enabled = <1>;
 
 	status = "ok";
 	qcom,charging-disabled;

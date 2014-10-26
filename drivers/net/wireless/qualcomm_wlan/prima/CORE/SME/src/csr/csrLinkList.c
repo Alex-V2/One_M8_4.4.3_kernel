@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -54,6 +54,8 @@
 #include "vos_lock.h"
 #include "vos_memory.h"
 #include "vos_trace.h"
+
+#include "vos_timer.h"
 
 ANI_INLINE_FUNCTION void csrListInit(tListElem *pList)
 {
@@ -126,7 +128,6 @@ ANI_INLINE_FUNCTION void csrListInsertHead(tListElem *pHead, tListElem *pEntry)
 }
 
 
-//Insert pNewEntry before pEntry
 void csrListInsertEntry(tListElem *pEntry, tListElem *pNewEntry)
 {
     tListElem *pLast;
@@ -242,8 +243,8 @@ tANI_BOOLEAN csrLLFindEntry( tDblLinkList *pList, tListElem *pEntryToFind )
     {
         pEntry = csrLLPeekHead( pList, LL_ACCESS_NOLOCK);
 
-        // Have to make sure we don't loop back to the head of the list, which will
-        // happen if the entry is NOT on the list...
+        
+        
     
         while( pEntry && ( pEntry != &pList->ListHead ) ) 
         {
@@ -274,7 +275,7 @@ eHalStatus csrLLOpen( tHddHandle hHdd, tDblLinkList *pList )
     if ( LIST_FLAG_OPEN != pList->Flag ) 
     {
         pList->Count = 0;
-
+        pList->cmdTimeoutTimer = NULL;
         vosStatus = vos_lock_init(&pList->Lock);
 
         if(VOS_IS_STATUS_SUCCESS(vosStatus))
@@ -301,7 +302,7 @@ void csrLLClose( tDblLinkList *pList )
 
     if ( LIST_FLAG_OPEN == pList->Flag ) 
     {
-        // Make sure the list is empty...
+        
         csrLLPurge( pList, LL_ACCESS_LOCK );
         vos_lock_destroy( &pList->Lock );
         pList->Flag = LIST_FLAG_CLOSE;
@@ -353,6 +354,12 @@ void csrLLInsertHead( tDblLinkList *pList, tListElem *pEntry, tANI_BOOLEAN fInte
         if(fInterlocked)
         {
             csrLLUnlock(pList);
+        }
+        if ( pList->cmdTimeoutTimer && pList->cmdTimeoutDuration )
+        {
+            
+            vos_timer_start( pList->cmdTimeoutTimer,
+                pList->cmdTimeoutDuration);
         }
     }
 }
@@ -533,8 +540,8 @@ void csrLLPurge( tDblLinkList *pList, tANI_BOOLEAN fInterlocked )
         }
         while( (pEntry = csrLLRemoveHead( pList, LL_ACCESS_NOLOCK )) ) 
         {
-            // just remove everything from the list until 
-            // nothing left on the list.
+            
+            
         }
         if ( fInterlocked ) 
         {  
@@ -564,8 +571,8 @@ tANI_BOOLEAN csrLLRemoveEntry( tDblLinkList *pList, tListElem *pEntryToRemove, t
 
         pEntry = csrLLPeekHead( pList, LL_ACCESS_NOLOCK );
 
-        // Have to make sure we don't loop back to the head of the list, which will
-        // happen if the entry is NOT on the list...
+        
+        
         while( pEntry && ( pEntry != &pList->ListHead ) ) 
         {
             if ( pEntry == pEntryToRemove )
@@ -582,6 +589,10 @@ tANI_BOOLEAN csrLLRemoveEntry( tDblLinkList *pList, tListElem *pEntryToRemove, t
         if ( fInterlocked ) 
         {
             csrLLUnlock( pList );
+        }
+        if ( pList->cmdTimeoutTimer )
+        {
+           vos_timer_stop(pList->cmdTimeoutTimer);
         }
     }
 
@@ -610,7 +621,7 @@ tListElem *csrLLNext( tDblLinkList *pList, tListElem *pEntry, tANI_BOOLEAN fInte
         if ( !csrIsListEmpty(&pList->ListHead) && csrLLFindEntry( pList, pEntry ) ) 
         {
             pNextEntry = pEntry->next;
-            //Make sure we don't walk past the head
+            
             if ( pNextEntry == &pList->ListHead ) 
             {
                 pNextEntry = NULL;
@@ -647,7 +658,7 @@ tListElem *csrLLPrevious( tDblLinkList *pList, tListElem *pEntry, tANI_BOOLEAN f
         if ( !csrIsListEmpty(&pList->ListHead) && csrLLFindEntry( pList, pEntry ) ) 
         {
             pNextEntry = pEntry->last; 
-            //Make sure we don't walk past the head
+            
             if ( pNextEntry == &pList->ListHead ) 
             {
                 pNextEntry = NULL;

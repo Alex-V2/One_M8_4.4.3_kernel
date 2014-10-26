@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -56,6 +56,42 @@ static struct msm_gpiomux_config msm_hsic_configs[] = {
 	},
 };
 #endif
+
+static struct gpiomux_setting smsc_hub_act_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_8MA,
+	.pull = GPIOMUX_PULL_NONE,
+};
+
+static struct gpiomux_setting smsc_hub_susp_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+};
+
+static struct msm_gpiomux_config smsc_hub_configs[] = {
+	{
+		.gpio = 114, 
+		.settings = {
+			[GPIOMUX_ACTIVE] = &smsc_hub_act_cfg,
+			[GPIOMUX_SUSPENDED] = &smsc_hub_susp_cfg,
+		},
+	},
+	{
+		.gpio = 8, 
+		.settings = {
+			[GPIOMUX_ACTIVE] = &smsc_hub_act_cfg,
+			[GPIOMUX_SUSPENDED] = &smsc_hub_susp_cfg,
+		},
+	},
+	{
+		.gpio = 9, 
+		.settings = {
+			[GPIOMUX_ACTIVE] = &smsc_hub_act_cfg,
+			[GPIOMUX_SUSPENDED] = &smsc_hub_susp_cfg,
+		},
+	},
+};
 
 #define KS8851_IRQ_GPIO 115
 
@@ -188,13 +224,6 @@ static struct msm_gpiomux_config msm_blsp_configs[] __initdata = {
 		},
 	},
 	{
-		.gpio      = 2,		
-		.settings = {
-			[GPIOMUX_ACTIVE] = &gpio_spi_cs_act_config,
-			[GPIOMUX_SUSPENDED] = &gpio_spi_susp_config,
-		},
-	},
-	{
 		.gpio      = 3,		
 		.settings = {
 			[GPIOMUX_ACTIVE] = &gpio_spi_act_config,
@@ -247,6 +276,16 @@ static struct msm_gpiomux_config msm_blsp_configs[] __initdata = {
 		.settings = {
 			[GPIOMUX_ACTIVE] = &gpio_i2c_config,
 			[GPIOMUX_SUSPENDED] = &gpio_i2c_config,
+		},
+	},
+};
+
+static struct msm_gpiomux_config msm_blsp_spi_cs_config[] __initdata = {
+	{
+		.gpio      = 2,		
+		.settings = {
+			[GPIOMUX_ACTIVE] = &gpio_spi_cs_act_config,
+			[GPIOMUX_SUSPENDED] = &gpio_spi_susp_config,
 		},
 	},
 };
@@ -821,9 +860,13 @@ void __init msm8226_init_gpiomux(void)
 	if (of_board_is_skuf())
 		msm_gpiomux_install(msm_skuf_blsp_configs,
 			ARRAY_SIZE(msm_skuf_blsp_configs));
-	else
+	else {
 		msm_gpiomux_install(msm_blsp_configs,
 			ARRAY_SIZE(msm_blsp_configs));
+		if (machine_is_msm8226())
+			msm_gpiomux_install(msm_blsp_spi_cs_config,
+				ARRAY_SIZE(msm_blsp_spi_cs_config));
+	}
 
 	msm_gpiomux_install(wcnss_5wire_interface,
 				ARRAY_SIZE(wcnss_5wire_interface));
@@ -858,6 +901,9 @@ void __init msm8226_init_gpiomux(void)
 	}
 	msm_gpiomux_install(msm_hsic_configs, ARRAY_SIZE(msm_hsic_configs));
 #endif
+	if (machine_is_msm8926() && of_board_is_mtp())
+		msm_gpiomux_install(smsc_hub_configs,
+			ARRAY_SIZE(smsc_hub_configs));
 }
 
 static void wcnss_switch_to_gpio(void)
@@ -962,3 +1008,5 @@ u32 wcnss_rf_read_reg(u32 rf_reg_addr)
 
 	return rf_data_received;
 }
+
+

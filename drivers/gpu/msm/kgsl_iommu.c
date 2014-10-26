@@ -1450,7 +1450,7 @@ static void kgsl_iommu_flush_tlb_pt_current(struct kgsl_pagetable *pt)
 	struct kgsl_device *device = pt->mmu->device;
 	struct kgsl_iommu *iommu = pt->mmu->priv;
 
-	if (!kgsl_mutex_lock(&device->mutex, &device->mutex_owner))
+	if (kgsl_mutex_lock(&device->mutex, &device->mutex_owner))
 		lock_taken = 1;
 
 	if (kgsl_mmu_is_perprocess(pt->mmu) &&
@@ -1532,8 +1532,7 @@ kgsl_iommu_map(struct kgsl_pagetable *pt,
 		}
 	}
 
-	if (!msm_soc_version_supports_iommu_v0())
-		kgsl_iommu_flush_tlb_pt_current(pt);
+	kgsl_iommu_flush_tlb_pt_current(pt);
 
 	return ret;
 }

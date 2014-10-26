@@ -1,23 +1,30 @@
 /*
-  * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
-  *
-  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
-  *
-  *
-  * Permission to use, copy, modify, and/or distribute this software for
-  * any purpose with or without fee is hereby granted, provided that the
-  * above copyright notice and this permission notice appear in all
-  * copies.
-  *
-  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
-  * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-  * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
-  * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
-  * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
-  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
-  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-  * PERFORMANCE OF THIS SOFTWARE.
-*/
+ * Copyright (c) 2012-2014 The Linux Foundation. All rights reserved.
+ *
+ * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
+ *
+ *
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that the
+ * above copyright notice and this permission notice appear in all
+ * copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
+ * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ */
+
+/*
+ * This file was originally distributed by Qualcomm Atheros, Inc.
+ * under proprietary terms before Copyright ownership was assigned
+ * to the Linux Foundation.
+ */
+
 #ifdef WLAN_FEATURE_VOWIFI_11R
 /**=========================================================================
 
@@ -29,12 +36,8 @@
 
   ========================================================================*/
 
-/* $Header$ */
 
 
-/*--------------------------------------------------------------------------
-  Include Files
-  ------------------------------------------------------------------------*/
 #include <limSendMessages.h>
 #include <limTypes.h>
 #include <limFT.h>
@@ -51,18 +54,12 @@
 #define LIM_FT_RIC_DESCRIPTOR_RESOURCE_TYPE_BA  1
 #define LIM_FT_RIC_DESCRIPTOR_MAX_VAR_DATA_LEN   255
 
-/*--------------------------------------------------------------------------
-  Initialize the FT variables.
-  ------------------------------------------------------------------------*/
 void limFTOpen(tpAniSirGlobal pMac)
 {
     pMac->ft.ftPEContext.pFTPreAuthReq = NULL;
     pMac->ft.ftPEContext.psavedsessionEntry = NULL;
 }
 
-/*--------------------------------------------------------------------------
-  Cleanup FT variables.
-  ------------------------------------------------------------------------*/
 void limFTCleanup(tpAniSirGlobal pMac)
 {
     if (pMac->ft.ftPEContext.pFTPreAuthReq)
@@ -80,8 +77,8 @@ void limFTCleanup(tpAniSirGlobal pMac)
         pMac->ft.ftPEContext.pFTPreAuthReq = NULL;
     }
 
-    // This is the old session, should be deleted else where.
-    // We should not be cleaning it here, just set it to NULL.
+    
+    
     if (pMac->ft.ftPEContext.psavedsessionEntry)
     {
 #if defined WLAN_FEATURE_VOWIFI_11R_DEBUG
@@ -91,8 +88,8 @@ void limFTCleanup(tpAniSirGlobal pMac)
         pMac->ft.ftPEContext.psavedsessionEntry = NULL;
     }
 
-    // This is the extra session we added as part of Auth resp
-    // clean it up.
+    
+    
     if (pMac->ft.ftPEContext.pftSessionEntry)
     {
         if ((((tpPESession)(pMac->ft.ftPEContext.pftSessionEntry))->valid) &&
@@ -124,9 +121,6 @@ void limFTCleanup(tpAniSirGlobal pMac)
 
 }
 
-/*--------------------------------------------------------------------------
-  Init FT variables.
-  ------------------------------------------------------------------------*/
 void limFTInit(tpAniSirGlobal pMac)
 {
     if (pMac->ft.ftPEContext.pFTPreAuthReq)
@@ -145,8 +139,8 @@ void limFTInit(tpAniSirGlobal pMac)
         pMac->ft.ftPEContext.pFTPreAuthReq = NULL;
     }
 
-    // This is the old session, should be deleted else where.
-    // We should not be cleaning it here, just set it to NULL.
+    
+    
     if (pMac->ft.ftPEContext.psavedsessionEntry)
     {
 #if defined WLAN_FEATURE_VOWIFI_11R_DEBUG
@@ -156,19 +150,15 @@ void limFTInit(tpAniSirGlobal pMac)
         pMac->ft.ftPEContext.psavedsessionEntry = NULL;
     }
 
-    // This is the extra session we added as part of Auth resp
-    // clean it up.
+    
+    
     if (pMac->ft.ftPEContext.pftSessionEntry)
     {
+
 #if defined WLAN_FEATURE_VOWIFI_11R_DEBUG
         PELOGE(limLog( pMac, LOGE, "%s: Deleting session = %p ",
             __func__, pMac->ft.ftPEContext.pftSessionEntry);)
 #endif
-        /* Delete the previous valid preauth pesession if it is still in
-         * mMlmState= eLIM_MLM_WT_ADD_BSS_RSP_FT_REASSOC_STATE
-         * and limSmeState = eLIM_SME_WT_REASSOC_STATE. This means last
-         * preauth didnt went through and its Session was not deleted.
-         */
         if ((((tpPESession)(pMac->ft.ftPEContext.pftSessionEntry))->valid) &&
             (((tpPESession)(pMac->ft.ftPEContext.pftSessionEntry))->limSmeState
                                                == eLIM_SME_WT_REASSOC_STATE) &&
@@ -179,6 +169,7 @@ void limFTInit(tpAniSirGlobal pMac)
                ((tpPESession)pMac->ft.ftPEContext.pftSessionEntry)->peSessionId);
             peDeleteSession(pMac, pMac->ft.ftPEContext.pftSessionEntry);
         }
+
         pMac->ft.ftPEContext.pftSessionEntry = NULL;
     }
 
@@ -207,29 +198,23 @@ void limFTInit(tpAniSirGlobal pMac)
 
 }
 
-/*------------------------------------------------------------------
- *
- * This is the handler after suspending the link.
- * We suspend the link and then now proceed to switch channel.
- *
- *------------------------------------------------------------------*/
 void FTPreAuthSuspendLinkHandler(tpAniSirGlobal pMac, eHalStatus status, tANI_U32 *data)
 {
     tpPESession psessionEntry;
 
-    // The link is suspended of not ?
+    
     if (status != eHAL_STATUS_SUCCESS)
     {
         PELOGE(limLog( pMac, LOGE, "%s: Returning ", __func__);)
-        // Post the FT Pre Auth Response to SME
+        
         limPostFTPreAuthRsp(pMac, eSIR_FAILURE, NULL, 0, (tpPESession)data);
 
         return;
     }
 
     psessionEntry = (tpPESession)data;
-    // Suspended, now move to a different channel.
-    // Perform some sanity check before proceeding.
+    
+    
     if ((pMac->ft.ftPEContext.pFTPreAuthReq) && psessionEntry)
     {
         limChangeChannelWithCallback(pMac,
@@ -238,31 +223,20 @@ void FTPreAuthSuspendLinkHandler(tpAniSirGlobal pMac, eHalStatus status, tANI_U3
         return;
     }
 
-    // Else return error.
+    
     limPostFTPreAuthRsp(pMac, eSIR_FAILURE, NULL, 0, psessionEntry);
 }
 
 
-/*--------------------------------------------------------------------------
-  In this function, we process the FT Pre Auth Req.
-  We receive Pre-Auth
-  Suspend link
-  Register a call back
-  In the call back, we will need to accept frames from the new bssid
-  Send out the auth req to new AP.
-  Start timer and when the timer is done or if we receive the Auth response
-  We change channel
-  Resume link
-  ------------------------------------------------------------------------*/
 int limProcessFTPreAuthReq(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
 {
     int bufConsumed = FALSE;
     tpPESession psessionEntry;
     tANI_U8 sessionId;
 
-    // Now we are starting fresh make sure all's cleanup.
+    
     limFTInit(pMac);
-    // Can set it only after sending auth
+    
     pMac->ft.ftPEContext.ftPreAuthStatus = eSIR_FAILURE;
 
     if( pMac->ft.ftPEContext.pFTPreAuthReq &&
@@ -272,7 +246,7 @@ int limProcessFTPreAuthReq(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
         pMac->ft.ftPEContext.pFTPreAuthReq->pbssDescription = NULL;
     }
 
-    // We need information from the Pre-Auth Req. Lets save that
+    
     pMac->ft.ftPEContext.pFTPreAuthReq = (tpSirFTPreAuthReq)pMsg->bodyptr;
 
 #if defined WLAN_FEATURE_VOWIFI_11R_DEBUG
@@ -282,7 +256,7 @@ int limProcessFTPreAuthReq(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
         pMac->ft.ftPEContext.pFTPreAuthReq->ft_ies[2]);)
 #endif
 
-    // Get the current session entry
+    
     psessionEntry = peFindSessionByBssid(pMac,
         pMac->ft.ftPEContext.pFTPreAuthReq->currbssId, &sessionId);
     if (psessionEntry == NULL)
@@ -290,7 +264,7 @@ int limProcessFTPreAuthReq(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
         PELOGE(limLog( pMac, LOGE, "%s: Unable to find session for the following bssid",
             __func__);)
         limPrintMacAddr( pMac, pMac->ft.ftPEContext.pFTPreAuthReq->currbssId, LOGE );
-        // Post the FT Pre Auth Response to SME
+        
         limPostFTPreAuthRsp(pMac, eSIR_FAILURE, NULL, 0, NULL);
         if (pMac->ft.ftPEContext.pFTPreAuthReq->pbssDescription)
         {
@@ -300,14 +274,14 @@ int limProcessFTPreAuthReq(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
         pMac->ft.ftPEContext.pFTPreAuthReq = NULL;
         return TRUE;
     }
-#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM //FEATURE_WLAN_DIAG_SUPPORT
+#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM 
         limDiagEventReport(pMac, WLAN_PE_DIAG_PRE_AUTH_REQ_EVENT, psessionEntry, 0, 0);
 #endif
 
-    // Dont need to suspend if APs are in same channel
+    
     if (psessionEntry->currentOperChannel != pMac->ft.ftPEContext.pFTPreAuthReq->preAuthchannelNum)
     {
-        // Need to suspend link only if the channels are different
+        
         PELOG2(limLog(pMac,LOG2,"%s: Performing pre-auth on different"
                " channel (session %p)", __func__, psessionEntry);)
         limSuspendLink(pMac, eSIR_CHECK_ROAMING_SCAN, FTPreAuthSuspendLinkHandler,
@@ -317,17 +291,13 @@ int limProcessFTPreAuthReq(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
     {
         PELOG2(limLog(pMac,LOG2,"%s: Performing pre-auth on same"
                " channel (session %p)", __func__, psessionEntry);)
-        // We are in the same channel. Perform pre-auth
+        
         limPerformFTPreAuth(pMac, eHAL_STATUS_SUCCESS, NULL, psessionEntry);
     }
 
     return bufConsumed;
 }
 
-/*------------------------------------------------------------------
- * Send the Auth1
- * Receive back Auth2
- *------------------------------------------------------------------*/
 void limPerformFTPreAuth(tpAniSirGlobal pMac, eHalStatus status, tANI_U32 *data,
     tpPESession psessionEntry)
 {
@@ -335,7 +305,7 @@ void limPerformFTPreAuth(tpAniSirGlobal pMac, eHalStatus status, tANI_U32 *data,
 
     if (psessionEntry->is11Rconnection)
     {
-        // Only 11r assoc has FT IEs.
+        
         if (pMac->ft.ftPEContext.pFTPreAuthReq->ft_ies == NULL)
         {
             PELOGE(limLog( pMac, LOGE, "%s: FTIEs for Auth Req Seq 1 is absent");)
@@ -358,22 +328,22 @@ void limPerformFTPreAuth(tpAniSirGlobal pMac, eHalStatus status, tANI_U32 *data,
 
     if (psessionEntry->is11Rconnection)
     {
-        // Now we are on the right channel and need to send out Auth1 and
-        // receive Auth2.
-        authFrame.authAlgoNumber = eSIR_FT_AUTH; // Set the auth type to FT
+        
+        
+        authFrame.authAlgoNumber = eSIR_FT_AUTH; 
     }
 #if defined FEATURE_WLAN_CCX || defined FEATURE_WLAN_LFR
     else
     {
-        // Will need to make isCCXconnection a enum may be for further
-        // improvements to this to match this algorithm number
-        authFrame.authAlgoNumber = eSIR_OPEN_SYSTEM; // For now if its CCX and 11r FT.
+        
+        
+        authFrame.authAlgoNumber = eSIR_OPEN_SYSTEM; 
     }
 #endif
     authFrame.authTransactionSeqNumber = SIR_MAC_AUTH_FRAME_1;
     authFrame.authStatusCode = 0;
 
-    // Start timer here to come back to operating channel.
+    
     pMac->lim.limTimers.gLimFTPreAuthRspTimer.sessionId = psessionEntry->peSessionId;
     if(TX_SUCCESS !=  tx_timer_activate(&pMac->lim.limTimers.gLimFTPreAuthRspTimer))
     {
@@ -395,13 +365,6 @@ MTRACE(macTrace(pMac, TRACE_CODE_TIMER_ACTIVATE, psessionEntry->peSessionId, eLI
 }
 
 
-/*------------------------------------------------------------------
- *
- * Create the new Add Bss Req to the new AP.
- * This will be used when we are ready to FT to the new AP.
- * The newly created ft Session entry is passed to this function
- *
- *------------------------------------------------------------------*/
 tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
     tANI_U8 updateEntry, tpPESession pftSessionEntry,
     tpSirBssDescription bssDescription )
@@ -418,7 +381,7 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
         return eSIR_MEM_ALLOC_FAILED;
     }
 
-    // Package SIR_HAL_ADD_BSS_REQ message parameters
+    
     pAddBssParams = vos_mem_malloc(sizeof( tAddBssParams ));
     if (NULL == pAddBssParams)
     {
@@ -441,11 +404,11 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
     vos_mem_copy(pAddBssParams->bssId, bssDescription->bssId,
                  sizeof(tSirMacAddr));
 
-    // Fill in tAddBssParams selfMacAddr
+    
     vos_mem_copy(pAddBssParams->selfMacAddr, pftSessionEntry->selfMacAddr,
                  sizeof(tSirMacAddr));
 
-    pAddBssParams->bssType = pftSessionEntry->bssType;//eSIR_INFRASTRUCTURE_MODE;
+    pAddBssParams->bssType = pftSessionEntry->bssType;
     pAddBssParams->operMode = BSS_OPERATIONAL_MODE_STA;
 
     pAddBssParams->beaconInterval = bssDescription->beaconInterval;
@@ -472,7 +435,7 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
     pAddBssParams->llgCoexist = (tANI_U8) pftSessionEntry->beaconParams.llgCoexist;
     pAddBssParams->ht20Coexist = (tANI_U8) pftSessionEntry->beaconParams.ht20Coexist;
 
-    // Use the advertised capabilities from the received beacon/PR
+    
     if (IS_DOT11_MODE_HT(pftSessionEntry->dot11mode) && ( pBeaconStruct->HTCaps.present ))
     {
         pAddBssParams->htCapable = pBeaconStruct->HTCaps.present;
@@ -501,6 +464,24 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
     }
 
     pAddBssParams->currentOperChannel = bssDescription->channelId;
+    pftSessionEntry->htSecondaryChannelOffset = pAddBssParams->currentExtChannel;
+
+#ifdef WLAN_FEATURE_11AC
+    if (pftSessionEntry->vhtCapability && pftSessionEntry->vhtCapabilityPresentInBeacon)
+    {
+        pAddBssParams->vhtCapable = pBeaconStruct->VHTCaps.present;
+        pAddBssParams->vhtTxChannelWidthSet = pBeaconStruct->VHTOperation.chanWidth;
+        pAddBssParams->currentExtChannel = limGet11ACPhyCBState ( pMac,
+                                                                  pAddBssParams->currentOperChannel,
+                                                                  pAddBssParams->currentExtChannel,
+                                                                  pftSessionEntry->apCenterChan,
+                                                                  pftSessionEntry);
+    }
+    else
+    {
+        pAddBssParams->vhtCapable = 0;
+    }
+#endif
 
 #if defined WLAN_FEATURE_VOWIFI_11R_DEBUG
     limLog( pMac, LOG1, FL( "SIR_HAL_ADD_BSS_REQ with channel = %d..." ),
@@ -508,17 +489,17 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
 #endif
 
 
-    // Populate the STA-related parameters here
-    // Note that the STA here refers to the AP
+    
+    
     {
-        pAddBssParams->staContext.staType = STA_ENTRY_OTHER; // Identifying AP as an STA
+        pAddBssParams->staContext.staType = STA_ENTRY_OTHER; 
 
         vos_mem_copy(pAddBssParams->staContext.bssId,
                      bssDescription->bssId,
                      sizeof(tSirMacAddr));
         pAddBssParams->staContext.listenInterval = bssDescription->beaconInterval;
 
-        pAddBssParams->staContext.assocId = 0; // Is SMAC OK with this?
+        pAddBssParams->staContext.assocId = 0; 
         pAddBssParams->staContext.uAPSD = 0;
         pAddBssParams->staContext.maxSPLen = 0;
         pAddBssParams->staContext.shortPreambleSupported = (tANI_U8)pBeaconStruct->capabilityInfo.shortPreamble;
@@ -535,6 +516,35 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
                 (chanWidthSupp) )
             {
                 pAddBssParams->staContext.txChannelWidthSet = ( tANI_U8 )pBeaconStruct->HTInfo.recommendedTxWidthSet;
+            }
+            else
+            {
+                pAddBssParams->staContext.txChannelWidthSet = WNI_CFG_CHANNEL_BONDING_MODE_DISABLE;
+            }
+#ifdef WLAN_FEATURE_11AC
+            if (pftSessionEntry->vhtCapability && pBeaconStruct->VHTCaps.present)
+            {
+                pAddBssParams->staContext.vhtCapable = 1;
+                if ((pBeaconStruct->VHTCaps.suBeamFormerCap ||
+                     pBeaconStruct->VHTCaps.muBeamformerCap) &&
+                     pftSessionEntry->txBFIniFeatureEnabled)
+                {
+                    pAddBssParams->staContext.vhtTxBFCapable = 1;
+                }
+            }
+#endif
+            if( (pBeaconStruct->HTCaps.supportedChannelWidthSet) &&
+                (chanWidthSupp) )
+            {
+                pAddBssParams->staContext.txChannelWidthSet =
+                        ( tANI_U8 )pBeaconStruct->HTInfo.recommendedTxWidthSet;
+#ifdef WLAN_FEATURE_11AC
+                if (pAddBssParams->staContext.vhtCapable)
+                {
+                    pAddBssParams->staContext.vhtTxChannelWidthSet =
+                            pBeaconStruct->VHTOperation.chanWidth;
+                }
+#endif
             }
             else
             {
@@ -559,7 +569,7 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
         else
             pAddBssParams->staContext.wmmEnabled = 0;
 
-        //Update the rates
+        
 #ifdef WLAN_FEATURE_11AC
         limPopulatePeerRateSet(pMac, &pAddBssParams->staContext.supportedRates,
                              pBeaconStruct->HTCaps.supportedMCSSet,
@@ -568,12 +578,26 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
         limPopulatePeerRateSet(pMac, &pAddBssParams->staContext.supportedRates,
                                                     beaconStruct.HTCaps.supportedMCSSet, false,pftSessionEntry);
 #endif
-        limFillSupportedRatesInfo(pMac, NULL, &pAddBssParams->staContext.supportedRates,pftSessionEntry);
-
+        if (pftSessionEntry->htCapability)
+        {
+           pAddBssParams->staContext.supportedRates.opRateMode = eSTA_11n;
+           if (pftSessionEntry->vhtCapability)
+              pAddBssParams->staContext.supportedRates.opRateMode = eSTA_11ac;
+        }
+        else
+        {
+           if (pftSessionEntry->limRFBand == SIR_BAND_5_GHZ)
+           {
+              pAddBssParams->staContext.supportedRates.opRateMode = eSTA_11a;
+           }
+           else
+           {
+              pAddBssParams->staContext.supportedRates.opRateMode = eSTA_11bg;
+           }
+        }
     }
 
-
-    //Disable BA. It will be set as part of ADDBA negotiation.
+    
     for( i = 0; i < STACFG_MAX_TC; i++ )
     {
         pAddBssParams->staContext.staTCParams[i].txUseBA    = eBA_DISABLE;
@@ -592,11 +616,11 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
     pAddBssParams->staContext.sessionId = pftSessionEntry->peSessionId;
     pAddBssParams->sessionId = pftSessionEntry->peSessionId;
 
-    // Set a new state for MLME
+    
 
     pftSessionEntry->limMlmState = eLIM_MLM_WT_ADD_BSS_RSP_FT_REASSOC_STATE;
     MTRACE(macTrace(pMac, TRACE_CODE_MLM_STATE, pftSessionEntry->peSessionId, eLIM_MLM_WT_ADD_BSS_RSP_FT_REASSOC_STATE));
-    pAddBssParams->halPersona=(tANI_U8)pftSessionEntry->pePersona; //pass on the session persona to hal
+    pAddBssParams->halPersona=(tANI_U8)pftSessionEntry->pePersona; 
 
     pMac->ft.ftPEContext.pAddBssReq = pAddBssParams;
 
@@ -608,12 +632,6 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
     return 0;
 }
 
-/*------------------------------------------------------------------
- *
- * Setup the new session for the pre-auth AP.
- * Return the newly created session entry.
- *
- *------------------------------------------------------------------*/
 tpPESession limFillFTSession(tpAniSirGlobal pMac,
     tpSirBssDescription  pbssDescription, tpPESession psessionEntry)
 {
@@ -622,6 +640,8 @@ tpPESession limFillFTSession(tpAniSirGlobal pMac,
     tPowerdBm        localPowerConstraint;
     tPowerdBm        regMax;
     tSchBeaconStruct *pBeaconStruct;
+    uint32           selfDot11Mode;
+    ePhyChanBondState cbMode;
 
     pBeaconStruct = vos_mem_malloc(sizeof(tSchBeaconStruct));
     if (NULL == pBeaconStruct)
@@ -632,21 +652,17 @@ tpPESession limFillFTSession(tpAniSirGlobal pMac,
 
 
 
-    /* Retrieve the session that has already been created and update the entry */
+    
     pftSessionEntry = pMac->ft.ftPEContext.pftSessionEntry;
 #if defined WLAN_FEATURE_VOWIFI_11R_DEBUG || defined FEATURE_WLAN_CCX || defined(FEATURE_WLAN_LFR)
     limPrintMacAddr(pMac, pbssDescription->bssId, LOG1);
 #endif
-
-    pftSessionEntry->dot11mode = psessionEntry->dot11mode;
-    pftSessionEntry->htCapability = psessionEntry->htCapability;
-
     pftSessionEntry->limWmeEnabled = psessionEntry->limWmeEnabled;
     pftSessionEntry->limQosEnabled = psessionEntry->limQosEnabled;
     pftSessionEntry->limWsmEnabled = psessionEntry->limWsmEnabled;
     pftSessionEntry->lim11hEnable = psessionEntry->lim11hEnable;
 
-    // Fields to be filled later
+    
     pftSessionEntry->pLimJoinReq = NULL;
     pftSessionEntry->smeSessionId = 0;
     pftSessionEntry->transactionId = 0;
@@ -669,22 +685,39 @@ tpPESession limFillFTSession(tpAniSirGlobal pMac,
     vos_mem_copy(pftSessionEntry->ssId.ssId, pBeaconStruct->ssId.ssId,
         pftSessionEntry->ssId.length);
 
-
-    // Self Mac
+    wlan_cfgGetInt(pMac, WNI_CFG_DOT11_MODE, &selfDot11Mode);
+    pftSessionEntry->dot11mode = selfDot11Mode;
+    pftSessionEntry->vhtCapability = (IS_DOT11_MODE_VHT(pftSessionEntry->dot11mode)
+                                     && pBeaconStruct->VHTCaps.present);
+    pftSessionEntry->htCapability = (IS_DOT11_MODE_HT(pftSessionEntry->dot11mode)
+                                     && pBeaconStruct->HTCaps.present);
+#ifdef WLAN_FEATURE_11AC
+    if ( pBeaconStruct->VHTCaps.present && pBeaconStruct->VHTOperation.present)
+    {
+       pftSessionEntry->vhtCapabilityPresentInBeacon = 1;
+       pftSessionEntry->apCenterChan = pBeaconStruct->VHTOperation.chanCenterFreqSeg1;
+       pftSessionEntry->apChanWidth = pBeaconStruct->VHTOperation.chanWidth;
+    }
+    else
+    {
+       pftSessionEntry->vhtCapabilityPresentInBeacon = 0;
+    }
+#endif
+    
     sirCopyMacAddr(pftSessionEntry->selfMacAddr, psessionEntry->selfMacAddr);
     sirCopyMacAddr(pftSessionEntry->limReAssocbssId, pbssDescription->bssId);
 #if defined WLAN_FEATURE_VOWIFI_11R_DEBUG || defined FEATURE_WLAN_CCX || defined(FEATURE_WLAN_LFR)
     limPrintMacAddr(pMac, pftSessionEntry->limReAssocbssId, LOG1);
 #endif
 
-    /* Store beaconInterval */
+    
     pftSessionEntry->beaconParams.beaconInterval = pbssDescription->beaconInterval;
     pftSessionEntry->bssType = psessionEntry->bssType;
 
     pftSessionEntry->statypeForBss = STA_ENTRY_PEER;
     pftSessionEntry->nwType = pbssDescription->nwType;
 
-    /* Copy The channel Id to the session Table */
+    
     pftSessionEntry->limReassocChannelId = pbssDescription->channelId;
     pftSessionEntry->currentOperChannel = pbssDescription->channelId;
 
@@ -699,7 +732,7 @@ tpPESession limFillFTSession(tpAniSirGlobal pMac,
     }
     else
     {
-        /* Throw an error and return and make sure to delete the session.*/
+        
         limLog(pMac, LOGE, FL("Invalid bss type"));
     }
 
@@ -744,20 +777,28 @@ tpPESession limFillFTSession(tpAniSirGlobal pMac,
 
     pftSessionEntry->encryptType = psessionEntry->encryptType;
 
+    if (pftSessionEntry->limRFBand == SIR_BAND_2_4_GHZ)
+    {
+       cbMode = pMac->roam.configParam.channelBondingMode24GHz;
+    }
+    else
+    {
+       cbMode = pMac->roam.configParam.channelBondingMode5GHz;
+    }
+    pftSessionEntry->htSupportedChannelWidthSet =
+               cbMode && pBeaconStruct->HTCaps.supportedChannelWidthSet;
+    pftSessionEntry->htRecommendedTxWidthSet =
+               pftSessionEntry->htSupportedChannelWidthSet;
+
     vos_mem_free(pBeaconStruct);
     return pftSessionEntry;
 }
 
-/*------------------------------------------------------------------
- *
- * Setup the session and the add bss req for the pre-auth AP.
- *
- *------------------------------------------------------------------*/
 void limFTSetupAuthSession(tpAniSirGlobal pMac, tpPESession psessionEntry)
 {
     tpPESession pftSessionEntry;
 
-    // Prepare the session right now with as much as possible.
+    
     pftSessionEntry = limFillFTSession(pMac, pMac->ft.ftPEContext.pFTPreAuthReq->pbssDescription, psessionEntry);
 
     if (pftSessionEntry)
@@ -779,9 +820,6 @@ void limFTSetupAuthSession(tpAniSirGlobal pMac, tpPESession psessionEntry)
     }
 }
 
-/*------------------------------------------------------------------
- * Resume Link Call Back
- *------------------------------------------------------------------*/
 void limFTProcessPreAuthResult(tpAniSirGlobal pMac, eHalStatus status, tANI_U32 *data)
 {
     tpPESession psessionEntry;
@@ -796,21 +834,18 @@ void limFTProcessPreAuthResult(tpAniSirGlobal pMac, eHalStatus status, tANI_U32 
         limFTSetupAuthSession(pMac, psessionEntry);
     }
 
-    // Post the FT Pre Auth Response to SME
+    
     limPostFTPreAuthRsp(pMac, pMac->ft.ftPEContext.ftPreAuthStatus,
         pMac->ft.ftPEContext.saved_auth_rsp,
         pMac->ft.ftPEContext.saved_auth_rsp_length, psessionEntry);
 
 }
 
-/*------------------------------------------------------------------
- * Resume Link Call Back
- *------------------------------------------------------------------*/
 void limPerformPostFTPreAuthAndChannelChange(tpAniSirGlobal pMac, eHalStatus status, tANI_U32 *data,
     tpPESession psessionEntry)
 {
-    //Set the resume channel to Any valid channel (invalid).
-    //This will instruct HAL to set it to any previous valid channel.
+    
+    
     peSetResumeChannel(pMac, 0, 0);
     limResumeLink(pMac, limFTProcessPreAuthResult, (tANI_U32 *)psessionEntry);
 }
@@ -818,7 +853,7 @@ void limPerformPostFTPreAuthAndChannelChange(tpAniSirGlobal pMac, eHalStatus sta
 tSirRetStatus limCreateRICBlockAckIE(tpAniSirGlobal pMac, tANI_U8 tid, tCfgTrafficClass *pTrafficClass,
                                                                     tANI_U8 *ric_ies, tANI_U32 *ieLength)
 {
-    /* BlockACK + RIC is not supported now, TODO later to support this */
+    
 #if 0
     tDot11fIERICDataDesc ricIe;
     tDot11fFfBAStartingSequenceControl baSsnControl;
@@ -837,24 +872,24 @@ tSirRetStatus limCreateRICBlockAckIE(tpAniSirGlobal pMac, tANI_U8 tid, tCfgTraff
     ricIe.RICDescriptor.present = 1;
     ricIe.RICDescriptor.resourceType = LIM_FT_RIC_DESCRIPTOR_RESOURCE_TYPE_BA;
     baParamSet.tid = tid;
-    baParamSet.policy = pTrafficClass->fTxBApolicy;  // Immediate Block Ack
+    baParamSet.policy = pTrafficClass->fTxBApolicy;  
     baParamSet.bufferSize = pTrafficClass->txBufSize;
     vos_mem_copy((v_VOID_t *)&baTimeout, (v_VOID_t *)&pTrafficClass->tuTxBAWaitTimeout, sizeof(baTimeout));
     baSsnControl.fragNumber = 0;
     baSsnControl.ssn = LIM_FT_RIC_BA_SSN;
     if (ricIe.RICDescriptor.num_variableData < sizeof (ricIe.RICDescriptor.variableData)) {
         dot11fPackFfAddBAParameterSet(pMac, &baParamSet, &ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData]);
-        //vos_mem_copy(&ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData], &baParamSet, sizeof(tDot11fFfAddBAParameterSet));
+        
         ricIe.RICDescriptor.num_variableData += sizeof(tDot11fFfAddBAParameterSet);
     }
     if (ricIe.RICDescriptor.num_variableData < sizeof (ricIe.RICDescriptor.variableData)) {
         dot11fPackFfBATimeout(pMac, &baTimeout, &ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData]);
-        //vos_mem_copy(&ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData], &baTimeout, sizeof(tDot11fFfBATimeout));
+        
         ricIe.RICDescriptor.num_variableData += sizeof(tDot11fFfBATimeout);
     }
     if (ricIe.RICDescriptor.num_variableData < sizeof (ricIe.RICDescriptor.variableData)) {
         dot11fPackFfBAStartingSequenceControl(pMac, &baSsnControl, &ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData]);
-        //vos_mem_copy(&ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData], &baSsnControl, sizeof(tDot11fFfBAStartingSequenceControl));
+        
         ricIe.RICDescriptor.num_variableData += sizeof(tDot11fFfBAStartingSequenceControl);
     }
     return (tSirRetStatus) dot11fPackIeRICDataDesc(pMac, &ricIe, ric_ies, sizeof(tDot11fIERICDataDesc), ieLength);
@@ -872,18 +907,13 @@ tSirRetStatus limFTFillRICBlockAckInfo(tpAniSirGlobal pMac, tANI_U8 *ric_ies, tA
     tANI_U32 offset = 0, ieLength = 0;
     tSirRetStatus status = eSIR_SUCCESS;
 
-    // First, extract the DPH entry
+    
     pSta = dphLookupHashEntry( pMac, pMac->ft.ftPEContext.pFTPreAuthReq->currbssId, &aid, &psessionEntry->dph.dphHashTable);
     if( NULL == pSta )
     {
         PELOGE(limLog( pMac, LOGE,
-            FL( "STA context not found for saved session's BSSID %02x:%02x:%02x:%02x:%02x:%02x" ),
-            pMac->ft.ftPEContext.pFTPreAuthReq->currbssId[0],
-            pMac->ft.ftPEContext.pFTPreAuthReq->currbssId[1],
-            pMac->ft.ftPEContext.pFTPreAuthReq->currbssId[2],
-            pMac->ft.ftPEContext.pFTPreAuthReq->currbssId[3],
-            pMac->ft.ftPEContext.pFTPreAuthReq->currbssId[4],
-            pMac->ft.ftPEContext.pFTPreAuthReq->currbssId[5] );)
+            FL( "STA context not found for saved session's BSSID " MAC_ADDRESS_STR ),
+            MAC_ADDR_ARRAY(pMac->ft.ftPEContext.pFTPreAuthReq->currbssId));)
         return eSIR_FAILURE;
     }
 
@@ -894,7 +924,7 @@ tSirRetStatus limFTFillRICBlockAckInfo(tpAniSirGlobal pMac, tANI_U8 *ric_ies, tA
             status = limCreateRICBlockAckIE(pMac, tid, &pSta->tcCfg[tid], ric_ies + offset, &ieLength);
             if (eSIR_SUCCESS == status)
             {
-                // TODO RIC
+                
                 if ( ieLength > MAX_FTIE_SIZE )
                 {
                     ieLength = 0;
@@ -915,11 +945,6 @@ tSirRetStatus limFTFillRICBlockAckInfo(tpAniSirGlobal pMac, tANI_U8 *ric_ies, tA
     return status;
 }
 
-/*------------------------------------------------------------------
- *
- *  Will post pre auth response to SME.
- *
- *------------------------------------------------------------------*/
 void limPostFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
     tANI_U8 *auth_rsp, tANI_U16  auth_rsp_length,
     tpPESession psessionEntry)
@@ -927,8 +952,8 @@ void limPostFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
     tpSirFTPreAuthRsp pFTPreAuthRsp;
     tSirMsgQ          mmhMsg;
     tANI_U16 rspLen = sizeof(tSirFTPreAuthRsp);
-    // TODO: RIC Support
-    //tSirRetStatus   sirStatus = eSIR_SUCCESS;
+    
+    
 
     pFTPreAuthRsp = (tpSirFTPreAuthRsp)vos_mem_malloc(rspLen);
     if (NULL == pFTPreAuthRsp)
@@ -949,16 +974,16 @@ void limPostFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
     if (psessionEntry)
         pFTPreAuthRsp->smeSessionId = psessionEntry->smeSessionId;
 
-    // The bssid of the AP we are sending Auth1 to.
+    
     if (pMac->ft.ftPEContext.pFTPreAuthReq)
         sirCopyMacAddr(pFTPreAuthRsp->preAuthbssId,
             pMac->ft.ftPEContext.pFTPreAuthReq->preAuthbssId);
 
-    // Attach the auth response now back to SME
+    
     pFTPreAuthRsp->ft_ies_length = 0;
     if ((auth_rsp != NULL) && (auth_rsp_length < MAX_FTIE_SIZE))
     {
-        // Only 11r assoc has FT IEs.
+        
         vos_mem_copy(pFTPreAuthRsp->ft_ies, auth_rsp, auth_rsp_length);
         pFTPreAuthRsp->ft_ies_length = auth_rsp_length;
     }
@@ -966,15 +991,7 @@ void limPostFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
 #ifdef WLAN_FEATURE_VOWIFI_11R
     if ((psessionEntry) && (psessionEntry->is11Rconnection))
     {
-        /* TODO: RIC SUPPORT Fill in the Block Ack RIC IEs in the preAuthRsp */
-        /*
-        sirStatus = limFTFillRICBlockAckInfo(pMac, pFTPreAuthRsp->ric_ies,
-                                         (tANI_U32 *)&pFTPreAuthRsp->ric_ies_length);
-        if (eSIR_SUCCESS != sirStatus)
-        {
-            PELOGE(limLog(pMac, LOGE, FL("Fill RIC BA Info failed with status %d"), sirStatus);)
-        }
-        */
+        
     }
 #endif
 
@@ -985,7 +1002,7 @@ void limPostFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
 #if defined WLAN_FEATURE_VOWIFI_11R_DEBUG
     PELOGE(limLog( pMac, LOG1, "Posted Auth Rsp to SME with status of 0x%x", status);)
 #endif
-#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM //FEATURE_WLAN_DIAG_SUPPORT
+#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM 
     if (status == eSIR_SUCCESS)
         limDiagEventReport(pMac, WLAN_PE_DIAG_PREAUTH_DONE, psessionEntry,
                            status, 0);
@@ -993,15 +1010,6 @@ void limPostFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
     limSysProcessMmhMsgApi(pMac, &mmhMsg,  ePROT);
 }
 
-/*------------------------------------------------------------------
- *
- * Send the FT Pre Auth Response to SME when ever we have a status
- * ready to be sent to SME
- *
- * SME will be the one to send it up to the supplicant to receive
- * FTIEs which will be required for Reassoc Req.
- *
- *------------------------------------------------------------------*/
 void limHandleFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
     tANI_U8 *auth_rsp, tANI_U16  auth_rsp_length,
     tpPESession psessionEntry)
@@ -1010,15 +1018,15 @@ void limHandleFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
     tpPESession      pftSessionEntry;
     tANI_U8 sessionId;
     tpSirBssDescription  pbssDescription;
-#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM //FEATURE_WLAN_DIAG_SUPPORT
+#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM 
     limDiagEventReport(pMac, WLAN_PE_DIAG_PRE_AUTH_RSP_EVENT, psessionEntry, (tANI_U16)status, 0);
 #endif
 
-    // Save the status of pre-auth
+    
     pMac->ft.ftPEContext.ftPreAuthStatus = status;
 
-    // Save the auth rsp, so we can send it to
-    // SME once we resume link.
+    
+    
     pMac->ft.ftPEContext.saved_auth_rsp_length = 0;
     if ((auth_rsp != NULL) && (auth_rsp_length < MAX_FTIE_SIZE))
     {
@@ -1027,7 +1035,7 @@ void limHandleFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
         pMac->ft.ftPEContext.saved_auth_rsp_length = auth_rsp_length;
     }
 
-    /* Create FT session for the re-association at this point */
+    
     if (pMac->ft.ftPEContext.ftPreAuthStatus == eSIR_SUCCESS)
     {
         pbssDescription = pMac->ft.ftPEContext.pFTPreAuthReq->pbssDescription;
@@ -1060,7 +1068,7 @@ void limHandleFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
         PELOGE(limLog(pMac, LOG1,"%s:created session (%p) with id = %d",
                       __func__, pftSessionEntry, pftSessionEntry->peSessionId);)
 
-        /* Update the ReAssoc BSSID of the current session */
+        
         sirCopyMacAddr(psessionEntry->limReAssocbssId, pbssDescription->bssId);
         limPrintMacAddr(pMac, psessionEntry->limReAssocbssId, LOG1);
     }
@@ -1068,7 +1076,7 @@ void limHandleFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
     if (psessionEntry->currentOperChannel !=
         pMac->ft.ftPEContext.pFTPreAuthReq->preAuthchannelNum)
     {
-        // Need to move to the original AP channel
+        
         limChangeChannelWithCallback(pMac, psessionEntry->currentOperChannel,
                 limPerformPostFTPreAuthAndChannelChange, NULL, psessionEntry);
     }
@@ -1082,11 +1090,6 @@ void limHandleFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
     }
 }
 
-/*------------------------------------------------------------------
- *
- *  This function handles the 11R Reassoc Req from SME
- *
- *------------------------------------------------------------------*/
 void limProcessMlmFTReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf,
     tpPESession psessionEntry)
 {
@@ -1105,7 +1108,7 @@ void limProcessMlmFTReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf,
     psessionEntry->smeSessionId = smeSessionId;
     psessionEntry->transactionId = transactionId;
 
-#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM //FEATURE_WLAN_DIAG_SUPPORT
+#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM 
     limDiagEventReport(pMac, WLAN_PE_DIAG_REASSOCIATING, psessionEntry, 0, 0);
 #endif
 
@@ -1117,7 +1120,7 @@ void limProcessMlmFTReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf,
     pMlmReassocReq = vos_mem_malloc(sizeof(tLimMlmReassocReq));
     if (NULL == pMlmReassocReq)
     {
-        // Log error
+        
         limLog(pMac, LOGE, FL("call to AllocateMemory failed for mlmReassocReq"));
         return;
     }
@@ -1130,10 +1133,6 @@ void limProcessMlmFTReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf,
                   (tANI_U32 *) &pMlmReassocReq->reassocFailureTimeout)
                            != eSIR_SUCCESS)
     {
-        /**
-         * Could not get ReassocFailureTimeout value
-         * from CFG. Log error.
-         */
         limLog(pMac, LOGE, FL("could not retrieve ReassocFailureTimeout value"));
         vos_mem_free(pMlmReassocReq);
         return;
@@ -1141,20 +1140,16 @@ void limProcessMlmFTReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf,
 
     if (cfgGetCapabilityInfo(pMac, &caps,psessionEntry) != eSIR_SUCCESS)
     {
-        /**
-         * Could not get Capabilities value
-         * from CFG. Log error.
-         */
         limLog(pMac, LOGE, FL("could not retrieve Capabilities value"));
         vos_mem_free(pMlmReassocReq);
         return;
     }
     pMlmReassocReq->capabilityInfo = caps;
 
-    /* Update PE sessionId*/
+    
     pMlmReassocReq->sessionId = psessionEntry->peSessionId;
 
-    /* If telescopic beaconing is enabled, set listen interval to WNI_CFG_TELE_BCN_MAX_LI */
+    
     if (wlan_cfgGetInt(pMac, WNI_CFG_TELE_BCN_WAKEUP_EN, &teleBcnEn) !=
        eSIR_SUCCESS)
     {
@@ -1167,10 +1162,6 @@ void limProcessMlmFTReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf,
     {
        if (wlan_cfgGetInt(pMac, WNI_CFG_TELE_BCN_MAX_LI, &val) != eSIR_SUCCESS)
        {
-          /**
-            * Could not get ListenInterval value
-            * from CFG. Log error.
-          */
           limLog(pMac, LOGE, FL("could not retrieve ListenInterval"));
           vos_mem_free(pMlmReassocReq);
           return;
@@ -1180,10 +1171,6 @@ void limProcessMlmFTReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf,
     {
       if (wlan_cfgGetInt(pMac, WNI_CFG_LISTEN_INTERVAL, &val) != eSIR_SUCCESS)
       {
-         /**
-            * Could not get ListenInterval value
-            * from CFG. Log error.
-            */
          limLog(pMac, LOGE, FL("could not retrieve ListenInterval"));
          vos_mem_free(pMlmReassocReq);
          return;
@@ -1201,7 +1188,7 @@ void limProcessMlmFTReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf,
     psessionEntry->pLimMlmReassocReq = pMlmReassocReq;
 
 
-    //we need to defer the message until we get the response back from HAL.
+    
     SET_LIM_PROCESS_DEFD_MESGS(pMac, false);
 
     msgQ.type = SIR_HAL_ADD_BSS_REQ;
@@ -1222,23 +1209,17 @@ void limProcessMlmFTReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf,
         limLog( pMac, LOGE, FL("Posting ADD_BSS_REQ to HAL failed, reason=%X"),
                 retCode );
     }
-    // Dont need this anymore
+    
     pMac->ft.ftPEContext.pAddBssReq = NULL;
     return;
 }
 
-/*------------------------------------------------------------------
- *
- * This function is called if preauth response is not received from the AP
- * within this timeout while FT in progress
- *
- *------------------------------------------------------------------*/
 void limProcessFTPreauthRspTimeout(tpAniSirGlobal pMac)
 {
     tpPESession psessionEntry;
 
-    // We have failed pre auth. We need to resume link and get back on
-    // home channel.
+    
+    
     limLog(pMac, LOG1, FL("FT Pre-Auth Time Out!!!!"));
 
     if((psessionEntry = peFindSessionBySessionId(pMac, pMac->lim.limTimers.gLimFTPreAuthRspTimer.sessionId))== NULL)
@@ -1247,9 +1228,6 @@ void limProcessFTPreauthRspTimeout(tpAniSirGlobal pMac)
         return;
     }
 
-    /* To handle the race condition where we recieve preauth rsp after
-     * timer has expired.
-     */
     if (eANI_BOOLEAN_TRUE ==
         pMac->ft.ftPEContext.pFTPreAuthReq->bPreAuthRspProcessed)
     {
@@ -1259,37 +1237,24 @@ void limProcessFTPreauthRspTimeout(tpAniSirGlobal pMac)
     }
     else
     {
-        /* Here we are sending preauth rsp with failure state
-         * and which is forwarded to SME. Now, if we receive an preauth
-         * resp from AP with success it would create a FT pesession, but
-         * will be dropped in SME leaving behind the pesession.
-         * Mark Preauth rsp processed so that any rsp from AP is dropped in
-         * limProcessAuthFrameNoSession.
-         */
         limLog(pMac,LOG1,FL("Auth rsp not yet posted to SME"
                " (session %p)"), psessionEntry);
         pMac->ft.ftPEContext.pFTPreAuthReq->bPreAuthRspProcessed =
             eANI_BOOLEAN_TRUE;
     }
-
-    // Ok, so attempted at Pre-Auth and failed. If we are off channel. We need
-    // to get back.
+    
+    
     limHandleFTPreAuthRsp(pMac, eSIR_FAILURE, NULL, 0, psessionEntry);
 }
 
 
-/*------------------------------------------------------------------
- *
- * This function is called to process the update key request from SME
- *
- *------------------------------------------------------------------*/
 tANI_BOOLEAN limProcessFTUpdateKey(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf )
 {
     tAddBssParams * pAddBssParams;
     tSirFTUpdateKeyInfo * pKeyInfo;
     tANI_U32 val = 0;
 
-    /* Sanity Check */
+    
     if( pMac == NULL || pMsgBuf == NULL )
     {
         return TRUE;
@@ -1304,7 +1269,7 @@ tANI_BOOLEAN limProcessFTUpdateKey(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf )
     pAddBssParams = pMac->ft.ftPEContext.pAddBssReq;
     pKeyInfo = (tSirFTUpdateKeyInfo *)pMsgBuf;
 
-    /* Store the key information in the ADD BSS parameters */
+    
     pAddBssParams->extSetStaKeyParamValid = 1;
     pAddBssParams->extSetStaKeyParam.encType = pKeyInfo->keyMaterial.edType;
     vos_mem_copy((tANI_U8 *) &pAddBssParams->extSetStaKeyParam.key,
@@ -1322,10 +1287,7 @@ tANI_BOOLEAN limProcessFTUpdateKey(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf )
     pAddBssParams->extSetStaKeyParam.staIdx = 0;
 
     PELOG1(limLog(pMac, LOG1,
-         FL("BSSID = %02X-%02X-%02X-%02X-%02X-%02X"),
-         pKeyInfo->bssId[0], pKeyInfo->bssId[1],
-         pKeyInfo->bssId[2], pKeyInfo->bssId[3],
-         pKeyInfo->bssId[4], pKeyInfo->bssId[5]);)
+           FL("BSSID = "MAC_ADDRESS_STR), MAC_ADDR_ARRAY(pKeyInfo->bssId));)
 
     if(pAddBssParams->extSetStaKeyParam.key[0].keyLength == 16)
     {
@@ -1393,7 +1355,7 @@ limProcessFTAggrQosReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf )
     vos_mem_set((tANI_U8 *)pAggrAddTsParam,
                  sizeof(tAggrAddTsParams), 0);
     pAggrAddTsParam->staIdx = psessionEntry->staId;
-    // Fill in the sessionId specific to PE
+    
     pAggrAddTsParam->sessionId = sessionId;
     pAggrAddTsParam->tspecIdx = aggrQosReq->aggrInfo.tspecIdx;
 
@@ -1402,15 +1364,6 @@ limProcessFTAggrQosReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf )
         if (aggrQosReq->aggrInfo.tspecIdx & (1<<i))
         {
             tSirMacTspecIE *pTspec = &aggrQosReq->aggrInfo.aggrAddTsInfo[i].tspec;
-            /* Since AddTS response was successful, check for the PSB flag
-             * and directional flag inside the TS Info field.
-             * An AC is trigger enabled AC if the PSB subfield is set to 1
-             * in the uplink direction.
-             * An AC is delivery enabled AC if the PSB subfield is set to 1
-             * in the downlink direction.
-             * An AC is trigger and delivery enabled AC if the PSB subfield
-             * is set to 1 in the bi-direction field.
-             */
             if (pTspec->tsinfo.traffic.psb == 1)
             {
                 limSetTspecUapsdMask(pMac, &pTspec->tsinfo, SET_UAPSD_MASK);
@@ -1419,10 +1372,6 @@ limProcessFTAggrQosReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf )
             {
                 limSetTspecUapsdMask(pMac, &pTspec->tsinfo, CLEAR_UAPSD_MASK);
             }
-            /* ADDTS success, so AC is now admitted. We shall now use the default
-             * EDCA parameters as advertised by AP and send the updated EDCA params
-             * to HAL.
-             */
             ac = upToAc(pTspec->tsinfo.traffic.userPrio);
             if(pTspec->tsinfo.traffic.direction == SIR_MAC_DIRECTION_UPLINK)
             {
@@ -1454,10 +1403,10 @@ limProcessFTAggrQosReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf )
                 PELOGE(limLog(pMac, LOGE, FL("Adding entry in lim Tspec Table failed "));)
                 pMac->lim.gLimAddtsSent = false;
                 vos_mem_free(pAggrAddTsParam);
-                return eSIR_FAILURE; //Error handling. send the response with error status. need to send DelTS to tear down the TSPEC status.
+                return eSIR_FAILURE; 
             }
 
-            // Copy the TSPEC paramters
+            
         pAggrAddTsParam->tspec[i] = aggrQosReq->aggrInfo.aggrAddTsInfo[i].tspec;
     }
     }
@@ -1466,9 +1415,6 @@ limProcessFTAggrQosReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf )
     msg.bodyptr = pAggrAddTsParam;
     msg.bodyval = 0;
 
-    /* We need to defer any incoming messages until we get a
-     * WDA_AGGR_QOS_RSP from HAL.
-     */
     SET_LIM_PROCESS_DEFD_MESGS(pMac, false);
     MTRACE(macTraceMsgTx(pMac, psessionEntry->peSessionId, msg.type));
 
@@ -1525,7 +1471,7 @@ limFTSendAggrQosRsp(tpAniSirGlobal pMac, tANI_U8 rspReqd,
 void limProcessFTAggrQoSRsp(tpAniSirGlobal pMac, tpSirMsgQ limMsg)
 {
     tpAggrAddTsParams pAggrQosRspMsg = NULL;
-    //tpAggrQosParams  pAggrQosRspMsg = NULL;
+    
     tAddTsParams     addTsParam = {0};
     tpDphHashNode  pSta = NULL;
     tANI_U16  assocId =0;
@@ -1536,8 +1482,6 @@ void limProcessFTAggrQoSRsp(tpAniSirGlobal pMac, tpSirMsgQ limMsg)
 
     PELOG1(limLog(pMac, LOG1, FL(" Received AGGR_QOS_RSP from HAL"));)
 
-    /* Need to process all the deferred messages enqueued since sending the
-       SIR_HAL_AGGR_ADD_TS_REQ */
     SET_LIM_PROCESS_DEFD_MESGS(pMac, true);
 
     pAggrQosRspMsg = (tpAggrAddTsParams) (limMsg->bodyptr);
@@ -1550,7 +1494,7 @@ void limProcessFTAggrQoSRsp(tpAniSirGlobal pMac, tpSirMsgQ limMsg)
     psessionEntry = peFindSessionBySessionId(pMac, pAggrQosRspMsg->sessionId);
     if (NULL == psessionEntry)
     {
-        // Cant find session entry
+        
         PELOGE(limLog(pMac, LOGE, FL("Cant find session entry for %s"), __func__);)
         if( pAggrQosRspMsg != NULL )
         {
@@ -1564,7 +1508,7 @@ void limProcessFTAggrQoSRsp(tpAniSirGlobal pMac, tpSirMsgQ limMsg)
         if((((1 << i) & pAggrQosRspMsg->tspecIdx)) &&
                 (pAggrQosRspMsg->status[i] != eHAL_STATUS_SUCCESS))
         {
-            /* send DELTS to the station */
+            
             sirCopyMacAddr(peerMacAddr,psessionEntry->bssId);
 
             addTsParam.staIdx = pAggrQosRspMsg->staIdx;
@@ -1586,7 +1530,7 @@ void limProcessFTAggrQoSRsp(tpAniSirGlobal pMac, tpSirMsgQ limMsg)
         }
     }
 
-    /* Send the Aggr QoS response to SME */
+    
 
     limFTSendAggrQosRsp(pMac, rspReqd, pAggrQosRspMsg,
             psessionEntry->smeSessionId);
@@ -1597,4 +1541,4 @@ void limProcessFTAggrQoSRsp(tpAniSirGlobal pMac, tpSirMsgQ limMsg)
     return;
 }
 
-#endif /* WLAN_FEATURE_VOWIFI_11R */
+#endif 

@@ -359,6 +359,7 @@ static int __devinit hall_sensor_probe(struct platform_device *pdev)
 	g_hl = hl;
 
 	HL_LOG("------------------");
+	kfree(pdata);
 	return 0;
 
 err_request_irq_failed:

@@ -118,4 +118,48 @@
 
                status = "ok";
            };
+
+           qcom,camera@22 {
+               compatible = "htc,mi380";
+               reg = <0x22>;
+               qcom,slave-id = <0x78 0x0000 0x2280>;
+
+               qcom,csiphy-sd-index = <1>;
+               qcom,csid-sd-index = <1>;
+               qcom,mount-angle = <270>;
+               qcom,sensor-name = "mi380";
+               qcom,htc-image = <0>;
+
+               cam_vdig-supply = <&pm8226_l26>;
+               cam_vana-supply = <&pm8226_l28>;
+               //cam_vio-supply = <&msmgpio 11 0>;
+               //cam_vaf-supply = <&msmgpio 32 0>;
+               qcom,cam-vreg-name = "cam_vdig","cam_vio", "cam_vana", "cam_af";
+               qcom,cam-vreg-type = <0 0 0 0>;
+               qcom,cam-vreg-min-voltage = <1225000 0 2800000 0>;
+               qcom,cam-vreg-max-voltage = <1225000 0 2800000 0>;
+               qcom,cam-vreg-op-mode = <0 0 0 0>;
+
+               qcom,gpio-no-mux = <0>;
+               gpios = <&msmgpio 27 0>,
+               <&msmgpio 28 0>,
+               <&msmgpio 32 0>,
+               <&msmgpio 33 0>;
+
+               qcom,gpio-reset = <1>;
+               qcom,gpio-vaf = <2>;
+               qcom,gpio-vio = <3>;
+               qcom,gpio-req-tbl-num = <0 1 2 3>;
+               qcom,gpio-req-tbl-flags = <0 0 0 0>;
+               qcom,gpio-req-tbl-label = "MCLK_CPU",
+               "CAM2_RST", "VAF", "VIO";
+
+               qcom,csi-lane-assign = <0x4320>;
+               qcom,csi-lane-mask = <0x3>;
+               qcom,sensor-position = <1>;
+               qcom,sensor-mode = <1>;
+               qcom,cci-master = <0>;
+
+               status = "ok";
+           };
 };

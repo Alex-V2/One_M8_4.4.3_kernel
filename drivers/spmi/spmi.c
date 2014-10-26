@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -834,8 +834,8 @@ static int spmi_register_controller(struct spmi_controller *ctrl)
 	if (ret)
 		goto exit;
 
-	dev_dbg(&ctrl->dev, "Bus spmi-%d registered: dev:%x\n",
-					ctrl->nr, (u32)&ctrl->dev);
+	dev_dbg(&ctrl->dev, "Bus spmi-%d registered: dev:0x%p\n",
+					ctrl->nr, &ctrl->dev);
 
 	
 	if (get_tamper_sf() == 0 && board_is_super_cid())

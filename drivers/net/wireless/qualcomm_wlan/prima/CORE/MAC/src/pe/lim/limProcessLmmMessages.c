@@ -39,17 +39,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * Airgo Networks, Inc proprietary. All rights reserved.
- * This file limProcessLmmMessages.cc contains the code
- * for processing SME/LMM messages related to ANI feature set.
- * Author:        Chandra Modumudi
- * Date:          10/20/02
- * History:-
- * Date           Modified by    Modification Information
- * --------------------------------------------------------------------
- *
- */
 
 #include "aniGlobal.h"
 #include "wniApi.h"

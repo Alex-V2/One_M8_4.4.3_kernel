@@ -54,27 +54,17 @@
   
   ========================================================================*/
 
-/* $Header$ */
 
-/*--------------------------------------------------------------------------
-  Include Files
-  ------------------------------------------------------------------------*/
 #include <vos_timer.h>
 #include <vos_types.h>
 #include <linux/timer.h>
 #include <linux/time.h>
 #include <linux/jiffies.h>
 
-/*-------------------------------------------------------------------------- 
-  Preprocessor definitions and constants
-  ------------------------------------------------------------------------*/
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
-/*-------------------------------------------------------------------------- 
-  Type declarations
-  ------------------------------------------------------------------------*/
+#endif 
 
 typedef struct vos_timer_platform_s
 {
@@ -85,14 +75,11 @@ typedef struct vos_timer_platform_s
 
 } vos_timer_platform_t;
 
-/*
- * TODOs: Need to add deferred timer implementation 
- *
-*/ 
+ 
 
 
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif 
 
-#endif // __I_VOS_TIMER_H
+#endif 

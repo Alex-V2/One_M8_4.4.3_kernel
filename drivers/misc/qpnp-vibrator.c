@@ -356,7 +356,6 @@ static int __devinit qpnp_vibrator_probe(struct spmi_device *spmi)
 	} else {
 		vib->enlarge_vib_on = 0;
 	}
-
 	temp_dt = of_get_property(spmi->dev.of_node,
 		"qcom,qpnp-vib-enlarge-diff_value", NULL);
 	if(temp_dt) {

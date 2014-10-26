@@ -55,48 +55,12 @@ DESCRIPTION
 ===========================================================================*/
 
 
-/*===========================================================================
-
-                      EDIT HISTORY FOR FILE
-
-
-  This section contains comments describing changes made to the module.
-  Notice that changes are listed in reverse chronological order.
-
-
-  $Header:$ $DateTime: $ $Author: $
-
-
-when        who    what, where, why
---------    ---    ----------------------------------------------------------
-12/11/08      sch     Initial creation
-
-===========================================================================*/
 
 
 
-/*===========================================================================
-
-                          INCLUDE FILES FOR MODULE
-
-===========================================================================*/
 #include "wlan_qct_tl.h" 
 
 #if defined WLAN_FEATURE_NEIGHBOR_ROAMING
-/*----------------------------------------------------------------------------
- * Include Files
- * -------------------------------------------------------------------------*/
-/*==========================================================================
-
-   FUNCTION
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 VOS_STATUS WLANTL_HSHandleRXFrame
 (
    v_PVOID_t        pAdapter,
@@ -107,17 +71,6 @@ VOS_STATUS WLANTL_HSHandleRXFrame
    vos_pkt_t       *dataBuffer
 );
 
-/*==========================================================================
-
-   FUNCTION
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 VOS_STATUS WLANTL_HSHandleTXFrame
 (
    v_PVOID_t        pAdapter,
@@ -127,17 +80,6 @@ VOS_STATUS WLANTL_HSHandleTXFrame
    v_PVOID_t        bdHeader
 );
 
-/*==========================================================================
-
-   FUNCTION
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 VOS_STATUS WLANTL_HSRegRSSIIndicationCB
 (
    v_PVOID_t                       pAdapter,
@@ -148,17 +90,6 @@ VOS_STATUS WLANTL_HSRegRSSIIndicationCB
    v_PVOID_t                       usrCtxt
 );
 
-/*==========================================================================
-
-   FUNCTION
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 VOS_STATUS WLANTL_HSDeregRSSIIndicationCB
 (
    v_PVOID_t                       pAdapter,
@@ -168,51 +99,18 @@ VOS_STATUS WLANTL_HSDeregRSSIIndicationCB
    VOS_MODULE_ID                   moduleID
 );
 
-/*==========================================================================
-
-   FUNCTION
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 VOS_STATUS WLANTL_HSBMPSRSSIRegionChangedNotification
 (
    v_PVOID_t             pAdapter,
    tpSirRSSINotification pRSSINotification
 );
 
-/*==========================================================================
-
-   FUNCTION
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 VOS_STATUS WLANTL_HSSetAlpha
 (
    v_PVOID_t pAdapter,
    int       valueAlpha
 );
 
-/*==========================================================================
-
-   FUNCTION
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 VOS_STATUS WLANTL_HSRegGetTrafficStatus
 (
    v_PVOID_t                          pAdapter,
@@ -222,34 +120,12 @@ VOS_STATUS WLANTL_HSRegGetTrafficStatus
    v_PVOID_t                          usrCtxt
 );
 
-/*==========================================================================
-
-   FUNCTION
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 VOS_STATUS WLANTL_HSInit
 (
    v_PVOID_t   pAdapter
 );
 
 
-/*==========================================================================
-
-   FUNCTION    WLANTL_HSDeInit
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 
 VOS_STATUS WLANTL_HSDeInit
 (
@@ -257,17 +133,6 @@ VOS_STATUS WLANTL_HSDeInit
 );
 
 
-/*==========================================================================
-
-   FUNCTION
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 VOS_STATUS WLANTL_HSStop
 (
    v_PVOID_t   pAdapter
@@ -278,17 +143,6 @@ VOS_STATUS WLANTL_SetFWRSSIThresholds
    v_PVOID_t                       pAdapter
 );
 
-/*==========================================================================
-
-   FUNCTION
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 VOS_STATUS WLANTL_HSSerializeTlIndication
 (
    v_PVOID_t   pAdapter,
@@ -298,17 +152,6 @@ VOS_STATUS WLANTL_HSSerializeTlIndication
    v_U8_t      avgRssi
 );
 
-/*==========================================================================
-
-   FUNCTION
-
-   DESCRIPTION 
-    
-   PARAMETERS 
-
-   RETURN VALUE
-
-============================================================================*/
 VOS_STATUS WLANTL_StatHandleTXFrame
 (
    v_PVOID_t        pAdapter,
@@ -318,6 +161,6 @@ VOS_STATUS WLANTL_StatHandleTXFrame
    WLANTL_MetaInfoType *txMetaInfo
 );
 
-#endif //FEATURE_WLAN_GEN6_ROAMING
+#endif 
 
-#endif /* WLAN_QCT_TL_HOSUPPORT_H */
+#endif 

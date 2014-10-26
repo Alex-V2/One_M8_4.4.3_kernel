@@ -31,9 +31,6 @@
 
 #include "wlan_nv_types.h"
 
-/*
- * local prototypes
- */
 static _NV_TEMPLATE_PROCESS_RC processNvTemplate(_NV_STREAM_BUF *pStream,
    int len);
 static _NV_TEMPLATE_PROCESS_RC processNvTemplateTable(_NV_STREAM_BUF *pStream,
@@ -82,9 +79,6 @@ static void parseSubDataTableAndCopy(int tableIdx, int numElem, int numElem2,
    int numElem3, int fieldId, _NV_STREAM_BUF *pStream, int* pos,
    int addOffset, int tableBaseOffset, int localAddOffset);
 
-/*
- * typedef's
- */
 
 typedef int (*pF_NumElemBasedOnStorageType)(_NV_TEMPLATE_TABLE *pTableEntry,
     int nvBin);

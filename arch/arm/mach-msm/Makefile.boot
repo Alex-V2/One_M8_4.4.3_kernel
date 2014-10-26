@@ -69,6 +69,7 @@ endif
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974-v2.2-mtp.dtb
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ab-pm8941-cdp.dtb
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ab-pm8941-fluid.dtb
+        dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ab-pm8941-fluid-hbtp.dtb
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ab-pm8941-liquid.dtb
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ab-pm8941-mtp.dtb
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ac-pm8941-cdp.dtb
@@ -111,13 +112,22 @@ endif
 	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-1080p-mtp.dtb
 	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-qrd-evt.dtb
 	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-qrd-dvt.dtb
-	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-720p-cdp.dtb
-	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-1080p-cdp.dtb
-	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-720p-mtp.dtb
-	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-1080p-mtp.dtb
-	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-qrd.dtb
-	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-qrd-skug.dtb
-	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-qrd-skug-pvt.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v1-720p-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v1-1080p-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v1-720p-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v1-1080p-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v1-qrd.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v1-qrd-skug.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v1-qrd-skug-pvt.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v2-720p-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v2-1080p-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v2-1080p-ext-buck-cdp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v2-720p-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v2-1080p-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v2-1080p-ext-buck-mtp.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v2-qrd.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v2-qrd-skug.dtb
+	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-v2-qrd-skug-pvt.dtb
 	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v1-qrd-skuf.dtb
 	dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-v2-qrd-skuf.dtb
 	dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v1-xpm.dtb
@@ -129,6 +139,32 @@ endif
 	dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-720p-mtp.dtb
 	dtb-$(CONFIG_ARCH_MSM8226)	+= apq8026-v2-1080p-mtp.dtb
 
+# HTC dtbs
+ifeq ($(CONFIG_MACH_A11_UL), y)
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-a11ul.dtb
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-a11chl.dtb
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-a11eul.dtb
+endif
+ifeq ($(CONFIG_MACH_A3_UL)$(CONFIG_MACH_A3_CL)$(CONFIG_MACH_A3_TL), y)
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-a3ul.dtb
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-a3ul-xb.dtb
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-a3cl.dtb
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-a3tl.dtb
+endif
+ifeq ($(CONFIG_MACH_MEM_UL)$(CONFIG_MACH_MEM_WL), y)
+	htc_dtb-$(CONFIG_ARCH_MSM8226)  += msm8926-memul.dtb
+	htc_dtb-$(CONFIG_ARCH_MSM8226)  += msm8926-memwl.dtb
+endif
+ifeq ($(CONFIG_MACH_A5_UL)$(CONFIG_MACH_A5_DWG)$(CONFIG_MACH_A5_TL)$(CONFIG_MACH_A5_DWGL)$(CONFIG_MACH_A5_DUGL), y)
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-a5ul.dtb
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8226-a5dwg.dtb
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-a5tl.dtb
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-a5dwgl.dtb
+	htc_dtb-$(CONFIG_ARCH_MSM8226)  += msm8926-a5dugl.dtb
+endif
+ifeq ($(CONFIG_MACH_J1), y)
+	htc_dtb-$(CONFIG_ARCH_MSM8226)	+= msm8926-j1.dtb
+endif
 
 # FSM9XXX
    zreladdr-$(CONFIG_ARCH_FSM9XXX)	:= 0x10008000
@@ -169,4 +205,3 @@ ifeq ($(CONFIG_MACH_M8), y)
 	htc_dtb-$(CONFIG_ARCH_MSM8974)  += msm8974pro-ab-pm8941-m8-xe.dtb
 	htc_dtb-$(CONFIG_ARCH_MSM8974)  += msm8974pro-ab-pm8941-m8-xf.dtb
 endif
-

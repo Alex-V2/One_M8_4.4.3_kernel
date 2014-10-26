@@ -38,6 +38,8 @@
 #include <asm/fiq_glue.h>
 #include <asm/stacktrace.h>
 
+#include <mach/devices_cmdline.h>
+
 #include <linux/uaccess.h>
 
 #include "fiq_debugger_ringbuf.h"
@@ -210,10 +212,6 @@ static void dump_kernel_log(struct fiq_debugger_state *state)
 	int ret;
 	int saved_oip;
 
-	/* setting oops_in_progress prevents log_buf_copy()
-	 * from trying to take a spinlock which will make it
-	 * very unhappy in some cases...
-	 */
 	saved_oip = oops_in_progress;
 	oops_in_progress = 1;
 	for (;;) {
@@ -255,7 +253,6 @@ static int debug_printf(void *cookie, const char *fmt, ...)
 	return state->debug_abort;
 }
 
-/* Safe outside fiq context */
 static int debug_printf_nfiq(void *cookie, const char *fmt, ...)
 {
 	struct fiq_debugger_state *state = cookie;
@@ -417,7 +414,7 @@ static struct frame_tail *user_backtrace(struct fiq_debugger_state *state,
 {
 	struct frame_tail buftail[2];
 
-	/* Also check accessibility of one struct frame_tail beyond */
+	
 	if (!access_ok(VERIFY_READ, tail, sizeof(buftail))) {
 		debug_printf(state, "  invalid frame pointer %p\n", tail);
 		return NULL;
@@ -430,8 +427,6 @@ static struct frame_tail *user_backtrace(struct fiq_debugger_state *state,
 
 	debug_printf(state, "  %p\n", buftail[0].lr);
 
-	/* frame pointers should strictly progress back up the stack
-	 * (towards higher addresses) */
 	if (tail >= buftail[0].fp)
 		return NULL;
 
@@ -512,7 +507,7 @@ static void end_syslog_dump(struct fiq_debugger_state *state)
 extern int do_syslog(int type, char __user *bug, int count);
 static void begin_syslog_dump(struct fiq_debugger_state *state)
 {
-	do_syslog(5 /* clear */, NULL, 0);
+	do_syslog(5 , NULL, 0);
 }
 
 static void end_syslog_dump(struct fiq_debugger_state *state)
@@ -557,7 +552,6 @@ static void do_kgdb(struct fiq_debugger_state *state)
 }
 #endif
 
-/* This function CANNOT be called in FIQ context */
 static void debug_irq_exec(struct fiq_debugger_state *state, char *cmd)
 {
 	if (!strcmp(cmd, "ps"))
@@ -646,7 +640,10 @@ static bool debug_fiq_exec(struct fiq_debugger_state *state,
 	} else if (!strcmp(cmd, "kmsg")) {
 		dump_kernel_log(state);
 	} else if (!strcmp(cmd, "version")) {
-		debug_printf(state, "%s\n", linux_banner);
+		if(board_rom_type())
+			debug_printf(state, "%s\n", linux_banner_stockui);
+		else
+			debug_printf(state, "%s\n", linux_banner);
 	} else if (!strcmp(cmd, "sleep")) {
 		state->no_sleep = false;
 		debug_printf(state, "enabling sleep\n");
@@ -846,7 +843,7 @@ static bool debug_handle_uart_interrupt(struct fiq_debugger_state *state,
 	if (state->pdata->fiq_ack)
 		state->pdata->fiq_ack(state->pdev, state->fiq);
 
-	/* poke sleep timer if necessary */
+	
 	if (state->debug_enable && !state->no_sleep)
 		signal_helper = true;
 
@@ -868,11 +865,6 @@ static void debug_fiq(struct fiq_glue_handler *h, void *regs, void *svc_sp)
 		debug_force_irq(state);
 }
 
-/*
- * When not using FIQs, we only use this single interrupt as an entry point.
- * This just effectively takes over the UART interrupt and does all the work
- * in this context.
- */
 static irqreturn_t debug_uart_irq(int irq, void *dev)
 {
 	struct fiq_debugger_state *state = dev;
@@ -880,7 +872,7 @@ static irqreturn_t debug_uart_irq(int irq, void *dev)
 
 	handle_wakeup(state);
 
-	/* handle the debugger irq in regular context */
+	
 	not_done = debug_handle_uart_interrupt(state, smp_processor_id(),
 					      get_irq_regs(),
 					      current_thread_info());
@@ -890,11 +882,6 @@ static irqreturn_t debug_uart_irq(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
-/*
- * If FIQs are used, not everything can happen in fiq context.
- * FIQ handler does what it can and then signals this interrupt to finish the
- * job in irq context.
- */
 static irqreturn_t debug_signal_irq(int irq, void *dev)
 {
 	struct fiq_debugger_state *state = dev;
@@ -1168,8 +1155,6 @@ static int fiq_debugger_probe(struct platform_device *pdev)
 	fiq = platform_get_irq_byname(pdev, "fiq");
 	uart_irq = platform_get_irq_byname(pdev, "uart_irq");
 
-	/* uart_irq mode and fiq mode are mutually exclusive, but one of them
-	 * is required */
 	if ((uart_irq < 0 && fiq < 0) || (uart_irq >= 0 && fiq >= 0))
 		return -EINVAL;
 	if (fiq >= 0 && !pdata->fiq_enable)
@@ -1204,10 +1189,6 @@ static int fiq_debugger_probe(struct platform_device *pdev)
 	if (IS_ERR(state->clk))
 		state->clk = NULL;
 
-	/* do not call pdata->uart_enable here since uart_init may still
-	 * need to do some initialization before uart_enable can work.
-	 * So, only try to manage the clock during init.
-	 */
 	if (state->clk)
 		clk_enable(state->clk);
 
@@ -1238,9 +1219,6 @@ static int fiq_debugger_probe(struct platform_device *pdev)
 			goto err_register_irq;
 		}
 
-		/* for irq-only mode, we want this irq to wake us up, if it
-		 * can.
-		 */
 		enable_irq_wake(state->uart_irq);
 	}
 

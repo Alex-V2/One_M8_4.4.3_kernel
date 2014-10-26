@@ -3055,7 +3055,6 @@ int mhl_tx_init(struct mhl_drv_info const *drv_info,
 		goto free_mem;
 	}
 
-
 	if (mhl_class == NULL) {
 		mhl_class = class_create(THIS_MODULE, "mhl");
 		if(IS_ERR(mhl_class)) {
@@ -3227,8 +3226,6 @@ int mhl_tx_remove(struct i2c_client *client)
 		
 
 		kfree(dev_context);
-
-		MHL_TX_DBG_INFO(dev_context, "%x\n",dev_context);
 	}
 	return ret;
 }

@@ -25,29 +25,42 @@
 #define WLAN_DATA1	37
 #define WLAN_DATA2	36
 
+#define WLAN_CLK	40
+#define WLAN_SET	39
+#define WLAN_DATA0	38
+#define WLAN_DATA1	37
+#define WLAN_DATA2	36
+
+#define WLAN_CLK	40
+#define WLAN_SET	39
+#define WLAN_DATA0	38
+#define WLAN_DATA1	37
+#define WLAN_DATA2	36
+
 static struct gpiomux_setting ap2mdm_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
-	.drv = GPIOMUX_DRV_8MA,
+	.drv = GPIOMUX_DRV_2MA,
 	.pull = GPIOMUX_PULL_NONE,
+	.dir = GPIOMUX_OUT_LOW,
 };
 
 static struct gpiomux_setting mdm2ap_status_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
-	.drv = GPIOMUX_DRV_8MA,
-	.pull = GPIOMUX_PULL_DOWN,
-	.dir = GPIOMUX_IN,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+	.dir = GPIOMUX_OUT_LOW,
 };
 
 static struct gpiomux_setting mdm2ap_errfatal_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
-	.drv = GPIOMUX_DRV_8MA,
-	.pull = GPIOMUX_PULL_DOWN,
-	.dir = GPIOMUX_IN,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+	.dir = GPIOMUX_OUT_LOW,
 };
 
 static struct gpiomux_setting mdm2ap_pblrdy = {
 	.func = GPIOMUX_FUNC_GPIO,
-	.drv = GPIOMUX_DRV_8MA,
+	.drv = GPIOMUX_DRV_2MA,
 	.pull = GPIOMUX_PULL_NONE,
 	.dir = GPIOMUX_IN,
 };
@@ -55,14 +68,16 @@ static struct gpiomux_setting mdm2ap_pblrdy = {
 
 static struct gpiomux_setting ap2mdm_soft_reset_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
-	.drv = GPIOMUX_DRV_8MA,
+	.drv = GPIOMUX_DRV_2MA,
 	.pull = GPIOMUX_PULL_NONE,
+	.dir = GPIOMUX_OUT_LOW,
 };
 
 static struct gpiomux_setting ap2mdm_wakeup = {
 	.func = GPIOMUX_FUNC_GPIO,
-	.drv = GPIOMUX_DRV_8MA,
-	.pull = GPIOMUX_PULL_DOWN,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+	.dir = GPIOMUX_OUT_LOW,
 };
 
 static struct msm_gpiomux_config mdm_configs[] __initdata = {
@@ -1521,7 +1536,7 @@ void __init msm_8974_init_gpiomux(void)
 
 	msm_gpiomux_install(msm_cir_configs, ARRAY_SIZE(msm_cir_configs));
 
-	if (of_machine_pid() == 268)
+	if (of_machine_pid() == 268 || of_board_is_m8wlj())
 		msm_gpiomux_install(msm_felica_configs, ARRAY_SIZE(msm_felica_configs));
 
 	if (socinfo_get_platform_subtype() == PLATFORM_SUBTYPE_MDM)

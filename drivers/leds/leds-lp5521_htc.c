@@ -29,6 +29,8 @@
 #include <linux/regulator/consumer.h>
 #include <linux/module.h>
 #include <linux/of_gpio.h>
+#include <linux/wakelock.h>
+
 #define LP5521_MAX_LEDS			9	
 #define LED_DEBUG				1
 #if LED_DEBUG
@@ -45,10 +47,14 @@ static struct i2c_client *private_lp5521_client;
 static struct mutex	led_mutex;
 static struct workqueue_struct *g_led_work_queue;
 static uint32_t ModeRGB;
+static struct led_i2c_platform_data *plat_data;
 #define Mode_Mask (0xff << 24)
 #define Red_Mask (0xff << 16)
 #define Green_Mask (0xff << 8)
 #define Blue_Mask 0xff
+
+static int gCurrent_param = 95;
+module_param(gCurrent_param, int, 0600);
 
 
 struct lp5521_led {
@@ -57,15 +63,16 @@ struct lp5521_led {
 	u8			led_current;
 	u8			max_current;
 	struct led_classdev	cdev;
-	struct mutex led_data_mutex;
-	struct alarm led_alarm;
-	struct work_struct led_work;
-	struct work_struct led_work_multicolor;
-	uint8_t Mode;
-	uint8_t	Red;
-	uint8_t Green;
-	uint8_t Blue;
-	struct delayed_work		blink_delayed_work;
+	struct mutex 		led_data_mutex;
+	struct alarm 		led_alarm;
+	struct work_struct 	led_work;
+	struct work_struct 	led_work_multicolor;
+	uint8_t 		Mode;
+	uint8_t			Red;
+	uint8_t 		Green;
+	uint8_t 		Blue;
+	struct delayed_work	blink_delayed_work;
+	struct wake_lock        led_wake_lock;
 };
 
 struct lp5521_chip {
@@ -200,38 +207,37 @@ static int i2c_read_block(struct i2c_client *client,
 	return ret;
 }
 
-static void lp5521_led_enable(struct i2c_client *client)
+static void lp5521_led_enable(struct i2c_client *client, int blink_enable)
 {
 	int ret = 0;
 	uint8_t data;
-	struct led_i2c_platform_data *pdata;
+
 	char data1[1] = {0};
+
 	I(" %s +++\n" , __func__);
 
-	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
-	if (pdata == NULL)
-		ret = -ENOMEM;
-	ret = lp5521_parse_dt(&client->dev, pdata);
-
 	
-	if (pdata->ena_gpio) {
-		ret = gpio_direction_output(pdata->ena_gpio, 1);
+	if (plat_data->ena_gpio) {
+		ret = gpio_direction_output(plat_data->ena_gpio, 1);
 		if (ret < 0) {
 			pr_err("[LED] %s: gpio_direction_output high failed %d\n", __func__, ret);
-			gpio_free(pdata->ena_gpio);
+			gpio_free(plat_data->ena_gpio);
 		}
 	} 
 
 	msleep(1);
-	
-	data = 0xFF;
-	ret = i2c_write_block(client, 0x0d, &data, 1);
-	msleep(20);
-	ret = i2c_read_block(client, 0x05, data1, 1);
-	if (data1[0] != 0xaf) {
-		I(" %s reset not ready %x\n" , __func__, data1[0]);
+#if 1
+	if (blink_enable) {
+		
+		data = 0xFF;
+		ret = i2c_write_block(client, 0x0d, &data, 1);
+		msleep(20);
+		ret = i2c_read_block(client, 0x05, data1, 1);
+		if (data1[0] != 0xaf) {
+			I(" %s reset not ready %x\n" , __func__, data1[0]);
+		}
 	}
-
+#endif
 	chip_enable = 1;
 	mutex_lock(&led_mutex);
 	
@@ -241,13 +247,6 @@ static void lp5521_led_enable(struct i2c_client *client)
 	
 	data = 0x29;
 	ret = i2c_write_block(client, 0x08, &data, 1);
-	
-	data = (u8)95;
-	ret = i2c_write_block(client, 0x05, &data, 1);
-	data = (u8)95;
-	ret = i2c_write_block(client, 0x06, &data, 1);
-	data = (u8)95;
-	ret = i2c_write_block(client, 0x07, &data, 1);
 	mutex_unlock(&led_mutex);
 	I(" %s ---\n" , __func__);
 }
@@ -316,6 +315,12 @@ static void lp5521_color_blink(struct i2c_client *client, uint8_t red, uint8_t g
 	data = mode & 0x15;
 	ret = i2c_write_block(client, OPRATION_REGISTER, &data, 1);
 	udelay(200);
+	data = (u8)0;
+	ret = i2c_write_block(client, 0x09, &data, 1);
+	udelay(200);
+	ret = i2c_write_block(client, 0x0a, &data, 1);
+	udelay(200);
+	ret = i2c_write_block(client, 0x0b, &data, 1);
 
 	if (red) {
 		
@@ -428,7 +433,6 @@ static void lp5521_dual_color_blink(struct i2c_client *client)
 	int ret;
 
 	I(" %s +++\n" , __func__);
-	lp5521_led_enable(client);
 	mutex_lock(&led_mutex);
 	data = 0x14;
 	ret = i2c_write_block(client, OPRATION_REGISTER, &data, 1);
@@ -525,18 +529,12 @@ static void lp5521_led_off(struct i2c_client *client)
 	uint8_t data = 0x00;
 	int ret;
 	char data1[1] = {0};
-	struct led_i2c_platform_data *pdata;
 
 	I(" %s +++\n" , __func__);
 	if (!chip_enable) {
 		I(" %s return, chip already disable\n" , __func__);
 		return;
 	}
-	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
-
-	if (pdata == NULL)
-		ret = -ENOMEM;
-	ret = lp5521_parse_dt(&client->dev, pdata);
 	ret = i2c_read_block(client, 0x00, data1, 1);
 	if (!data1[0]) {
 		I(" %s return, chip already disable\n" , __func__);
@@ -552,11 +550,11 @@ static void lp5521_led_off(struct i2c_client *client)
 	ret = i2c_write_block(client, OPRATION_REGISTER, &data, 1);
 	ret = i2c_write_block(client, ENABLE_REGISTER, &data, 1);
 	mutex_unlock(&led_mutex);
-	if (pdata->ena_gpio) {
-		ret = gpio_direction_output(pdata->ena_gpio, 0);
+	if (plat_data->ena_gpio) {
+		ret = gpio_direction_output(plat_data->ena_gpio, 0);
 		if (ret < 0) {
 			pr_err("[LED] %s: gpio_direction_output high failed %d\n", __func__, ret);
-			gpio_free(pdata->ena_gpio);
+			gpio_free(plat_data->ena_gpio);
 		}
 	} 
 	chip_enable = 0;
@@ -585,27 +583,28 @@ static void multicolor_work_func(struct work_struct *work)
         int i;
 
 	ldata = container_of(work, struct lp5521_led, led_work_multicolor);
-	I(" %s , ModeRGB = %x\n" , __func__, ldata->Mode);
+	I(" %s , Mode = %x\n" , __func__, ldata->Mode);
 
-	if (ldata->Mode < 5)
-		lp5521_led_enable(client);
-
+	if (ldata->Mode > 1 && ldata->Mode <= 5)
+		lp5521_led_enable(client, 1);
+	else if (ldata->Mode == 1)
+		lp5521_led_enable(client, 0);
 	if (ldata->Red) {
-		data = (u8)95;
+		data = (u8)gCurrent_param;
 		ret = i2c_write_block(client, 0x05, &data, 1);
 	} else {
 		data = (u8)0;
 		ret = i2c_write_block(client, 0x05, &data, 1);
 	}
 	if (ldata->Green) {
-		data = (u8)95;
+		data = (u8)gCurrent_param;
 		ret = i2c_write_block(client, 0x06, &data, 1);
 	} else {
 		data = (u8)0;
 		ret = i2c_write_block(client, 0x06, &data, 1);
 	}
 	if (ldata->Blue) {
-		data = (u8)95;
+		data = (u8)gCurrent_param;
 		ret = i2c_write_block(client, 0x07, &data, 1);
 	} else {
 		data = (u8)0;
@@ -725,13 +724,14 @@ static ssize_t lp5521_led_multi_color_store(struct device *dev,
 
 	if (val < 0 || val > 0xFFFFFFFF)
 		return -EINVAL;
-
 	led_cdev = (struct led_classdev *)dev_get_drvdata(dev);
 	ldata = container_of(led_cdev, struct lp5521_led, cdev);
+	wake_lock_timeout(&(ldata->led_wake_lock), 2*HZ);
 	ldata->Mode = (val & Mode_Mask) >> 24;
 	ldata->Red = (val & Red_Mask) >> 16;
 	ldata->Green = (val & Green_Mask) >> 8;
 	ldata->Blue = val & Blue_Mask;
+	ModeRGB = val;
 	I(" %s , ModeRGB = %x\n" , __func__, val);
 	queue_work(g_led_work_queue, &ldata->led_work_multicolor);
 	return count;
@@ -823,6 +823,10 @@ static int lp5521_parse_dt(struct device *dev, struct led_i2c_platform_data *pda
 	if (prop) {
 		of_property_read_u32(dt, "lp5521,num_leds", &pdata->num_leds);
 	}
+	prop = of_find_property(dt, "lp5521,current_param", NULL);
+	if (prop) {
+		of_property_read_u32(dt, "lp5521,current_param", &gCurrent_param);
+     	}
 	return 0;
 }
 
@@ -900,6 +904,7 @@ static int lp5521_led_probe(struct i2c_client *client
 			pr_err("%s: failed on create attr ModeRGB [%d]\n", __func__, i);
 			goto err_register_attr_ModeRGB;
 		}
+
 		ret = device_create_file(cdata->leds[i].cdev.dev, &dev_attr_off_timer);
 		if (ret < 0) {
 			pr_err("%s: failed on create attr off_timer [%d]\n", __func__, i);
@@ -909,7 +914,7 @@ static int lp5521_led_probe(struct i2c_client *client
 		if (ret < 0) {
 			pr_err("%s: failed on create attr off_timer [%d]\n", __func__, i);
 		}
-
+		wake_lock_init(&cdata->leds[i].led_wake_lock, WAKE_LOCK_SUSPEND, "lp5521");
 		INIT_WORK(&cdata->leds[i].led_work, led_work_func);
 		INIT_WORK(&cdata->leds[i].led_work_multicolor, multicolor_work_func);
 		INIT_DELAYED_WORK(&cdata->leds[i].blink_delayed_work, led_blink_do_work);
@@ -917,9 +922,9 @@ static int lp5521_led_probe(struct i2c_client *client
 				ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP,
 				led_alarm_handler);
 	}
-
 	mutex_init(&cdata->led_i2c_rw_mutex);
 	mutex_init(&led_mutex);
+	plat_data = pdata;
 	
 #if 0
 	
@@ -952,7 +957,6 @@ err_cdata:
 
 static int __devexit lp5521_led_remove(struct i2c_client *client)
 {
-	struct led_i2c_platform_data *pdata;
 	struct lp5521_chip *cdata;
 	int i,ret;
 
@@ -961,14 +965,11 @@ static int __devexit lp5521_led_remove(struct i2c_client *client)
 	i2c_set_clientdata(client, cdata);
 	cdata->client = client;
 
-	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
-	if (pdata == NULL)
-		ret = -ENOMEM;
-	ret = lp5521_parse_dt(&client->dev, pdata);
-	if (pdata->ena_gpio) {
-		gpio_direction_output(pdata->ena_gpio, 0);
+	ret = lp5521_parse_dt(&client->dev, plat_data);
+	if (plat_data->ena_gpio) {
+		gpio_direction_output(plat_data->ena_gpio, 0);
 	} 
-	for (i = 0; i < pdata->num_leds; i++) {
+	for (i = 0; i < plat_data->num_leds; i++) {
 		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_off_timer);
 		device_remove_file(cdata->leds[i].cdev.dev,&dev_attr_ModeRGB);
 		led_classdev_unregister(&cdata->leds[i].cdev);

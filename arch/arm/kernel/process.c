@@ -14,6 +14,7 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/vmalloc.h>
 #include <linux/stddef.h>
 #include <linux/unistd.h>
 #include <linux/user.h>
@@ -39,6 +40,8 @@
 #include <asm/stacktrace.h>
 #include <asm/mach/time.h>
 #include <asm/tls.h>
+
+#include <mach/devices_cmdline.h>
 
 #ifdef CONFIG_CC_STACKPROTECTOR
 #include <linux/stackprotector.h>
@@ -115,7 +118,12 @@ typedef void (*phys_reset_t)(unsigned long);
 void arm_machine_flush_console(void)
 {
 	printk("\n");
-	pr_emerg("Restarting %s\n", linux_banner);
+
+	if(board_rom_type())
+		pr_emerg("Restarting %s\n", linux_banner_stockui);
+	else
+		pr_emerg("Restarting %s\n", linux_banner);
+
 	if (console_trylock()) {
 		console_unlock();
 		return;
@@ -329,7 +337,8 @@ static void show_data(unsigned long addr, int nbytes, const char *name)
 		printk("%04lx ", (unsigned long)p & 0xffff);
 		for (j = 0; j < 8; j++) {
 			u32	data;
-			if (probe_kernel_address(p, data)) {
+			if (is_vmalloc_addr(p) ||
+			    probe_kernel_address(p, data)) {
 				printk(" ********");
 			} else {
 				printk(" %08x", data);

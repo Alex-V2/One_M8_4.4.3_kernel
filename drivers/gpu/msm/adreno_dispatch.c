@@ -700,6 +700,8 @@ static int dispatcher_do_fault(struct kgsl_device *device)
 	if (dispatcher->inflight == 0) {
 		KGSL_DRV_WARN(device,
 		"dispatcher_do_fault with 0 inflight commands\n");
+		if (kgsl_pwrctrl_isenabled(device))
+			kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_ON);
 		return 0;
 	}
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,6 +14,7 @@
 #ifndef MDP3_DMA_H
 #define MDP3_DMA_H
 
+#include <linux/notifier.h>
 #include <linux/sched.h>
 
 #define MDP_HISTOGRAM_BL_SCALE_MAX 1024
@@ -71,7 +72,7 @@ enum {
 };
 
 enum {
-	MDP3_DMA_OUTPUT_COMP_BITS_4, /*4 bits per color component*/
+	MDP3_DMA_OUTPUT_COMP_BITS_4, 
 	MDP3_DMA_OUTPUT_COMP_BITS_5,
 	MDP3_DMA_OUTPUT_COMP_BITS_6,
 	MDP3_DMA_OUTPUT_COMP_BITS_8,
@@ -166,13 +167,13 @@ struct mdp3_dma_output_config {
 
 struct mdp3_dma_cursor_blend_config {
 	u32 mode;
-	u32 transparent_color; /*color keying*/
+	u32 transparent_color; 
 	u32 transparency_mask;
 	u32 constant_alpha;
 };
 
 struct mdp3_dma_cursor {
-	int enable; /* enable cursor or not*/
+	int enable; 
 	u32 format;
 	int width;
 	int height;
@@ -183,10 +184,10 @@ struct mdp3_dma_cursor {
 };
 
 struct mdp3_dma_ccs {
-	u32 *mv; /*set1 matrix vector, 3x3 */
-	u32 *pre_bv; /*pre-bias vector for set1, 1x3*/
-	u32 *post_bv; /*post-bias vecotr for set1,  */
-	u32 *pre_lv; /*pre-limit vector for set 1, 1x6*/
+	u32 *mv; 
+	u32 *pre_bv; 
+	u32 *post_bv; 
+	u32 *pre_lv; 
 	u32 *post_lv;
 };
 
@@ -227,7 +228,7 @@ struct mdp3_dma_histogram_data {
 	u32 extra[2];
 };
 
-struct mdp3_vsync_notification {
+struct mdp3_notification {
 	void (*handler)(void *arg);
 	void *arg;
 };
@@ -245,7 +246,8 @@ struct mdp3_dma {
 	struct completion vsync_comp;
 	struct completion dma_comp;
 	struct completion histo_comp;
-	struct mdp3_vsync_notification vsync_client;
+	struct mdp3_notification vsync_client;
+	struct mdp3_notification dma_notifier_client;
 
 	struct mdp3_dma_output_config output_config;
 	struct mdp3_dma_source source_config;
@@ -256,10 +258,14 @@ struct mdp3_dma {
 	struct mdp3_dma_histogram_config histogram_config;
 	int histo_state;
 	struct mdp3_dma_histogram_data histo_data;
+	unsigned int vsync_status;
+	bool update_src_cfg;
 
 	int (*dma_config)(struct mdp3_dma *dma,
 			struct mdp3_dma_source *source_config,
 			struct mdp3_dma_output_config *output_config);
+
+	void (*dma_config_source)(struct mdp3_dma *dma);
 
 	int (*start)(struct mdp3_dma *dma, struct mdp3_intf *intf);
 
@@ -288,7 +294,10 @@ struct mdp3_dma {
 	int (*histo_op)(struct mdp3_dma *dma, u32 op);
 
 	void (*vsync_enable)(struct mdp3_dma *dma,
-			struct mdp3_vsync_notification *vsync_client);
+			struct mdp3_notification *vsync_client);
+
+	void (*dma_done_notifier)(struct mdp3_dma *dma,
+			struct mdp3_notification *dma_client);
 };
 
 struct mdp3_video_intf_cfg {
@@ -310,6 +319,7 @@ struct mdp3_video_intf_cfg {
 	int hsync_polarity;
 	int vsync_polarity;
 	int de_polarity;
+	int underflow_color;
 };
 
 struct mdp3_dsi_cmd_intf_cfg {
@@ -342,4 +352,4 @@ void mdp3_dma_callback_enable(struct mdp3_dma *dma, int type);
 
 void mdp3_dma_callback_disable(struct mdp3_dma *dma, int type);
 
-#endif /* MDP3_DMA_H */
+#endif 

@@ -112,7 +112,6 @@ struct kgsl_driver {
 	struct list_head process_list;
 	
 	struct list_head pagetable_list;
-	struct list_head destroy_list;
 	
 	spinlock_t ptlock;
 	
@@ -175,6 +174,9 @@ struct kgsl_memdesc {
 	struct kgsl_memdesc_ops *ops;
 	unsigned int flags; 
 	struct kgsl_process_private *private;
+
+	unsigned long sg_create;
+	struct scatterlist *sg_backup;
 };
 
 struct kgsl_mem_entry {

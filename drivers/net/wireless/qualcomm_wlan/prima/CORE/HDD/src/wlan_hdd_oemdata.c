@@ -60,15 +60,6 @@
 #include <wlan_hdd_includes.h>
 #include <net/arp.h>
 
-/*---------------------------------------------------------------------------------------------
-
-  \brief hdd_OemDataReqCallback() - 
-
-  This function also reports the results to the user space
-
-  \return - 0 for success, non zero for failure
-
------------------------------------------------------------------------------------------------*/
 static eHalStatus hdd_OemDataReqCallback(tHalHandle hHal, 
         void *pContext,
         tANI_U32 oemDataReqID,
@@ -82,23 +73,23 @@ static eHalStatus hdd_OemDataReqCallback(tHalHandle hHal,
     memset(&wrqu, '\0', sizeof(wrqu));
     memset(buffer, '\0', sizeof(buffer));
 
-    //now if the status is success, then send an event up
-    //so that the application can request for the data
-    //else no need to send the event up
+    
+    
+    
     if(oemDataReqStatus == eOEM_DATA_REQ_FAILURE)
     {
         snprintf(buffer, IW_CUSTOM_MAX, "QCOM: OEM-DATA-REQ-FAILED");
-        hddLog(LOGW, "%s: oem data req %d failed\n", __func__, oemDataReqID);
+        hddLog(LOGW, "%s: oem data req %d failed", __func__, oemDataReqID);
     }
     else if(oemDataReqStatus == eOEM_DATA_REQ_INVALID_MODE)
     {
         snprintf(buffer, IW_CUSTOM_MAX, "QCOM: OEM-DATA-REQ-INVALID-MODE");
-        hddLog(LOGW, "%s: oem data req %d failed because the driver is in invalid mode (IBSS|BTAMP|AP)\n", __func__, oemDataReqID);
+        hddLog(LOGW, "%s: oem data req %d failed because the driver is in invalid mode (IBSS|BTAMP|AP)", __func__, oemDataReqID);
     }
     else
     {
         snprintf(buffer, IW_CUSTOM_MAX, "QCOM: OEM-DATA-REQ-SUCCESS");
-        //everything went alright
+        
     }
     
     wrqu.data.pointer = buffer;
@@ -109,22 +100,6 @@ static eHalStatus hdd_OemDataReqCallback(tHalHandle hHal,
     return status;
 }
 
-/**--------------------------------------------------------------------------------------------
-
-  \brief iw_get_oem_data_rsp() - 
-
-  This function gets the oem data response. This invokes
-  the respective sme functionality. Function for handling the oem data rsp 
-  IOCTL 
-
-  \param - dev  - Pointer to the net device
-         - info - Pointer to the iw_oem_data_req
-         - wrqu - Pointer to the iwreq data
-         - extra - Pointer to the data
-
-  \return - 0 for success, non zero for failure
-
------------------------------------------------------------------------------------------------*/
 int iw_get_oem_data_rsp(
         struct net_device *dev, 
         struct iw_request_info *info,
@@ -146,11 +121,11 @@ int iw_get_oem_data_rsp(
 
     do
     {
-        //get the oem data response from sme
+        
         status = sme_getOemDataRsp(WLAN_HDD_GET_HAL_CTX(pAdapter), &pSmeOemDataRsp);
         if(status != eHAL_STATUS_SUCCESS)
         {
-            hddLog(LOGE, "%s: failed in sme_getOemDataRsp\n", __func__);
+            hddLog(LOGE, "%s: failed in sme_getOemDataRsp", __func__);
             break;
         }
         else
@@ -162,7 +137,7 @@ int iw_get_oem_data_rsp(
             }
             else
             {
-                hddLog(LOGE, "%s: pSmeOemDataRsp = NULL\n", __func__);
+                hddLog(LOGE, "%s: pSmeOemDataRsp = NULL", __func__);
                 status = eHAL_STATUS_FAILURE;
                 break;
             }
@@ -172,22 +147,6 @@ int iw_get_oem_data_rsp(
     return eHAL_STATUS_SUCCESS;
 }
 
-/**--------------------------------------------------------------------------------------------
-
-  \brief iw_set_oem_data_req() - 
-
-  This function sets the oem data req configuration. This invokes
-  the respective sme oem data req functionality. Function for 
-  handling the set IOCTL for the oem data req configuration
-
-  \param - dev  - Pointer to the net device
-     - info - Pointer to the iw_oem_data_req
-     - wrqu - Pointer to the iwreq data
-     - extra - Pointer to the data
-
-  \return - 0 for success, non zero for failure
-
------------------------------------------------------------------------------------------------*/
 int iw_set_oem_data_req(
         struct net_device *dev, 
         struct iw_request_info *info,
@@ -219,15 +178,21 @@ int iw_set_oem_data_req(
 
         if(pOemDataReq == NULL)
         {
-            hddLog(LOGE, "in %s oemDataReq == NULL\n", __func__);
+            hddLog(LOGE, "in %s oemDataReq == NULL", __func__);
             status = eHAL_STATUS_FAILURE;
             break;
         }
 
         vos_mem_zero(&oemDataReqConfig, sizeof(tOemDataReqConfig));
 
-        vos_mem_copy((&oemDataReqConfig)->oemDataReq, pOemDataReq->oemDataReq, OEM_DATA_REQ_SIZE);
-    
+        if (copy_from_user((&oemDataReqConfig)->oemDataReq,
+                           pOemDataReq->oemDataReq, OEM_DATA_REQ_SIZE))
+        {
+            VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
+                      "%s: copy_from_user() failed!", __func__);
+            return -EFAULT;
+        }
+
         status = sme_OemDataReq(WLAN_HDD_GET_HAL_CTX(pAdapter), 
                                                 pAdapter->sessionId,
                                                 &oemDataReqConfig, 

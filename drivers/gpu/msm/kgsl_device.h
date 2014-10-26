@@ -316,8 +316,6 @@ struct kgsl_process_private {
 		unsigned int cur;
 		unsigned int max;
 	} stats[KGSL_MEM_ENTRY_MAX];
-
-	atomic_t busy;
 };
 
 enum kgsl_process_priv_flags {
@@ -543,6 +541,19 @@ void kgsl_cmdbatch_destroy(struct kgsl_cmdbatch *cmdbatch);
 
 void kgsl_cmdbatch_destroy_object(struct kref *kref);
 
+static inline int kgsl_process_private_get(struct kgsl_process_private *process)
+{
+	int ret = 0;
+	if (process != NULL)
+		ret = kref_get_unless_zero(&process->refcount);
+	return ret;
+}
+
+void kgsl_process_private_put(struct kgsl_process_private *private);
+
+
+struct kgsl_process_private *kgsl_process_private_find(pid_t pid);
+
 static inline void kgsl_cmdbatch_put(struct kgsl_cmdbatch *cmdbatch)
 {
 	if (cmdbatch)
@@ -563,8 +574,7 @@ static inline int kgsl_cmdbatch_sync_pending(struct kgsl_cmdbatch *cmdbatch)
 	return ret;
 }
 
-static inline ssize_t kgsl_sysfs_store(const char *buf, size_t count,
-		unsigned int *ptr)
+static inline int kgsl_sysfs_store(const char *buf, unsigned int *ptr)
 {
 	unsigned int val;
 	int rc;
@@ -576,9 +586,8 @@ static inline ssize_t kgsl_sysfs_store(const char *buf, size_t count,
 	if (ptr)
 		*ptr = val;
 
-	return count;
+	return 0;
 }
-
 
 static inline int kgsl_mutex_lock(struct mutex *mutex, atomic64_t *owner)
 {
@@ -588,9 +597,9 @@ static inline int kgsl_mutex_lock(struct mutex *mutex, atomic64_t *owner)
 		atomic64_set(owner, (long)current);
 		
 		smp_wmb();
-		return 0;
+		return 1;
 	}
-	return 1;
+	return 0;
 }
 
 static inline void kgsl_mutex_unlock(struct mutex *mutex, atomic64_t *owner)

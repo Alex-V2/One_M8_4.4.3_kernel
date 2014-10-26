@@ -26,6 +26,7 @@ int board_mfg_mode(void);
 int board_build_flag(void);
 char *board_serialno(void);
 char *board_mid(void);
+int board_rom_type(void);
 int board_is_super_cid(void);
 unsigned int get_tamper_sf(void);
 unsigned char *board_get_google_boot_reason(void);

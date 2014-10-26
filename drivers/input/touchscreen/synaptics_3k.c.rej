@@ -1,0 +1,27 @@
+--- drivers/input/touchscreen/synaptics_3k.c
++++ drivers/input/touchscreen/synaptics_3k.c
+@@ -3340,6 +3896,24 @@
+ 			if (ts->syn_cover_wq)
+ 				queue_work(ts->syn_cover_wq, &ts->cover_work);
+ 		}
++
++#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
++		if (scr_suspended && ts->cover_enable && !cover_enable_ind && (gestures_switch || dt2w_switch || s2w_switch)) {
++			if (unlikely(boot_mode))
++				return NOTIFY_OK;
++			cover_enable_ind = true;
++			dt2w_reset_handler();
++			disable_irq_wake(ts->client->irq);
++			synaptics_ts_suspend(&ts->client->dev);
++			if(gpio_is_valid(ts->gpio_i2c)) {
++				gpio_direction_output(ts->gpio_i2c, 1);
++				ts->i2c_to_mcu = 1;
++				printk("[TP][SensorHub] Switch touch i2c to MCU (from cover)\n");
++			}
++			touch_status(1);
++		}
++#endif
++
+ 		pr_info("[TP] %s: cover_enable = %d.\n", __func__, ts->cover_enable);
+ 	}
+ 

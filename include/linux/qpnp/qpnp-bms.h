@@ -20,6 +20,7 @@
 #define OCV_UPDATE_STOP_BIT_BATT_LEVEL			(1<<1)
 #define OCV_UPDATE_STOP_BIT_ATTR_FILE			(1<<2)
 #define OCV_UPDATE_STOP_BIT_BOOT_UP			(1<<3)
+#define OCV_UPDATE_STOP_BIT_CABLE_OUT			(1<<4)
 
 #ifdef CONFIG_QPNP_BMS
 #ifdef CONFIG_HTC_BATT_8960
@@ -42,6 +43,7 @@ int pm8941_bms_enter_qb_mode(void);
 int pm8941_bms_exit_qb_mode(void);
 int pm8941_qb_mode_pwr_consumption_check(unsigned long time_stamp);
 int emmc_misc_write(int val, int offset);
+int pm8941_get_batt_id_mv(int *result);
 #endif 
 #else 
 #ifdef CONFIG_HTC_BATT_8960
@@ -118,6 +120,10 @@ static inline int pm8941_qb_mode_pwr_consumption_check(unsigned long time_stamp)
 	return -ENXIO;
 }
 static inline int emmc_misc_write(int val, int offset)
+{
+	return -ENXIO;
+}
+static inline int pm8941_get_batt_id_mv(int *result)
 {
 	return -ENXIO;
 }

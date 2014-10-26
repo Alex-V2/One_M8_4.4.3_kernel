@@ -44,7 +44,7 @@ ifeq ($(KERNEL_BUILD), 0)
 	CONFIG_PRIMA_WLAN_11AC_HIGH_TP := y
 
 	#Flag to enable TDLS feature
-	CONFIG_QCOM_TDLS := y
+	#CONFIG_QCOM_TDLS := y
 
 	#Flag to enable Fast Transition (11r) feature
 	CONFIG_QCOM_VOWIFI_11R := y
@@ -61,6 +61,9 @@ endif
 
 # To enable CCX upload, dependent config
 # CONFIG_QCOM_CCX must be enabled.
+ifeq ($(HTC_PROJECT_FLAG), TMO)
+CONFIG_QCOM_CCX := y
+endif
 CONFIG_QCOM_CCX_UPLOAD := n
 
 # Feature flags which are not (currently) configurable via Kconfig
@@ -151,6 +154,7 @@ HDD_OBJS := 	$(HDD_SRC_DIR)/bap_hdd_main.o \
 		$(HDD_SRC_DIR)/wlan_hdd_scan.o \
 		$(HDD_SRC_DIR)/wlan_hdd_softap_tx_rx.o \
 		$(HDD_SRC_DIR)/wlan_hdd_tx_rx.o \
+                $(HDD_SRC_DIR)/wlan_hdd_trace.o \
 		$(HDD_SRC_DIR)/wlan_hdd_wext.o \
 		$(HDD_SRC_DIR)/wlan_hdd_wmm.o \
 		$(HDD_SRC_DIR)/wlan_hdd_wowl.o
@@ -340,9 +344,13 @@ NLINK_OBJS :=	$(NLINK_SRC_DIR)/wlan_nlink_srv.o
 PTT_SRC_DIR :=	$(SVC_SRC_DIR)/ptt
 PTT_OBJS :=	$(PTT_SRC_DIR)/wlan_ptt_sock_svc.o
 
+WLAN_LOGGING_SRC_DIR := $(SVC_SRC_DIR)/logging
+WLAN_LOGGING_OBJS := $(WLAN_LOGGING_SRC_DIR)/wlan_logging_sock_svc.o
+
 SVC_OBJS :=	$(BTC_OBJS) \
 		$(NLINK_OBJS) \
-		$(PTT_OBJS)
+		$(PTT_OBJS) \
+                $(WLAN_LOGGING_OBJS)
 
 ############ SYS ############
 SYS_DIR :=	CORE/SYS
@@ -379,7 +387,8 @@ TL_INC := 	-I$(WLAN_ROOT)/$(TL_INC_DIR) \
 
 TL_OBJS := 	$(TL_SRC_DIR)/wlan_qct_tl.o \
 		$(TL_SRC_DIR)/wlan_qct_tl_ba.o \
-		$(TL_SRC_DIR)/wlan_qct_tl_hosupport.o
+		$(TL_SRC_DIR)/wlan_qct_tl_hosupport.o \
+               $(TL_SRC_DIR)/wlan_qct_tl_trace.o
 
 ############ VOSS ############
 VOSS_DIR :=	CORE/VOSS
@@ -552,6 +561,11 @@ CDEFINES :=	-DANI_BUS_TYPE_PLATFORM=1 \
 		-DWLAN_WAKEUP_EVENTS \
 	        -DWLAN_KD_READY_NOTIFIER \
 		-DFEATURE_WLAN_BATCH_SCAN \
+                -DFEATURE_WLAN_CH144 \
+                -DWLAN_BUG_ON_SKB_ERROR \
+                -DWLAN_DXE_LOW_RESOURCE_TIMER \
+                -DWLAN_LOGGING_SOCK_SVC_ENABLE \
+		-DWLAN_NL80211_TESTMODE \
 		-DFEATURE_WLAN_LPHB
 
 ifneq ($(CONFIG_PRONTO_WLAN),)
@@ -672,6 +686,8 @@ endif
 ifeq ($(CONFIG_ENABLE_LINUX_REG), y)
 CDEFINES += -DCONFIG_ENABLE_LINUX_REG
 endif
+
+CDEFINES += -DFEATURE_WLAN_CH_AVOID
 
 # Fix build for GCC 4.7
 EXTRA_CFLAGS += -Wno-maybe-uninitialized -Wno-unused-function

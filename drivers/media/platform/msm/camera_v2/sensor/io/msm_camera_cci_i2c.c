@@ -187,6 +187,7 @@ int32_t msm_camera_cci_i2c_write_table(
 	int32_t rc = -EFAULT;
 	struct msm_camera_cci_ctrl cci_ctrl;
     
+
 	int i;
 	struct msm_camera_i2c_reg_array *reg_setting;
 	uint16_t client_addr_type;
@@ -277,6 +278,7 @@ int32_t msm_camera_cci_i2c_write_table(
 			    }
 			    else
 			    {
+				
 			        rc = msm_camera_cci_i2c_write(client, reg_setting->reg_addr,
 			        reg_setting->reg_data, write_setting->data_type);
 			        if (rc < 0)

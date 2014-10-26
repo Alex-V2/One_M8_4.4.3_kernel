@@ -42,49 +42,27 @@
 #if !defined( __VOS_GETBIN_H )
 #define __VOS_GETBIN_H
 
-/**=========================================================================
 
-  \file  vos_getBin.h
 
-  \brief virtual Operating System Services (vOSS) binary APIs
-
-   Binary retrieval definitions and APIs.  
-
-   These APIs allow components to retrieve binary contents (firmware, 
-   configuration data, etc.) from a storage medium on the platform.
-  ========================================================================*/
-
-/* $Header$ */
-
-/*--------------------------------------------------------------------------
-  Include Files
-  ------------------------------------------------------------------------*/
 #include <vos_types.h>
 #include <vos_status.h>
 
-/*-------------------------------------------------------------------------- 
-  Preprocessor definitions and constants
-  ------------------------------------------------------------------------*/
 
-/*-------------------------------------------------------------------------- 
-  Type declarations
-  ------------------------------------------------------------------------*/
-/// Binary IDs  
 typedef enum
 {
-  /// Binary ID for firmware
+  
   VOS_BINARY_ID_FIRMWARE,
   
-  /// Binary ID for Configuration data
+  
   VOS_BINARY_ID_CONFIG,
 
-  /// Binary ID for country code to regulatory domain mapping
+  
   VOS_BINARY_ID_COUNTRY_INFO,
 
-  /// Binary ID for Handoff Configuration data
+  
   VOS_BINARY_ID_HO_CONFIG,
 
-  /// Binary ID for Dictionary Configuration data
+  
   VOS_BINARY_ID_DICT_CONFIG
 
   
@@ -92,9 +70,6 @@ typedef enum
 
 
 
-/*------------------------------------------------------------------------- 
-  Function declarations and documenation
-  ------------------------------------------------------------------------*/
   
 
 /**---------------------------------------------------------------------------
@@ -146,11 +121,8 @@ typedef enum
 VOS_STATUS vos_get_binary_blob( VOS_BINARY_ID binaryId, 
                                 v_VOID_t *pBuffer, v_SIZE_t *pBufferSize );
 
-/**----------------------------------------------------------------------------
-   \brief vos_get_conparam()- function to read the insmod parameters
------------------------------------------------------------------------------*/
 tVOS_CON_MODE vos_get_conparam( void );
 tVOS_CONCURRENCY_MODE vos_get_concurrency_mode( void );
 v_BOOL_t vos_concurrent_sessions_running(void);
 
-#endif // !defined __VOS_GETBIN_H
+#endif 

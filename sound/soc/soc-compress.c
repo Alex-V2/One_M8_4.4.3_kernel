@@ -649,7 +649,7 @@ static struct snd_compr_ops soc_compr_ops = {
 	.ack		= soc_compr_ack,
 	.get_caps	= soc_compr_get_caps,
 	.get_codec_caps = soc_compr_get_codec_caps,
-	.config_effect = soc_compr_config_effect
+	.config_effect = soc_compr_config_effect 
 };
 
 static struct snd_compr_ops soc_compr_dyn_ops = {
@@ -664,7 +664,7 @@ static struct snd_compr_ops soc_compr_dyn_ops = {
 	.ack		= soc_compr_ack,
 	.get_caps	= soc_compr_get_caps,
 	.get_codec_caps = soc_compr_get_codec_caps,
-	.config_effect = soc_compr_config_effect
+	.config_effect = soc_compr_config_effect 
 };
 
 int soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num)

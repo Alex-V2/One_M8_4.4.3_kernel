@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -37,6 +37,7 @@
 #include <media/msmb_camera.h>
 #include <media/msmb_generic_buf_mgr.h>
 #include <media/msmb_pproc.h>
+#include <mach/clk-provider.h>
 #include "msm_cpp.h"
 #include "msm_isp_util.h"
 #include "msm_camera_io_util.h"
@@ -49,6 +50,7 @@
 #define CONFIG_MSM_CPP_DBG 0
 
 #define CPP_CMD_TIMEOUT_MS 300
+#define MSM_CPP_CORE_CLK_IDX 4
 #define MSM_MICRO_IFACE_CLK_IDX 7
 
 #define MSM_CPP_MAX_TIMEOUT_TRIAL 3
@@ -149,7 +151,8 @@ static struct msm_cam_clk_info cpp_clk_info[] = {
 	} \
 }
 
-static int msm_cpp_notify_frame_done(struct cpp_device *cpp_dev);
+static int msm_cpp_notify_frame_done(struct cpp_device *cpp_dev,
+	uint32_t buff_mgr_ops);
 static void cpp_load_fw(struct cpp_device *cpp_dev, char *fw_name_bin);
 static void cpp_timer_callback(unsigned long data);
 
@@ -627,13 +630,15 @@ void msm_cpp_do_tasklet(unsigned long data)
 					
 					CPP_DBG("delete timer.\n");
 					msm_cpp_clear_timer(cpp_dev);
-					msm_cpp_notify_frame_done(cpp_dev);
+					msm_cpp_notify_frame_done(cpp_dev,
+						VIDIOC_MSM_BUF_MNGR_BUF_DONE);
 				} else if (msg_id ==
 					MSM_CPP_MSG_ID_FRAME_NACK) {
 					pr_err("NACK error from hw!!\n");
 					CPP_DBG("delete timer.\n");
 					msm_cpp_clear_timer(cpp_dev);
-					msm_cpp_notify_frame_done(cpp_dev);
+					msm_cpp_notify_frame_done(cpp_dev,
+						VIDIOC_MSM_BUF_MNGR_PUT_BUF);
 				}
 				i += cmd_len + 2;
 			}
@@ -641,6 +646,27 @@ void msm_cpp_do_tasklet(unsigned long data)
 	}
 }
 
+static void cpp_get_clk_freq_tbl(struct clk *clk, struct cpp_hw_info *hw_info)
+{
+	uint32_t count;
+	signed long freq_tbl_entry = 0;
+
+	if ((clk == NULL) || (hw_info == NULL) || (clk->ops == NULL) ||
+		(clk->ops->list_rate == NULL)) {
+		pr_err("Bad parameter\n");
+		return;
+	}
+
+	for (count = 0; count < MAX_FREQ_TBL; count++) {
+		freq_tbl_entry = clk->ops->list_rate(clk, count);
+		if (freq_tbl_entry >= 0)
+			hw_info->freq_tbl[count] = freq_tbl_entry;
+		else
+			break;
+	}
+
+	hw_info->freq_tbl_count = count;
+}
 static int cpp_init_hardware(struct cpp_device *cpp_dev)
 {
 	int rc = 0;
@@ -753,6 +779,8 @@ static int cpp_init_hardware(struct cpp_device *cpp_dev)
 	pr_debug("CPP HW Version: 0x%x\n", cpp_dev->hw_info.cpp_hw_version);
 	cpp_dev->hw_info.cpp_hw_caps =
 		msm_camera_io_r(cpp_dev->cpp_hw_base + 0x4);
+	cpp_get_clk_freq_tbl(cpp_dev->cpp_clk[MSM_CPP_CORE_CLK_IDX],
+		&cpp_dev->hw_info);
 	pr_debug("CPP HW Caps: 0x%x\n", cpp_dev->hw_info.cpp_hw_caps);
 	msm_camera_io_w(0x1, cpp_dev->vbif_base + 0x4);
 	cpp_dev->taskletq_idx = 0;
@@ -867,7 +895,10 @@ static void cpp_load_fw(struct cpp_device *cpp_dev, char *fw_name_bin)
 
 		
 		msm_cpp_write(MSM_CPP_CMD_FW_LOAD, cpp_dev->base);
-		msm_cpp_write(fw->size, cpp_dev->base);
+		if (fw)
+			msm_cpp_write(fw->size, cpp_dev->base);
+		else
+			msm_cpp_write(MSM_CPP_END_ADDRESS, cpp_dev->base);
 		msm_cpp_write(MSM_CPP_START_ADDRESS, cpp_dev->base);
 
 		if (ptr_bin) {
@@ -1051,7 +1082,8 @@ static int msm_cpp_buffer_ops(struct cpp_device *cpp_dev,
 	return rc;
 }
 
-static int msm_cpp_notify_frame_done(struct cpp_device *cpp_dev)
+static int msm_cpp_notify_frame_done(struct cpp_device *cpp_dev,
+	uint32_t buff_mgr_ops)
 {
 	struct v4l2_event v4l2_evt;
 	struct msm_queue_cmd *frame_qcmd = NULL;
@@ -1087,7 +1119,7 @@ static int msm_cpp_notify_frame_done(struct cpp_device *cpp_dev)
 			buff_mgr_info.index =
 				processed_frame->output_buffer_info[0].index;
 			rc = msm_cpp_buffer_ops(cpp_dev,
-				VIDIOC_MSM_BUF_MNGR_BUF_DONE,
+				buff_mgr_ops,
 				&buff_mgr_info);
 			if (rc < 0) {
 				pr_err("error putting buffer\n");
@@ -1109,82 +1141,8 @@ static int msm_cpp_notify_frame_done(struct cpp_device *cpp_dev)
 			buff_mgr_info.index =
 				processed_frame->output_buffer_info[1].index;
 			rc = msm_cpp_buffer_ops(cpp_dev,
-				VIDIOC_MSM_BUF_MNGR_BUF_DONE,
-					&buff_mgr_info);
-			if (rc < 0) {
-				pr_err("error putting buffer\n");
-				rc = -EINVAL;
-			}
-		}
-		v4l2_evt.id = processed_frame->inst_id;
-		v4l2_evt.type = V4L2_EVENT_CPP_FRAME_DONE;
-		v4l2_event_queue(cpp_dev->msm_sd.sd.devnode, &v4l2_evt);
-	}
-	return rc;
-}
-
-static int msm_cpp_notify_frame_done_timeout(struct cpp_device *cpp_dev)
-{
-	struct v4l2_event v4l2_evt;
-	struct msm_queue_cmd *frame_qcmd = NULL;
-	struct msm_queue_cmd *event_qcmd = NULL;
-	struct msm_cpp_frame_info_t *processed_frame = NULL;
-	struct msm_device_queue *queue = &cpp_dev->processing_q;
-	struct msm_buf_mngr_info buff_mgr_info;
-	int rc = 0;
-
-	frame_qcmd = msm_dequeue(queue, list_frame);
-	if (frame_qcmd) {
-		processed_frame = frame_qcmd->command;
-		do_gettimeofday(&(processed_frame->out_time));
-		kfree(frame_qcmd);
-		event_qcmd = kzalloc(sizeof(struct msm_queue_cmd), GFP_ATOMIC);
-		if (!event_qcmd) {
-			pr_err("Insufficient memory. return");
-			return -ENOMEM;
-		}
-		atomic_set(&event_qcmd->on_heap, 1);
-		event_qcmd->command = processed_frame;
-		CPP_DBG("fid %d\n", processed_frame->frame_id);
-		msm_enqueue(&cpp_dev->eventData_q, &event_qcmd->list_eventdata);
-		if (!processed_frame->output_buffer_info[0].processed_divert) {
-			memset(&buff_mgr_info, 0 ,
-				sizeof(struct msm_buf_mngr_info));
-			buff_mgr_info.session_id =
-				((processed_frame->identity >> 16) & 0xFFFF);
-			buff_mgr_info.stream_id =
-				(processed_frame->identity & 0xFFFF);
-			buff_mgr_info.frame_id = processed_frame->frame_id;
-			buff_mgr_info.timestamp.tv_sec = 0;
-			buff_mgr_info.timestamp.tv_usec = 0;
-			buff_mgr_info.index =
-				processed_frame->output_buffer_info[0].index;
-			rc = msm_cpp_buffer_ops(cpp_dev,
-				VIDIOC_MSM_BUF_MNGR_BUF_DONE,
+				buff_mgr_ops,
 				&buff_mgr_info);
-			if (rc < 0) {
-				pr_err("error putting buffer\n");
-				rc = -EINVAL;
-			}
-		}
-
-		if (processed_frame->duplicate_output  &&
-			!processed_frame->
-				output_buffer_info[1].processed_divert) {
-			memset(&buff_mgr_info, 0 ,
-				sizeof(struct msm_buf_mngr_info));
-			buff_mgr_info.session_id =
-			((processed_frame->duplicate_identity >> 16) & 0xFFFF);
-			buff_mgr_info.stream_id =
-				(processed_frame->duplicate_identity & 0xFFFF);
-			buff_mgr_info.frame_id = processed_frame->frame_id;
-			buff_mgr_info.timestamp.tv_sec = 0;
-			buff_mgr_info.timestamp.tv_usec = 0;
-			buff_mgr_info.index =
-				processed_frame->output_buffer_info[1].index;
-			rc = msm_cpp_buffer_ops(cpp_dev,
-				VIDIOC_MSM_BUF_MNGR_BUF_DONE,
-					&buff_mgr_info);
 			if (rc < 0) {
 				pr_err("error putting buffer\n");
 				rc = -EINVAL;
@@ -1251,7 +1209,8 @@ static void msm_cpp_do_timeout_work(struct work_struct *work)
 	if (cpp_timer.data.cpp_dev->timeout_trial_cnt >=
 		MSM_CPP_MAX_TIMEOUT_TRIAL) {
 		pr_info("Max trial reached\n");
-		msm_cpp_notify_frame_done_timeout(cpp_timer.data.cpp_dev); 
+		msm_cpp_notify_frame_done(cpp_timer.data.cpp_dev,
+			VIDIOC_MSM_BUF_MNGR_PUT_BUF);
 		cpp_timer.data.cpp_dev->timeout_trial_cnt = 0;
 		return;
 	}
@@ -1673,11 +1632,13 @@ long msm_cpp_subdev_ioctl(struct v4l2_subdev *sd,
 			mutex_unlock(&cpp_dev->mutex);
 			return -EINVAL;
 		}
+
 		if (cmd != VIDIOC_MSM_CPP_APPEND_STREAM_BUFF_INFO) {
 			rc = msm_cpp_add_buff_queue_entry(cpp_dev,
 				((k_stream_buff_info.identity >> 16) & 0xFFFF),
 				(k_stream_buff_info.identity & 0xFFFF));
 		}
+
 		if (!rc)
 			rc = msm_cpp_enqueue_buff_info_list(cpp_dev,
 				&k_stream_buff_info);
@@ -1794,18 +1755,74 @@ long msm_cpp_subdev_ioctl(struct v4l2_subdev *sd,
 		}
 		
 
-		process_frame = event_qcmd->command;
-		CPP_DBG("fid %d\n", process_frame->frame_id);
-		if (copy_to_user((void __user *)ioctl_ptr->ioctl_ptr,
-				process_frame,
-				sizeof(struct msm_cpp_frame_info_t))) {
-					mutex_unlock(&cpp_dev->mutex);
-					return -EINVAL;
+		if(event_qcmd) {
+			process_frame = event_qcmd->command;
+			CPP_DBG("fid %d\n", process_frame->frame_id);
+			if (copy_to_user((void __user *)ioctl_ptr->ioctl_ptr,
+					process_frame,
+					sizeof(struct msm_cpp_frame_info_t))) {
+						mutex_unlock(&cpp_dev->mutex);
+						return -EINVAL;
+			}
+
+			kfree(process_frame->cpp_cmd_msg);
+			kfree(process_frame);
+			kfree(event_qcmd);
+		} else {
+			pr_err("Empty command list\n");
+			return -EFAULT;
+		}
+		break;
+	}
+	case VIDIOC_MSM_CPP_SET_CLOCK: {
+		struct msm_cpp_clock_settings_t clock_settings;
+		unsigned long clock_rate = 0;
+		CPP_DBG("VIDIOC_MSM_CPP_SET_CLOCK\n");
+		if (ioctl_ptr->len == 0) {
+			pr_err("ioctl_ptr->len is 0\n");
+			mutex_unlock(&cpp_dev->mutex);
+			return -EINVAL;
 		}
 
-		kfree(process_frame->cpp_cmd_msg);
-		kfree(process_frame);
-		kfree(event_qcmd);
+		if (ioctl_ptr->ioctl_ptr == NULL) {
+			pr_err("ioctl_ptr->ioctl_ptr is NULL\n");
+			mutex_unlock(&cpp_dev->mutex);
+			return -EINVAL;
+		}
+
+		if (ioctl_ptr->len != sizeof(struct msm_cpp_clock_settings_t)) {
+			pr_err("Not valid ioctl_ptr->len\n");
+			mutex_unlock(&cpp_dev->mutex);
+			return -EINVAL;
+		}
+
+		rc = (copy_from_user(&clock_settings,
+			(void __user *)ioctl_ptr->ioctl_ptr,
+			ioctl_ptr->len) ? -EFAULT : 0);
+		if (rc) {
+			ERR_COPY_FROM_USER();
+			mutex_unlock(&cpp_dev->mutex);
+			return -EINVAL;
+		}
+
+		if (clock_settings.clock_rate > 0) {
+			rc = msm_isp_update_bandwidth(ISP_CPP,
+				clock_settings.avg,
+				clock_settings.inst);
+			if (rc < 0) {
+				pr_err("Bandwidth Set Failed!\n");
+				msm_isp_update_bandwidth(ISP_CPP, 0, 0);
+				mutex_unlock(&cpp_dev->mutex);
+				return -EINVAL;
+			}
+			clock_rate = clk_round_rate(
+				cpp_dev->cpp_clk[MSM_CPP_CORE_CLK_IDX],
+				clock_settings.clock_rate);
+			if (clock_rate != clock_settings.clock_rate)
+				pr_err("clock rate differ from settings\n");
+			clk_set_rate(cpp_dev->cpp_clk[MSM_CPP_CORE_CLK_IDX],
+				clock_rate);
+		}
 		break;
 	}
 	case MSM_SD_SHUTDOWN: {
@@ -2086,6 +2103,7 @@ static int __devinit cpp_probe(struct platform_device *pdev)
 		rc = -ENOMEM;
 		goto ERROR3;
 	}
+
 	INIT_WORK((struct work_struct *)cpp_dev->work, msm_cpp_do_timeout_work);
 	cpp_dev->cpp_open_cnt = 0;
 	cpp_dev->is_firmware_loaded = 0;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -55,11 +55,7 @@
   
   ========================================================================*/
 
-/* $Header$ */
 
-/*--------------------------------------------------------------------------
-  Include Files
-  ------------------------------------------------------------------------*/
 #include "vos_status.h"
 #include "vos_lock.h"
 #include "vos_trace.h"
@@ -80,18 +76,15 @@
 #endif
 
 
-/*-------------------------------------------------------------------------- 
-  Type declarations
-  ------------------------------------------------------------------------*/
 
 #define SME_TOTAL_COMMAND  30
 
 
 typedef struct sGenericPmcCmd
 {
-    tANI_U32 size;  //sizeof the data in the union, if any
+    tANI_U32 size;  
     tRequestFullPowerReason fullPowerReason;
-    tANI_BOOLEAN fReleaseWhenDone; //if TRUE, the command shall not put back to the queue, free te memory instead.
+    tANI_BOOLEAN fReleaseWhenDone; 
     union
     {
         tExitBmpsInfo exitBmpsInfo;
@@ -129,6 +122,7 @@ typedef struct TdlsSendMgmtInfo
   tANI_U8 dialog;
   tANI_U16 statusCode;
   tANI_U8 responder;
+  tANI_U32 peerCapability;
   tANI_U8 *buf;
   tANI_U8 len;
 } tTdlsSendMgmtCmdInfo;
@@ -179,9 +173,6 @@ typedef struct tdlsLinkTeardownCmdinfo
       tSirMacAddr peerMac;
 } tTdlsLinkTeardownCmdinfo;
 #endif
-/*
- * TDLS cmd info, CMD from SME to PE.
- */
 typedef struct s_tdls_cmd
 {
   tANI_U32 size;
@@ -191,8 +182,8 @@ typedef struct s_tdls_cmd
     tTdlsDisReqCmdinfo tdlsDisReqCmdInfo ;
     tTdlsLinkSetupReqCmdinfo tdlsLinkSetupReqCmdInfo ;
     tTdlsLinkTeardownCmdinfo tdlsLinkTeardownCmdInfo ;
-    //tEnterPeerUAPSDInfo enterUapsdInfo ;
-    //tExitPeerUAPSDinfo  exitUapsdInfo ;
+    
+    
 #endif
     tTdlsLinkEstablishCmdInfo tdlsLinkEstablishCmdInfo;
     tTdlsSendMgmtCmdInfo tdlsSendMgmtCmdInfo;
@@ -200,7 +191,7 @@ typedef struct s_tdls_cmd
     tTdlsDelStaCmdInfo   tdlsDelStaCmdInfo;
   }u;
 } tTdlsCmd;
-#endif  /* FEATURE_WLAN_TDLS */
+#endif  
 
 typedef struct tagSmeCmd
 {
@@ -231,12 +222,7 @@ typedef struct tagSmeCmd
 
 
 
-/*-------------------------------------------------------------------------- 
-                         Internal to SME
-  ------------------------------------------------------------------------*/
 
-//To get a command buffer
-//Return: NULL if there no more command buffer left
 tSmeCmd *smeGetCommandBuffer( tpAniSirGlobal pMac );
 void smePushCommand( tpAniSirGlobal pMac, tSmeCmd *pCmd, tANI_BOOLEAN fHighPriority );
 void smeProcessPendingQueue( tpAniSirGlobal pMac );
@@ -244,9 +230,6 @@ void smeReleaseCommand(tpAniSirGlobal pMac, tSmeCmd *pCmd);
 void purgeSmeSessionCmdList(tpAniSirGlobal pMac, tANI_U32 sessionId);
 tANI_BOOLEAN smeCommandPending(tpAniSirGlobal pMac);
 tANI_BOOLEAN pmcProcessCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand );
-//this function is used to abort a command where the normal processing of the command
-//is terminated without going through the normal path. it is here to take care of callbacks for
-//the command, if applicable.
 void pmcAbortCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand, tANI_BOOLEAN fStopping );
 tANI_BOOLEAN qosProcessCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand );
 
@@ -261,7 +244,6 @@ eHalStatus csrRoamProcessSetKeyCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand )
 eHalStatus csrRoamProcessRemoveKeyCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand );
 void csrReleaseCommandSetKey(tpAniSirGlobal pMac, tSmeCmd *pCommand);
 void csrReleaseCommandRemoveKey(tpAniSirGlobal pMac, tSmeCmd *pCommand);
-//eHalStatus csrRoamIssueSetKeyCommand( tpAniSirGlobal pMac, tANI_U32 sessionId, tCsrRoamSetKey *pSetKey, tANI_U32 roamId );
 eHalStatus csrRoamIssueRemoveKeyCommand( tpAniSirGlobal pMac, tANI_U32 sessionId,
                                          tCsrRoamRemoveKey *pRemoveKey, tANI_U32 roamId );
 eHalStatus csrIsFullPowerNeeded( tpAniSirGlobal pMac, tSmeCmd *pCommand, tRequestFullPowerReason *pReason,
@@ -281,24 +263,14 @@ eHalStatus csrProcessDelStaSessionCommand( tpAniSirGlobal pMac, tSmeCmd *pComman
 eHalStatus csrProcessDelStaSessionRsp( tpAniSirGlobal pMac, tANI_U8 *pMsg);
 
 #ifdef WLAN_NS_OFFLOAD
-/* ---------------------------------------------------------------------------
-    \fn pmcSetNSOffload
-    \brief  Set the host offload feature.
-    \param  hHal - The handle returned by macOpen.
-    \param  pRequest - Pointer to the offload request.
-    \param  sessionId .  Session index of the session
-    \return eHalStatus
-            eHAL_STATUS_FAILURE  Cannot set the offload.
-            eHAL_STATUS_SUCCESS  Request accepted. 
-  ---------------------------------------------------------------------------*/
 eHalStatus pmcSetNSOffload (tHalHandle hHal, tpSirHostOffloadReq pRequest, tANI_U8 sessionId);
-#endif //WLAN_NS_OFFLOAD
+#endif 
 
 #ifdef FEATURE_WLAN_SCAN_PNO
 eHalStatus pmcSetPreferredNetworkList(tHalHandle hHal, tpSirPNOScanReq pRequest, tANI_U8 sessionId, preferredNetworkFoundIndCallback callbackRoutine,  void *callbackContext);
 eHalStatus pmcUpdateScanParams(tHalHandle hHal, tCsrConfig *pRequest, tCsrChannel *pChannelList, tANI_U8 b11dResolved);
 eHalStatus pmcSetRssiFilter(tHalHandle hHal,   v_U8_t        rssiThreshold);
-#endif // FEATURE_WLAN_SCAN_PNO
+#endif 
 eHalStatus pmcSetPowerParams(tHalHandle hHal,   tSirSetPowerParamsReq*  pwParams, tANI_BOOLEAN forced);
 
 tANI_BOOLEAN csrRoamGetConcurrencyConnectStatusForBmps(tpAniSirGlobal pMac);
@@ -323,7 +295,7 @@ eHalStatus csrTdlsSetupReq(tHalHandle hHal, tANI_U8 sessionId,
 eHalStatus csrTdlsTeardownReq(tHalHandle hHal, tANI_U8 sessionId,
                                          tCsrTdlsTeardownRequest *teardown);
 #endif
-#endif /* FEATURE_WLAN_TDLS */
+#endif 
 
 #if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR)
 eHalStatus csrFlushCfgBgScanRoamChannelList(tpAniSirGlobal pMac);
@@ -339,5 +311,6 @@ eHalStatus csrCreateRoamScanChannelList(tpAniSirGlobal pMac,
                                                 tANI_U8 numChannels,
                                                 const eCsrBand eBand);
 #endif
+void activeListCmdTimeoutHandle(void *userData);
 
-#endif //#if !defined( __SMEINSIDE_H )
+#endif 

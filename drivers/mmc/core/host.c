@@ -85,17 +85,33 @@ static int mmc_host_suspend(struct device *dev)
 {
 	struct mmc_host *host = cls_dev_to_mmc_host(dev);
 	int ret = 0;
+	unsigned long flags;
 
 	if (!mmc_use_core_pm(host))
 		return 0;
 	pr_info("%s: %s\n", mmc_hostname(host), __func__);
 
+	spin_lock_irqsave(&host->clk_lock, flags);
+	host->dev_status = DEV_SUSPENDING;
+	spin_unlock_irqrestore(&host->clk_lock, flags);
 	if (!pm_runtime_suspended(dev) || mmc_is_sd_host(host)) {
 		ret = mmc_suspend_host(host);
 		if (ret < 0)
 			pr_err("%s: %s: failed: ret: %d\n", mmc_hostname(host),
 			       __func__, ret);
 	}
+	if (!ret && host->card && mmc_card_sdio(host->card) &&
+	    host->ios.clock) {
+		spin_lock_irqsave(&host->clk_lock, flags);
+		host->clk_old = host->ios.clock;
+		host->ios.clock = 0;
+		host->clk_gated = true;
+		spin_unlock_irqrestore(&host->clk_lock, flags);
+		mmc_set_ios(host);
+	}
+	spin_lock_irqsave(&host->clk_lock, flags);
+	host->dev_status = DEV_SUSPENDED;
+	spin_unlock_irqrestore(&host->clk_lock, flags);
 	return ret;
 }
 
@@ -118,6 +134,7 @@ static int mmc_host_resume(struct device *dev)
 			pr_err("%s: %s: failed: ret: %d\n", mmc_hostname(host),
 			       __func__, ret);
 	}
+	host->dev_status = DEV_RESUMED;
 	return ret;
 }
 
@@ -642,6 +659,7 @@ int mmc_add_host(struct mmc_host *host)
 	if (err)
 		return err;
 
+	device_enable_async_suspend(&host->class_dev);
 	
 
 #ifdef CONFIG_DEBUG_FS

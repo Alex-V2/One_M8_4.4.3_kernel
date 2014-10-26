@@ -87,7 +87,8 @@ bool	input_dev_ucp   = 1;
 int	gpio_index      = -1;
 bool	push_pull_8240  = 0;
 static bool reset_on_exit = 1;  
-bool ap_hdcp_success = false;
+uint8_t mhlDriverDone 	= 0;
+bool 	ap_hdcp_success = false;
 EXPORT_SYMBOL(ap_hdcp_success);
 
 module_param(allow_d3,		bool, S_IRUGO);
@@ -234,14 +235,10 @@ struct platform_signals_list platform_signals[] = {
 		},
 };
 
-static inline int platform_read_i2c_block(struct i2c_adapter *i2c_bus
-								, u8 page
-								, u8 offset
-								, u8 count
-								, u8 *values
-								)
+static inline int platform_read_i2c_block(struct i2c_adapter *i2c_bus, u8 page, u8 offset,
+						u8 count, u8 *values)
 {
-    struct i2c_msg			msg[2];
+	struct i2c_msg msg[2];
 
 	msg[0].flags = 0;
 	msg[0].addr = page >> 1;
@@ -256,16 +253,12 @@ static inline int platform_read_i2c_block(struct i2c_adapter *i2c_bus
 	return i2c_transfer(i2c_bus_adapter, msg, 2);
 }
 
-static inline int platform_write_i2c_block(struct i2c_adapter *i2c_bus
-										, u8 page
-										, u8 offset
-										, u16 count
-										, u8 *values
-										)
+static inline int platform_write_i2c_block(struct i2c_adapter *i2c_bus, u8 page, u8 offset,
+						u16 count, u8 *values)
 {
-    struct i2c_msg			msg;
-    u8						*buffer;
-	int						ret;
+	struct i2c_msg msg;
+	u8 *buffer;
+	int ret;
 
 	buffer = kmalloc(count + 1, GFP_KERNEL);
 	if (!buffer) {
@@ -727,9 +720,12 @@ void si_d2_to_d3(void)
 	struct mhl_dev_context *dev_context;
 	struct drv_hw_context *hw_context;
 
-	dev_context = i2c_get_clientdata(device_addresses[0].client);
-	hw_context = (struct drv_hw_context *)&dev_context->drv_context;
-	switch_to_d3(hw_context, true);
+	if (mhlDriverDone) {
+		dev_context = i2c_get_clientdata(device_addresses[0].client);
+		hw_context = (struct drv_hw_context *)&dev_context->drv_context;
+		switch_to_d3(hw_context, true);
+	} else
+		MHL_TX_DBG_ERR(NULL,"Driver probe failed\n" );
 }
 
 void si_wakeup_mhl(void)
@@ -738,14 +734,17 @@ void si_wakeup_mhl(void)
 	struct drv_hw_context *hw_context;
 
 	pr_info("[MHL] %s\n", __func__);
-	dev_context = i2c_get_clientdata(device_addresses[0].client);
-	hw_context = (struct drv_hw_context *)&dev_context->drv_context;
-	drv_info.mhl_device_initialize(hw_context, true);
+	if (mhlDriverDone) {
+		dev_context = i2c_get_clientdata(device_addresses[0].client);
+		hw_context = (struct drv_hw_context *)&dev_context->drv_context;
+		drv_info.mhl_device_initialize(hw_context, true);
 
-	
-	dev_context->fake_cable_out = true;
-	queue_delayed_work(dev_context->wq, &dev_context->irq_timeout_work,
+		
+		dev_context->fake_cable_out = true;
+		queue_delayed_work(dev_context->wq, &dev_context->irq_timeout_work,
 				MHL_ISR_TIMEOUT);
+	} else
+		MHL_TX_DBG_ERR(NULL,"Driver probe failed\n" );
 }
 
 static void update_mhl_status(bool isMHL, enum usb_connect_type statMHL)
@@ -1107,7 +1106,7 @@ static int __devinit si_8240_8558_mhl_tx_i2c_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&dev_context->irq_timeout_work, irq_timeout_handler);
 	
 	mhl_get_swing_value(&client->dev);
-
+	mhlDriverDone = 1;
 	printk("[MHL]---%s successful---\n", __func__);
 	return ret;
 }

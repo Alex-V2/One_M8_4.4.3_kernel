@@ -55,10 +55,8 @@
   
   ==========================================================================*/
   
-/* $HEADER$ */
 
 
-//value for initial part of frames and number of bytes to be compared
 #define GAS_INITIAL_REQ "\x04\x0a"  
 #define GAS_INITIAL_REQ_SIZE 2
 
@@ -83,7 +81,7 @@
 #define SA_QUERY_FRAME_RSP "\x08\x01"
 #define SA_QUERY_FRAME_RSP_SIZE 2
 
-#define HDD_P2P_WILDCARD_SSID "DIRECT-" //TODO Put it in proper place;
+#define HDD_P2P_WILDCARD_SSID "DIRECT-" 
 #define HDD_P2P_WILDCARD_SSID_LEN 7
 
 #define WNM_BSS_ACTION_FRAME "\x0a\x07"
@@ -99,7 +97,6 @@
 #define RATE_MASK         0x7f
 
 #ifdef WLAN_ENABLE_AGEIE_ON_SCAN_RESULTS
-/* GPS application requirement */
 #define QCOM_VENDOR_IE_ID 221
 #define QCOM_OUI1         0x00
 #define QCOM_OUI2         0xA0
@@ -110,7 +107,12 @@
 #ifdef FEATURE_WLAN_TDLS
 #define WLAN_IS_TDLS_SETUP_ACTION(action) \
          ((SIR_MAC_TDLS_SETUP_REQ <= action) && (SIR_MAC_TDLS_SETUP_CNF >= action))
+#if !defined (TDLS_MGMT_VERSION2)
+#define TDLS_MGMT_VERSION2 0
 #endif
+#endif
+
+#define MAX_CHANNEL MAX_2_4GHZ_CHANNEL + NUM_5GHZ_CHANNELS
 
 typedef struct {
    u8 element_id;
@@ -122,6 +124,28 @@ typedef struct {
    u32 age;
 }__attribute__((packed)) qcom_ie_age ;
 #endif
+
+#define QCOM_NL80211_VENDOR_ID                0x001374
+
+#ifdef FEATURE_WLAN_CH_AVOID
+#define QCOM_NL80211_VENDOR_SUBCMD_AVOID_FREQUENCY         10
+#define QCOM_NL80211_VENDOR_SUBCMD_AVOID_FREQUENCY_INDEX   0
+#endif 
+
+#ifdef FEATURE_WLAN_CH_AVOID
+#define HDD_MAX_AVOID_FREQ_RANGES   4
+typedef struct sHddAvoidFreqRange
+{
+   u32 startFreq;
+   u32 endFreq;
+} tHddAvoidFreqRange;
+
+typedef struct sHddAvoidFreqList
+{
+   u32 avoidFreqRangeCount;
+   tHddAvoidFreqRange avoidFreqRange[HDD_MAX_AVOID_FREQ_RANGES];
+} tHddAvoidFreqList;
+#endif 
 
 struct cfg80211_bss* wlan_hdd_cfg80211_update_bss_db( hdd_adapter_t *pAdapter,
                                       tCsrRoamInfo *pRoamInfo
@@ -183,5 +207,10 @@ extern void wlan_hdd_cfg80211_update_replayCounterCallback(void *callbackContext
 void* wlan_hdd_change_country_code_cb(void *pAdapter);
 void hdd_select_cbmode( hdd_adapter_t *pAdapter,v_U8_t operationChannel);
 
+
+#ifdef FEATURE_WLAN_CH_AVOID
+int wlan_hdd_send_avoid_freq_event(hdd_context_t *pHddCtx,
+                                   tHddAvoidFreqList *pAvoidFreqList);
+#endif 
 
 #endif

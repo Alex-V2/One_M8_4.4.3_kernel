@@ -105,15 +105,6 @@ typedef wpt_status (*WDTS_TxCompleteCbType)(void *pContext, wpt_packet *pFrame, 
 typedef wpt_status (*WDTS_RxFrameReadyCbType) (void *pContext, wpt_packet *pFrame, WDTS_ChannelType channel);
 typedef wpt_status (*WDTS_LowResourceCbType)(void *pContext, WDTS_ChannelType channel, wpt_boolean on);
 typedef void  (*WDTS_SetPSCbType)(wpt_status  status, unsigned int dxePhyAddr);
-/* DTS Set power state ACK callback. 
- * This callback function should be invoked by the DTS to notify WDI that set
- * power state request is complete.
- * Parameters:
- * status: status of the set operation
- * pUserData:Cookie that should be passed back to the caller along with the callback.
- * Return Value: None.
- *
- */
 typedef void  (*WDTS_SetPowerStateCbType)(wpt_status   status,
                                           unsigned int dxePhyAddr,
                                           void*        pUserData);
@@ -128,7 +119,7 @@ typedef struct {
   wpt_status (*setPowerState) (void *pContext, WDTS_PowerStateType   powerState, 
                                WDTS_SetPSCbType cBack);
   void (*channelDebug)(wpt_boolean displaySnapshot,
-                       wpt_boolean enableStallDetect);
+                       wpt_uint8   debugFlags);
   wpt_status (*stop) (void *pContext);
   wpt_status (*close) (void *pContext);
   wpt_uint32 (*getFreeTxDataResNumber) (void *pContext);
@@ -139,140 +130,38 @@ typedef struct {
    void*        pUserData;
 } WDTS_SetPowerStateCbInfoType;
 
-/* Tx/Rx stats function
- * This function should be invoked to fetch the current stats
-  * Parameters:
- *  pStats:Pointer to the collected stats
- *  len: length of buffer pointed to by pStats
- *  Return Status: None
- */
 void WDTS_GetTrafficStats(WDI_TrafficStatsType** pStats, wpt_uint32 *len);
 
-/* WDTS_DeactivateTrafficStats
- * This function should be invoked to suspend traffic stats collection
-  * Parameters: None
- *  Return Status: None
- */
 void WDTS_DeactivateTrafficStats(void);
 
-/* WDTS_ActivateTrafficStats
- * This function should be invoked to activate traffic stats collection
-  * Parameters: None
- *  Return Status: None
- */
 void WDTS_ActivateTrafficStats(void);
 
-/* WDTS_ClearTrafficStats
- * This function should be invoked to clear all past stats
-  * Parameters: None
- *  Return Status: None
- */
 void WDTS_ClearTrafficStats(void);
 
-/* DTS open  function. 
- * On open the transport device should initialize itself.
- * Parameters:
- *  pContext:Cookie that should be passed back to the caller along 
- *  with the callback.
- *
- * Return Value: SUCCESS  Completed successfully.
- *     FAILURE_XXX  Request was rejected due XXX Reason.
- 
- */
 wpt_status WDTS_openTransport( void *pContext);
 
 
 
 
-/* DTS start  function. 
- * On start the transport device should start running.
- * Parameters:
- * pContext:Cookie that should be passed back to the caller along 
- * with the callback.
- *
- * Return Value: SUCCESS  Completed successfully.
- *     FAILURE_XXX  Request was rejected due XXX Reason.
- *
- */
 wpt_status WDTS_startTransport( void *pContext);
 
 
 
 
-/* DTS Tx packet function. 
- * This function should be invoked by the DAL Dataservice to schedule transmit frame through DXE/SDIO.
- * Parameters:
- * pContext:Cookie that should be passed back to the caller along with the callback.
- * pFrame:Refernce to PAL frame.
- * Return Value: SUCCESS  Completed successfully.
- *     FAILURE_XXX  Request was rejected due XXX Reason.
- *
- */
 wpt_status WDTS_TxPacket(void *pContext, wpt_packet *pFrame);
 
-/* DTS Tx Complete function. 
- * This function should be invoked by the DAL Dataservice to notify tx completion to DXE/SDIO.
- * Parameters:
- * pContext:Cookie that should be passed back to the caller along with the callback.
- * ucTxResReq:TX resource number required by TL
- * Return Value: SUCCESS  Completed successfully.
- *     FAILURE_XXX  Request was rejected due XXX Reason.
- *
- */
 wpt_status WDTS_CompleteTx(void *pContext, wpt_uint32 ucTxResReq);
 
-/* DTS Set power state function. 
- * This function should be invoked by the DAL to notify the WLAN device power state.
- * Parameters:
- * pContext:Cookie that should be passed back to the caller along with the callback.
- * powerState:Power state of the WLAN device.
- * Return Value: SUCCESS  Set successfully in DXE control blk.
- *     FAILURE_XXX  Request was rejected due XXX Reason.
- *
- */
 wpt_status WDTS_SetPowerState(void *pContext, WDTS_PowerStateType powerState,
                               WDTS_SetPowerStateCbType cback);
 
-/* DTS Transport Channel Debug
- * Display DXE Channel debugging information
- * User may request to display DXE channel snapshot
- * Or if host driver detects any abnormal stcuk may display
- * Parameters:
- *  displaySnapshot : Display DXE snapshot option
- *  enableStallDetect : Enable stall detect feature
-                        This feature will take effect to data performance
-                        Not integrate till fully verification
- * Return Value: NONE
- *
- */
-void WDTS_ChannelDebug(wpt_boolean displaySnapshot, wpt_boolean toggleStallDetect);
+void WDTS_ChannelDebug(wpt_boolean displaySnapshot, wpt_uint8 debugFlags);
 
-/* DTS Stop function. 
- * Stop Transport driver, ie DXE, SDIO
- * Parameters:
- * pContext:Cookie that should be passed back to the caller along with the callback.
- * Return Value: SUCCESS  Completed successfully.
- *     FAILURE_XXX  Request was rejected due XXX Reason.
- *
- */
 wpt_status WDTS_Stop(void *pContext);
 
-/* DTS Close function. 
- * Close Transport driver, ie DXE, SDIO
- * Parameters:
- * pContext:Cookie that should be passed back to the caller along with the callback.
- * Return Value: SUCCESS  Completed successfully.
- *     FAILURE_XXX  Request was rejected due XXX Reason.
- *
- */
 wpt_status WDTS_Close(void *pContext);
 
-/* Get free TX data descriptor number from DXE
- * Parameters:
- * pContext: Cookie that should be passed back to the caller along with the callback.
- * Return Value: number of free descriptors for TX data channel
- *
- */
 wpt_uint32 WDTS_GetFreeTxDataResNumber(void *pContext);
 
+void WDTS_FillRateInfo(wpt_uint8 macEff, wpt_int16 startRateIndex, wpt_int16 endRateIndex);
 #endif

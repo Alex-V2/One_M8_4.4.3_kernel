@@ -46,6 +46,7 @@ int qpnp_pon_trigger_config(enum pon_trigger_source pon_src, bool enable);
 int qpnp_config_reset_enable(int pon_type, int en);
 int qpnp_get_reset_en(int pon_type);
 #endif 
+int qpnp_pon_wd_config(bool enable);
 #else
 static int qpnp_pon_system_pwr_off(enum pon_power_off_type type)
 {
@@ -67,6 +68,10 @@ static inline int qpnp_get_reset_en(int pon_type)
 	return -ENODEV;
 }
 #endif 
+int qpnp_pon_wd_config(bool enable)
+{
+	return -ENODEV;
+}
 #endif
 
 #endif

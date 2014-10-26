@@ -2796,6 +2796,25 @@ static int a3xx_rb_init(struct adreno_device *adreno_dev,
 	return 0;
 }
 
+static void a3xx_fatal_err_callback(struct adreno_device *adreno_dev, int bit)
+{
+	struct kgsl_device *device = &adreno_dev->dev;
+	const char *err = "";
+
+	switch (bit) {
+	case A3XX_INT_MISC_HANG_DETECT:
+		err = "MISC: GPU hang detected\n";
+		break;
+	default:
+		return;
+	}
+	KGSL_DRV_CRIT(device, "%s\n", err);
+	kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_OFF);
+
+	
+	adreno_dispatcher_irq_fault(device);
+}
+
 static void a3xx_err_callback(struct adreno_device *adreno_dev, int bit)
 {
 	struct kgsl_device *device = &adreno_dev->dev;
@@ -2816,7 +2835,7 @@ static void a3xx_err_callback(struct adreno_device *adreno_dev, int bit)
 
 		
 		kgsl_regwrite(device, A3XX_RBBM_AHB_CMD, (1 << 3));
-		goto done;
+		return;
 	}
 	case A3XX_INT_RBBM_REG_TIMEOUT:
 		err = "RBBM: AHB register timeout";
@@ -2853,13 +2872,10 @@ static void a3xx_err_callback(struct adreno_device *adreno_dev, int bit)
 			"CP | Protected mode error| %s | addr=%x\n",
 			reg & (1 << 24) ? "WRITE" : "READ",
 			(reg & 0x1FFFF) >> 2);
-		goto done;
+		return;
 	}
 	case A3XX_INT_CP_AHB_ERROR_HALT:
 		err = "ringbuffer AHB error interrupt";
-		break;
-	case A3XX_INT_MISC_HANG_DETECT:
-		err = "MISC: GPU hang detected";
 		break;
 	case A3XX_INT_UCHE_OOB_ACCESS:
 		err = "UCHE:  Out of bounds access";
@@ -2868,11 +2884,6 @@ static void a3xx_err_callback(struct adreno_device *adreno_dev, int bit)
 		return;
 	}
 	KGSL_DRV_CRIT(device, "%s\n", err);
-	kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_OFF);
-
-done:
-	
-	adreno_dispatcher_irq_fault(device);
 }
 
 static void a3xx_cp_callback(struct adreno_device *adreno_dev, int irq)
@@ -3278,7 +3289,7 @@ static struct {
 	A3XX_IRQ_CALLBACK(a3xx_err_callback),  
 	A3XX_IRQ_CALLBACK(NULL),	       
 	A3XX_IRQ_CALLBACK(NULL),	       
-	A3XX_IRQ_CALLBACK(NULL),	       
+	A3XX_IRQ_CALLBACK(a3xx_fatal_err_callback),
 	A3XX_IRQ_CALLBACK(a3xx_err_callback),  
 	
 };
@@ -3319,7 +3330,9 @@ static void a3xx_irq_control(struct adreno_device *adreno_dev, int state)
 	struct kgsl_device *device = &adreno_dev->dev;
 
 	if (state)
-		kgsl_regwrite(device, A3XX_RBBM_INT_0_MASK, A3XX_INT_MASK);
+		kgsl_regwrite(device, A3XX_RBBM_INT_0_MASK, A3XX_INT_MASK |
+			(test_bit(ADRENO_DEVICE_HANG_INTR, &adreno_dev->priv) ?
+				(1 << A3XX_INT_MISC_HANG_DETECT) : 0));
 	else
 		kgsl_regwrite(device, A3XX_RBBM_INT_0_MASK, 0);
 }
@@ -3858,9 +3871,12 @@ static void a3xx_start(struct adreno_device *adreno_dev)
 	
 	kgsl_regwrite(device, A3XX_RBBM_RBBM_CTL, 0x00030000);
 
-
-	kgsl_regwrite(device, A3XX_RBBM_INTERFACE_HANG_INT_CTL,
-			(1 << 16) | 0xFFF);
+	if (adreno_is_a330v2(adreno_dev))
+		kgsl_regwrite(device, A3XX_RBBM_INTERFACE_HANG_INT_CTL,
+				(1 << 31) | 0xFFFF);
+	else
+		kgsl_regwrite(device, A3XX_RBBM_INTERFACE_HANG_INT_CTL,
+				(1 << 16) | 0xFFF);
 
 	
 	kgsl_regwrite(device, A3XX_UCHE_CACHE_MODE_CONTROL_REG, 0x00000001);

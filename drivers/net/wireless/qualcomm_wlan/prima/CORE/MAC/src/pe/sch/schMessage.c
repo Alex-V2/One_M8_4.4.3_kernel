@@ -38,17 +38,6 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
-/*
- * Airgo Networks, Inc proprietary. All rights reserved.
- * This file schMessage.cc contains the message handler
- *
- * Author:      Sandesh Goel
- * Date:        02/25/02
- * History:-
- * Date            Modified by    Modification Information
- * --------------------------------------------------------------------
- *
- */
 #include "palTypes.h"
 #include "sirCommon.h"
 
@@ -63,34 +52,15 @@
 #include "schApi.h"
 #include "schDebug.h"
 
-/// Minimum beacon interval allowed (in Kus)
 #define SCH_BEACON_INTERVAL_MIN  10
 
-/// Maximum beacon interval allowed (in Kus)
 #define SCH_BEACON_INTERVAL_MAX  10000
 
-/// convert the CW values into a tANI_U16
 #define GET_CW(pCw) ((tANI_U16) ((*(pCw) << 8) + *((pCw) + 1)))
 
-// local functions
 static tSirRetStatus getWmmLocalParams(tpAniSirGlobal pMac, tANI_U32 params[][WNI_CFG_EDCA_ANI_ACBK_LOCAL_LEN]);
 static void setSchEdcaParams(tpAniSirGlobal pMac, tANI_U32 params[][WNI_CFG_EDCA_ANI_ACBK_LOCAL_LEN], tpPESession psessionEntry);
 
-// --------------------------------------------------------------------
-/**
- * schSetBeaconInterval
- *
- * FUNCTION:
- *
- * LOGIC:
- *
- * ASSUMPTIONS:
- *
- * NOTE:
- *
- * @param None
- * @return None
- */
 
 void schSetBeaconInterval(tpAniSirGlobal pMac,tpPESession psessionEntry)
 {
@@ -109,21 +79,6 @@ void schSetBeaconInterval(tpAniSirGlobal pMac,tpPESession psessionEntry)
 }
 
 
-// --------------------------------------------------------------------
-/**
- * schProcessMessage
- *
- * FUNCTION:
- *
- * LOGIC:
- *
- * ASSUMPTIONS:
- *
- * NOTE:
- *
- * @param None
- * @return None
- */
 
 void schProcessMessage(tpAniSirGlobal pMac,tpSirMsgQ pSchMsg)
 {
@@ -134,7 +89,7 @@ void schProcessMessage(tpAniSirGlobal pMac,tpSirMsgQ pSchMsg)
 #endif
     tANI_U32            val;
 
-    tpPESession psessionEntry = &pMac->lim.gpSession[0];  //TBD-RAJESH HOW TO GET sessionEntry?????
+    tpPESession psessionEntry = &pMac->lim.gpSession[0];  
     PELOG3(schLog(pMac, LOG3, FL("Received message (%x) "), pSchMsg->type);)
 
     switch (pSchMsg->type)
@@ -170,7 +125,7 @@ void schProcessMessage(tpAniSirGlobal pMac,tpSirMsgQ pSchMsg)
             pMac->sch.gSchScanReqRcvd = true;
             if (pMac->sch.gSchHcfEnabled)
             {
-                // In HCF mode, wait for TFP to stop before sending a response
+                
                 if (pMac->sch.schObject.gSchCFBInitiated ||
                     pMac->sch.schObject.gSchCFPInitiated)
                 {
@@ -183,7 +138,7 @@ void schProcessMessage(tpAniSirGlobal pMac,tpSirMsgQ pSchMsg)
             }
             else
             {
-                // In eDCF mode, send the response right away
+                
                 schSendStartScanRsp(pMac);
             }
             break;
@@ -202,7 +157,7 @@ void schProcessMessage(tpAniSirGlobal pMac,tpSirMsgQ pSchMsg)
             switch (pSchMsg->bodyval)
             {
                 case WNI_CFG_BEACON_INTERVAL:
-                    // What to do for IBSS ?? - TBD
+                    
                     if (psessionEntry->limSystemRole == eLIM_AP_ROLE)
                         schSetBeaconInterval(pMac,psessionEntry);
                     break;
@@ -261,8 +216,6 @@ void schProcessMessage(tpAniSirGlobal pMac,tpSirMsgQ pSchMsg)
 }
 
 
-// get the local or broadcast parameters based on the profile sepcified in the config
-// params are delivered in this order: BK, BE, VI, VO
 tSirRetStatus
 schGetParams(
     tpAniSirGlobal pMac,
@@ -366,7 +319,7 @@ static void broadcastWMMOfConcurrentSTASession(tpAniSirGlobal pMac, tpPESession 
 
     for (i =0;i < pMac->lim.maxBssId;i++)
     {
-        /* Find another INFRA STA AP session on same operating channel. The session entry passed to this API is for GO/SoftAP session that is getting added currently */
+        
         if ( (pMac->lim.gpSession[i].valid == TRUE ) &&
              (pMac->lim.gpSession[i].peSessionId != psessionEntry->peSessionId) &&
              (pMac->lim.gpSession[i].currentOperChannel == psessionEntry->currentOperChannel) &&
@@ -391,7 +344,7 @@ static void broadcastWMMOfConcurrentSTASession(tpAniSirGlobal pMac, tpPESession 
                         psessionEntry->gLimEdcaParamsBC[j].txoplimit);)
 
             }
-            /* Once atleast one concurrent session on same channel is found and WMM broadcast params for current SoftAP/GO session updated, return*/
+            
             break;
         }
     }
@@ -426,7 +379,7 @@ schQosUpdateBroadcast(tpAniSirGlobal pMac, tpPESession psessionEntry)
         cwmaxidx = WNI_CFG_EDCA_PROFILE_CWMAXB_IDX;
         txopidx  = WNI_CFG_EDCA_PROFILE_TXOPB_IDX;
     }
-    else // This can happen if mode is not set yet, assume 11a mode
+    else 
     {
         cwminidx = WNI_CFG_EDCA_PROFILE_CWMINA_IDX;
         cwmaxidx = WNI_CFG_EDCA_PROFILE_CWMAXA_IDX;
@@ -451,7 +404,7 @@ schQosUpdateBroadcast(tpAniSirGlobal pMac, tpPESession psessionEntry)
 
     }
 
-    /* If there exists a concurrent STA-AP session, use its WMM params to broadcast in beacons. WFA Wifi Direct test plan 6.1.14 requirement */
+    
     broadcastWMMOfConcurrentSTASession(pMac, psessionEntry);
 
     if (schSetFixedBeaconFields(pMac,psessionEntry) != eSIR_SUCCESS)
@@ -465,7 +418,7 @@ schQosUpdateLocal(tpAniSirGlobal pMac, tpPESession psessionEntry)
     tANI_U32 params[4][WNI_CFG_EDCA_ANI_ACBK_LOCAL_LEN];
     tANI_BOOLEAN highPerformance=eANI_BOOLEAN_TRUE;
 
-    if (schGetParams(pMac, params, true /*local*/) != eSIR_SUCCESS)
+    if (schGetParams(pMac, params, true ) != eSIR_SUCCESS)
     {
         PELOGE(schLog(pMac, LOGE, FL("schGetParams(local) failed"));)
         return;
@@ -485,17 +438,10 @@ schQosUpdateLocal(tpAniSirGlobal pMac, tpPESession psessionEntry)
         highPerformance = eANI_BOOLEAN_TRUE;
     }
 
-    //For AP, the bssID is stored in LIM Global context.
+    
     limSendEdcaParams(pMac, psessionEntry->gLimEdcaParams, psessionEntry->bssIdx, highPerformance);
 }
 
-/** ----------------------------------------------------------
-\fn      schSetDefaultEdcaParams
-\brief   This function sets the gLimEdcaParams to the default
-\        local wmm profile.
-\param   tpAniSirGlobal  pMac
-\return  none
-\ ------------------------------------------------------------ */
 void
 schSetDefaultEdcaParams(tpAniSirGlobal pMac, tpPESession psessionEntry)
 {
@@ -512,13 +458,6 @@ schSetDefaultEdcaParams(tpAniSirGlobal pMac, tpPESession psessionEntry)
 }
 
 
-/** ----------------------------------------------------------
-\fn      setSchEdcaParams
-\brief   This function fills in the gLimEdcaParams structure
-\        with the given edca params.
-\param   tpAniSirGlobal  pMac
-\return  none
-\ ------------------------------------------------------------ */
 static void
 setSchEdcaParams(tpAniSirGlobal pMac, tANI_U32 params[][WNI_CFG_EDCA_ANI_ACBK_LOCAL_LEN], tpPESession psessionEntry)
 {
@@ -530,21 +469,21 @@ setSchEdcaParams(tpAniSirGlobal pMac, tANI_U32 params[][WNI_CFG_EDCA_ANI_ACBK_LO
 
     PELOG1(schLog(pMac, LOG1, FL("limGetPhyMode() = %d"), phyMode);)
 
-    //if (pMac->lim.gLimPhyMode == WNI_CFG_PHY_MODE_11G)
+    
     if (phyMode == WNI_CFG_PHY_MODE_11G)
     {
         cwminidx = WNI_CFG_EDCA_PROFILE_CWMING_IDX;
         cwmaxidx = WNI_CFG_EDCA_PROFILE_CWMAXG_IDX;
         txopidx  = WNI_CFG_EDCA_PROFILE_TXOPG_IDX;
     }
-    //else if (pMac->lim.gLimPhyMode == WNI_CFG_PHY_MODE_11B)
+    
     else if (phyMode == WNI_CFG_PHY_MODE_11B)
     {
         cwminidx = WNI_CFG_EDCA_PROFILE_CWMINB_IDX;
         cwmaxidx = WNI_CFG_EDCA_PROFILE_CWMAXB_IDX;
         txopidx  = WNI_CFG_EDCA_PROFILE_TXOPB_IDX;
     }
-    else // This can happen if mode is not set yet, assume 11a mode
+    else 
     {
         cwminidx = WNI_CFG_EDCA_PROFILE_CWMINA_IDX;
         cwmaxidx = WNI_CFG_EDCA_PROFILE_CWMAXA_IDX;
@@ -570,13 +509,6 @@ setSchEdcaParams(tpAniSirGlobal pMac, tANI_U32 params[][WNI_CFG_EDCA_ANI_ACBK_LO
     return;
 }
 
-/** ----------------------------------------------------------
-\fn      getWmmLocalParams
-\brief   This function gets the WMM local edca parameters.
-\param   tpAniSirGlobal  pMac
-\param   tANI_U32 params[][WNI_CFG_EDCA_ANI_ACBK_LOCAL_LEN]
-\return  none
-\ ------------------------------------------------------------ */
 static tSirRetStatus
 getWmmLocalParams(tpAniSirGlobal  pMac,  tANI_U32 params[][WNI_CFG_EDCA_ANI_ACBK_LOCAL_LEN])
 {
@@ -608,14 +540,6 @@ getWmmLocalParams(tpAniSirGlobal  pMac,  tANI_U32 params[][WNI_CFG_EDCA_ANI_ACBK
 }
 
 
-/** ----------------------------------------------------------
-\fn      schEdcaProfileUpdate
-\brief   This function updates the local and broadcast
-\        EDCA params in the gLimEdcaParams structure. It also
-\        updates the edcaParamSetCount.
-\param   tpAniSirGlobal  pMac
-\return  none
-\ ------------------------------------------------------------ */
 void
 schEdcaProfileUpdate(tpAniSirGlobal pMac, tpPESession psessionEntry)
 {
@@ -627,4 +551,3 @@ schEdcaProfileUpdate(tpAniSirGlobal pMac, tpPESession psessionEntry)
     }
 }
 
-// --------------------------------------------------------------------

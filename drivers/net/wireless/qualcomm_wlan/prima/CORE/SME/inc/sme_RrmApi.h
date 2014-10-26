@@ -56,11 +56,7 @@
   
   ========================================================================*/
 
-/* $Header$ */
 
-/*--------------------------------------------------------------------------
-  Include Files
-  ------------------------------------------------------------------------*/
 #include "vos_lock.h"
 #include "vos_trace.h"
 #include "vos_memory.h"
@@ -71,7 +67,6 @@
 #include "smeRrmInternal.h"
 
 
-//APIs
 eHalStatus sme_RrmMsgProcessor( tpAniSirGlobal pMac,  v_U16_t msg_type, 
                                 void *pMsgBuf);
 

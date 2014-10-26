@@ -267,6 +267,7 @@ struct himax_ts_data {
 	uint32_t pl_x_max;
 	uint32_t pl_y_min;
 	uint32_t pl_y_max;
+	bool suspended;
 };
 
 static struct himax_ts_data *private_ts;
@@ -6588,7 +6589,7 @@ static int himax8528_probe(struct i2c_client *client, const struct i2c_device_id
 	if (client->dev.of_node) { 
 		pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
 		if (pdata == NULL) {
-			ret = -ENOMEM;
+			err = -ENOMEM;
 			goto err_alloc_dt_pdata_failed;
 		}
 		ret = himax_parse_dt(ts, pdata);
@@ -6676,7 +6677,7 @@ static int himax8528_probe(struct i2c_client *client, const struct i2c_device_id
 		{
 			E("[himax] %s: I2C access failed addr = 0x%x\n", __func__, client->addr);
 		}
-		ret = -ENODEV;
+		err = -ENODEV;
 		goto err_check_offmode_charging;
 	}
 	
@@ -6733,14 +6734,15 @@ static int himax8528_probe(struct i2c_client *client, const struct i2c_device_id
 	
 	calcDataSize(ts->nFinger_support);
 	I("%s: calcDataSize complete\n", __func__);
-	#ifdef CONFIG_OF	
+	#ifdef CONFIG_OF
 	ts->pdata->abs_pressure_min = 0;
 	ts->pdata->abs_pressure_max = 200;
 	ts->pdata->abs_width_min = 0;
 	ts->pdata->abs_width_max = 200;
 	pdata->cable_config[0] = 0x90;
 	pdata->cable_config[1] = 0x00;
-	#endif	
+	#endif
+	ts->suspended          = false;
 	
 	ts->cable_config = pdata->cable_config;
 	ts->protocol_type = pdata->protocol_type;
@@ -6778,7 +6780,7 @@ static int himax8528_probe(struct i2c_client *client, const struct i2c_device_id
 	ts->himax_att_wq = create_singlethread_workqueue("HMX_ATT_reuqest");
 	if (!ts->himax_att_wq) {
 		E(" allocate syn_att_wq failed\n");
-		ret = -ENOMEM;
+		err = -ENOMEM;
 		goto err_get_intr_bit_failed;
 	}
 	INIT_DELAYED_WORK(&ts->work_att, himax_fb_register);
@@ -6977,11 +6979,22 @@ out:
 }
 #endif
 
-static int himax8528_suspend(struct i2c_client *client, pm_message_t mesg)
+static int himax8528_suspend(struct device *dev)
 {
 	int ret;
 	uint8_t buf[2] = {0};
-	struct himax_ts_data *ts = i2c_get_clientdata(client);
+	struct himax_ts_data *ts = dev_get_drvdata(dev);
+
+	if(ts->suspended)
+	{
+		I("%s: Already suspended. Skipped.\n", __func__);
+		return 0;
+	}
+	else
+	{
+		ts->suspended = true;
+		I("%s: enter\n", __func__);
+	}
 
 	if (atomic_read(&ts->in_flash)) {
 		I("[FW] flashing firmware, won't enter deep sleep now.\n");
@@ -6990,7 +7003,6 @@ static int himax8528_suspend(struct i2c_client *client, pm_message_t mesg)
 		ts->pre_finger_mask = 0;
 		return 0;
 	}
-
 	#ifdef HX_TP_SYS_FLASH_DUMP
 	if (getFlashDumpGoing())
 	{
@@ -6999,33 +7011,31 @@ static int himax8528_suspend(struct i2c_client *client, pm_message_t mesg)
 	}
 	#endif
 
-	I("%s: enter\n", __func__);
-
 	himax_int_enable(0);
 
 	
 	buf[0] = HX_CMD_TSSOFF;
-	ret = i2c_himax_master_write(client, buf, 1, HIMAX_I2C_RETRY_TIMES);
+	ret = i2c_himax_master_write(ts->client, buf, 1, HIMAX_I2C_RETRY_TIMES);
 	if (ret < 0)
 	{
-		E("[himax] %s: I2C access failed addr = 0x%x\n", __func__, client->addr);
+		E("[himax] %s: I2C access failed addr = 0x%x\n", __func__, ts->client->addr);
 	}
 	hr_msleep(30);
 
 	buf[0] = HX_CMD_TSSLPIN;
-	ret = i2c_himax_master_write(client, buf, 1, HIMAX_I2C_RETRY_TIMES);
+	ret = i2c_himax_master_write(ts->client, buf, 1, HIMAX_I2C_RETRY_TIMES);
 	if (ret < 0)
 	{
-		E("[himax] %s: I2C access failed addr = 0x%x\n", __func__, client->addr);
+		E("[himax] %s: I2C access failed addr = 0x%x\n", __func__, ts->client->addr);
 	}
 	hr_msleep(30);
 
 	buf[0] = HX_CMD_SETDEEPSTB;
 	buf[1] = 0x01;
-	ret = i2c_himax_master_write(client, buf, 2, HIMAX_I2C_RETRY_TIMES);
+	ret = i2c_himax_master_write(ts->client, buf, 2, HIMAX_I2C_RETRY_TIMES);
 	if (ret < 0)
 	{
-		E("[himax] %s: I2C access failed addr = 0x%x\n", __func__, client->addr);
+		E("[himax] %s: I2C access failed addr = 0x%x\n", __func__, ts->client->addr);
 	}
 
 	
@@ -7054,12 +7064,12 @@ static int himax8528_suspend(struct i2c_client *client, pm_message_t mesg)
 	return 0;
 }
 
-static int himax8528_resume(struct i2c_client *client)
+static int himax8528_resume(struct device *dev)
 {
 	int ret = 0;
 	uint8_t buf[5] = { 0 };
 
-	struct himax_ts_data *ts = i2c_get_clientdata(client);
+	struct himax_ts_data *ts = dev_get_drvdata(dev);
 
 	I("%s: enter\n", __func__);
 
@@ -7073,20 +7083,22 @@ static int himax8528_resume(struct i2c_client *client)
 	
 	buf[0] = HX_CMD_SETDEEPSTB;	
 	buf[1] = 0x00;
-	ret = i2c_himax_master_write(client, buf, 2, HIMAX_I2C_RETRY_TIMES);
+	ret = i2c_himax_master_write(ts->client, buf, 2, HIMAX_I2C_RETRY_TIMES);
 	if (ret < 0)
 	{
-	    E("[himax] %s: I2C access failed addr = 0x%x\n", __func__, client->addr);
+	    E("[himax] %s: I2C access failed addr = 0x%x\n", __func__, ts->client->addr);
 	}
 	hr_msleep(5);
 	
-	i2c_himax_write_command(client, 0x83, HIMAX_I2C_RETRY_TIMES);
+	i2c_himax_write_command(ts->client, 0x83, HIMAX_I2C_RETRY_TIMES);
 	hr_msleep(30);
-	i2c_himax_write_command(client, 0x81, HIMAX_I2C_RETRY_TIMES);
+	i2c_himax_write_command(ts->client, 0x81, HIMAX_I2C_RETRY_TIMES);
 	atomic_set(&ts->suspend_mode, 0);
 	ts->just_resume = 1;
 
 	himax_int_enable(1);
+
+	ts->suspended = false;
 	return 0;
 }
 
@@ -7105,14 +7117,14 @@ static int fb_notifier_callback(struct notifier_block *self,
 		blank = evdata->data;
 		switch (*blank) {
 		case FB_BLANK_UNBLANK:
-			himax8528_resume(ts->client);
+			himax8528_resume(&ts->client->dev);
 		break;
 
 		case FB_BLANK_POWERDOWN:
 		case FB_BLANK_HSYNC_SUSPEND:
 		case FB_BLANK_VSYNC_SUSPEND:
 		case FB_BLANK_NORMAL:
-			himax8528_suspend(ts->client, PMSG_SUSPEND);
+			himax8528_suspend(&ts->client->dev);
 		break;
 		}
 	}
@@ -7136,6 +7148,15 @@ static void himax_ts_late_resume(struct early_suspend *h)
 }
 #endif
 
+static const struct dev_pm_ops himax8528_pm_ops = {
+#if (!defined(CONFIG_FB) && !defined(CONFIG_HAS_EARLYSUSPEND))
+	.suspend = himax8528_suspend,
+	.resume  = himax8528_resume,
+#else
+	.suspend = himax8528_suspend,
+#endif
+};
+
 static const struct i2c_device_id himax8528_ts_id[] = {
 	{HIMAX8528_NAME, 0 },
 	{}
@@ -7154,14 +7175,13 @@ static struct i2c_driver himax8528_driver = {
 	.id_table	= himax8528_ts_id,
 	.probe		= himax8528_probe,
 	.remove		= himax8528_remove,
-#if(!defined(CONFIG_FB) && !defined(CONFIG_HAS_EARLYSUSPEND))
-	.suspend	= himax8528_suspend,
-	.resume		= himax8528_resume,
-#endif
 	.driver		= {
 		.name = HIMAX8528_NAME,
 		.owner = THIS_MODULE,
 		.of_match_table = himax_match_table,
+#ifdef CONFIG_PM
+		.pm		= &himax8528_pm_ops,
+#endif
 	},
 };
 static void __devinit himax8528_init_async(void *unused, async_cookie_t cookie)

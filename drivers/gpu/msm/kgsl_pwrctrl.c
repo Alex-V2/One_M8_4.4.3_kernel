@@ -39,9 +39,6 @@ extern void set_gpu_clk(unsigned int);
 #define INIT_UDELAY		200
 #define MAX_UDELAY		2000
 
-//gboost
-int graphics_boost = 4;
-
 struct clk_pair {
 	const char *name;
 	uint map;
@@ -74,8 +71,6 @@ struct clk_pair clks[KGSL_MAX_CLKS] = {
 	},
 };
 
-static void kgsl_pwrctrl_clk(struct kgsl_device *device, int state,
-					  int requested_state);
 static void kgsl_pwrctrl_axi(struct kgsl_device *device, int state);
 static void kgsl_pwrctrl_pwrrail(struct kgsl_device *device, int state);
 
@@ -181,9 +176,6 @@ void kgsl_pwrctrl_pwrlevel_change(struct kgsl_device *device,
 
 
 	trace_kgsl_pwrlevel(device, pwr->active_pwrlevel, pwrlevel->gpu_freq);
-
-//gboost
-        graphics_boost = pwr->active_pwrlevel;
 }
 
 EXPORT_SYMBOL(kgsl_pwrctrl_pwrlevel_change);
@@ -202,9 +194,9 @@ static int kgsl_pwrctrl_thermal_pwrlevel_store(struct device *dev,
 
 	pwr = &device->pwrctrl;
 
-	ret = kgsl_sysfs_store(buf, count, &level);
+	ret = kgsl_sysfs_store(buf, &level);
 
-	if (ret != count)
+	if (ret)
 		return ret;
 
 	kgsl_mutex_lock(&device->mutex, &device->mutex_owner);
@@ -240,15 +232,16 @@ static int kgsl_pwrctrl_max_pwrlevel_store(struct device *dev,
 {
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
 	struct kgsl_pwrctrl *pwr;
-	int ret, level = 0, max_level;
+	int ret, max_level;
+	unsigned int level = 0;
 
 	if (device == NULL)
 		return 0;
 
 	pwr = &device->pwrctrl;
 
-	ret = kgsl_sysfs_store(buf, count, &level);
-	if (ret != count)
+	ret = kgsl_sysfs_store(buf, &level);
+	if (ret)
 		return ret;
 
 	kgsl_mutex_lock(&device->mutex, &device->mutex_owner);
@@ -287,15 +280,16 @@ static int kgsl_pwrctrl_min_pwrlevel_store(struct device *dev,
 					 const char *buf, size_t count)
 {	struct kgsl_device *device = kgsl_device_from_dev(dev);
 	struct kgsl_pwrctrl *pwr;
-	int ret, level = 0, min_level;
+	int ret, min_level;
+	unsigned int level = 0;
 
 	if (device == NULL)
 		return 0;
 
 	pwr = &device->pwrctrl;
 
-	ret = kgsl_sysfs_store(buf, count, &level);
-	if (ret != count)
+	ret = kgsl_sysfs_store(buf, &level);
+	if (ret)
 		return ret;
 
 	kgsl_mutex_lock(&device->mutex, &device->mutex_owner);
@@ -371,8 +365,8 @@ static int kgsl_pwrctrl_max_gpuclk_store(struct device *dev,
 
 	pwr = &device->pwrctrl;
 
-	ret = kgsl_sysfs_store(buf, count, &val);
-	if (ret != count)
+	ret = kgsl_sysfs_store(buf, &val);
+	if (ret)
 		return ret;
 
 	kgsl_mutex_lock(&device->mutex, &device->mutex_owner);
@@ -419,8 +413,8 @@ static int kgsl_pwrctrl_gpuclk_store(struct device *dev,
 
 	pwr = &device->pwrctrl;
 
-	ret = kgsl_sysfs_store(buf, count, &val);
-	if (ret != count)
+	ret = kgsl_sysfs_store(buf, &val);
+	if (ret)
 		return ret;
 
 	kgsl_mutex_lock(&device->mutex, &device->mutex_owner);
@@ -458,8 +452,8 @@ static int kgsl_pwrctrl_idle_timer_store(struct device *dev,
 		return 0;
 	pwr = &device->pwrctrl;
 
-	ret = kgsl_sysfs_store(buf, count, &val);
-	if (ret != count)
+	ret = kgsl_sysfs_store(buf, &val);
+	if (ret)
 		return ret;
 
 	kgsl_mutex_lock(&device->mutex, &device->mutex_owner);
@@ -497,8 +491,8 @@ static int kgsl_pwrctrl_pmqos_latency_store(struct device *dev,
 	if (device == NULL)
 		return 0;
 
-	ret = kgsl_sysfs_store(buf, count, &val);
-	if (ret != count)
+	ret = kgsl_sysfs_store(buf, &val);
+	if (ret)
 		return ret;
 
 	kgsl_mutex_lock(&device->mutex, &device->mutex_owner);
@@ -644,8 +638,8 @@ static int __force_on_store(struct device *dev,
 	if (device == NULL)
 		return 0;
 
-	ret = kgsl_sysfs_store(buf, count, &val);
-	if (ret != count)
+	ret = kgsl_sysfs_store(buf, &val);
+	if (ret)
 		return ret;
 
 	kgsl_mutex_lock(&device->mutex, &device->mutex_owner);
@@ -719,8 +713,8 @@ static ssize_t kgsl_pwrctrl_bus_split_store(struct device *dev,
 	if (device == NULL)
 		return 0;
 
-	ret = kgsl_sysfs_store(buf, count, &val);
-	if (ret != count)
+	ret = kgsl_sysfs_store(buf, &val);
+	if (ret)
 		return ret;
 
 	kgsl_mutex_lock(&device->mutex, &device->mutex_owner);
@@ -837,7 +831,7 @@ static void kgsl_pwrctrl_busy_time(struct kgsl_device *device, bool on_time)
 	}
 }
 
-static void kgsl_pwrctrl_clk(struct kgsl_device *device, int state,
+void kgsl_pwrctrl_clk(struct kgsl_device *device, int state,
 					  int requested_state)
 {
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
@@ -1079,8 +1073,7 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 					 pwr->pwrlevels[pwr->active_pwrlevel].
 						bus_freq);
 
-	
-	pwr->pm_qos_latency = 501;
+	pwr->pm_qos_latency = pdata->pm_qos_latency;
 
 	pm_runtime_enable(device->parentdev);
 

@@ -47,27 +47,14 @@
    All Rights Reserved.
    Qualcomm Atheros Confidential and Proprietary.
   ==============================================================================*/
-/* $HEADER$ */
-/**-----------------------------------------------------------------------------
-  Include files
-  ----------------------------------------------------------------------------*/
 #include <vos_getBin.h>
-#include <linux/fs.h>       // for softmac direct file i/o
+#include <linux/fs.h>       
 #include <vos_api.h>
 #include <vos_sched.h>
 #include <wlan_hdd_misc.h>
 #include <wlan_hdd_main.h>
-/**-----------------------------------------------------------------------------
-  Preprocessor definitions and constants
-  ----------------------------------------------------------------------------*/
-/**-----------------------------------------------------------------------------
-  Type declarations
-  ----------------------------------------------------------------------------*/
 extern tVOS_CONCURRENCY_MODE hdd_get_concurrency_mode ( void );
 
-/**-----------------------------------------------------------------------------
-  Function declarations and documenation
-  ----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------
   \brief vos_get_binary_blob() - get binary data from platform
   This API allows components to get binary data from the platform independent
@@ -97,7 +84,7 @@ VOS_STATUS vos_get_binary_blob( VOS_BINARY_ID binaryId,
 
     v_CONTEXT_t pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS,NULL);
 
-    // get the correct file name from binary Id
+    
     switch (binaryId)
     {
         case VOS_BINARY_ID_CONFIG:
@@ -118,13 +105,13 @@ VOS_STATUS vos_get_binary_blob( VOS_BINARY_ID binaryId,
     }
     if(0 == *pBufferSize )
     {
-       /*  just a file size request.  set the value and return  VOS_STATUS_E_NOMEM*/
+       
        VosSts = hdd_get_cfg_file_size(((VosContextType*)(pVosContext))->pHDDContext,pFileName,pBufferSize);
 
        if ( !VOS_IS_STATUS_SUCCESS( VosSts ))
        {
           VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
-                                    "%s : vos_open failed\n",__func__);
+                                    "%s : vos_open failed",__func__);
 
           return VOS_STATUS_E_FAILURE;
        }
@@ -133,7 +120,7 @@ VOS_STATUS vos_get_binary_blob( VOS_BINARY_ID binaryId,
     else
     {
        if(NULL != pBuffer) {
-          // read the contents into the buffer
+          
           VosSts = hdd_read_cfg_file(((VosContextType*)(pVosContext))->pHDDContext,pFileName,pBuffer,pBufferSize);
        }
        else {

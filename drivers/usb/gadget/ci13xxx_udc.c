@@ -572,9 +572,6 @@ static int hw_usb_reset(void)
 	hw_cwrite(CAP_ENDPTFLUSH,    ~0, ~0);   
 
 	
-	hw_cwrite(CAP_ENDPTSETUPSTAT, 0,  0);   
-
-	
 	hw_cwrite(CAP_ENDPTCOMPLETE,  0,  0);   
 
 	

@@ -104,10 +104,6 @@ obj-$(CONFIG_ARCH_QSD8X50) += sirc.o
 obj-$(CONFIG_ARCH_FSM9XXX) += sirc-fsm9xxx.o
 obj-$(CONFIG_MSM_FIQ_SUPPORT) += fiq_glue.o
 obj-$(CONFIG_MACH_TROUT) += board-trout-rfkill.o
-obj-$(CONFIG_MSM_SDIO_AL) += sdio_al.o
-obj-$(CONFIG_MSM_SDIO_AL) += sdio_al_test.o
-obj-$(CONFIG_MSM_SDIO_AL) += sdio_al_dloader.o
-obj-$(CONFIG_MSM_SDIO_DMUX) += sdio_dmux.o
 obj-$(CONFIG_MSM_BAM_DMUX) += bam_dmux.o
 obj-$(CONFIG_MSM_SMD_LOGGING) += smem_log.o
 obj-$(CONFIG_MSM_IPC_LOGGING) += ipc_logging.o
@@ -125,13 +121,10 @@ obj-$(CONFIG_ARCH_FSM9XXX) += nand_partitions.o
 obj-$(CONFIG_ARCH_MSM9615) += nand_partitions.o
 obj-$(CONFIG_ARCH_MSM8625) += nand_partitions.o
 obj-$(CONFIG_ARCH_MSM7X27A) += nand_partitions.o
-obj-$(CONFIG_MSM_SDIO_TTY) += sdio_tty.o
 obj-$(CONFIG_MSM_SMD_TTY) += smd_tty.o
 obj-$(CONFIG_MSM_SMD_QMI) += smd_qmi.o
 obj-$(CONFIG_MSM_SMD_PKT) += smd_pkt.o
-obj-$(CONFIG_MSM_SDIO_CMUX) += sdio_cmux.o
 obj-$(CONFIG_MSM_DSPS) += msm_dsps.o
-obj-$(CONFIG_MSM_SDIO_CTL) += sdio_ctl.o
 obj-$(CONFIG_MSM_SMD_NMEA) += smd_nmea.o
 obj-$(CONFIG_MSM_RESET_MODEM) += reset_modem.o
 obj-$(CONFIG_MSM_IPC_ROUTER_SMD_XPRT) += ipc_router_smd_xprt.o
@@ -148,7 +141,6 @@ obj-$(CONFIG_MSM_ONCRPCROUTER) += smd_rpcrouter_servers.o
 obj-$(CONFIG_MSM_ONCRPCROUTER) += smd_rpcrouter_clients.o
 obj-$(CONFIG_MSM_ONCRPCROUTER) += smd_rpcrouter_xdr.o
 obj-$(CONFIG_MSM_ONCRPCROUTER) += rpcrouter_smd_xprt.o
-obj-$(CONFIG_MSM_RPC_SDIO_XPRT) += rpcrouter_sdio_xprt.o
 obj-$(CONFIG_MSM_RPC_PING) += ping_mdm_rpc_client.o
 obj-$(CONFIG_MSM_RPC_PROC_COMM_TEST) += proc_comm_test.o
 obj-$(CONFIG_MSM_RPC_PING) += ping_mdm_rpc_client.o ping_apps_server.o
@@ -315,6 +307,10 @@ ifdef CONFIG_BT
 endif #CONFIG_BT
 obj-$(CONFIG_ARCH_DUMMY) += board-htc-8x26.o htc_acoustic_alsa.o
 obj-$(CONFIG_ARCH_DUMMY) += board-8226-audio.o
+obj-$(CONFIG_MACH_MEM_UL) += board-mem-audio-amp.o
+obj-$(CONFIG_MACH_A5_UL) += board-afe-audio-amp.o
+obj-$(CONFIG_MACH_A5_DWG) += board-afe-audio-amp.o
+obj-$(CONFIG_MACH_A5_TL) += board-afe-audio-amp.o
 obj-$(CONFIG_ARCH_DUMMY) += board-8226.o board-8226-gpiomux.o
 obj-$(CONFIG_ARCH_DUMMY) += clock-local2.o clock-pll.o clock-8226.o clock-rpm.o clock-voter.o clock-mdss-8974.o
 obj-$(CONFIG_ARCH_DUMMY) += acpuclock-8226.o acpuclock-cortex.o
@@ -325,7 +321,7 @@ obj-$(CONFIG_ARCH_MSM8610) += acpuclock-8226.o acpuclock-cortex.o
 obj-$(CONFIG_ARCH_MSM8610) += clock-dsi-8610.o
 obj-$(CONFIG_ARCH_MSMKRYPTON) += clock-local2.o clock-pll.o clock-krypton.o clock-rpm.o clock-voter.o
 
-obj-$(CONFIG_MSM_PM) += msm-pm.o pm-data.o
+obj-$(CONFIG_MSM_PM) += msm-pm.o pm-data.o ext-buck-control.o
 
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire.o board-sapphire-gpio.o
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire-keypad.o board-sapphire-panel.o
@@ -344,8 +340,6 @@ obj-$(CONFIG_HTC_BATT_8960) += htc_battery_8960.o htc_battery_cell.o
 
 obj-$(CONFIG_HTC_PWRSINK) += htc_pwrsink.o
 obj-$(CONFIG_HTC_HEADSET) += htc_headset.o
-obj-$(CONFIG_MSM_RMT_STORAGE_CLIENT) += rmt_storage_client.o
-obj-$(CONFIG_MSM_SDIO_SMEM) += sdio_smem.o
 obj-$(CONFIG_MSM_RPM) += rpm.o rpm_resources.o
 obj-$(CONFIG_MSM_LPM_TEST) += test-lpm.o
 obj-$(CONFIG_MSM_RPM_SMD) += rpm-smd.o lpm_levels.o
@@ -477,5 +471,4 @@ obj-$(CONFIG_ARCH_RANDOM) += early_random.o
 obj-$(CONFIG_PERFMAP) += perfmap.o
 obj-$(CONFIG_HTC_RPM_CMD) += rpm_htc_cmd.o
 obj-$(CONFIG_HTC_MONITOR) += htc_monitor.o
-
 obj-$(CONFIG_MSM_SLEEPER) += msm-sleeper.o

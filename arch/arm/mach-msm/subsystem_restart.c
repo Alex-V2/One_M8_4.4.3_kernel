@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -609,13 +609,20 @@ static void subsystem_powerup(struct subsys_device *dev, void *data)
 
 	pr_info("[%p]: Powering up %s\n", current, name);
 	init_completion(&dev->err_ready);
-	if (dev->desc->powerup(dev->desc) < 0)
+
+	if (dev->desc->powerup(dev->desc) < 0) {
+		notify_each_subsys_device(&dev, 1, SUBSYS_POWERUP_FAILURE,
+								NULL);
 		panic("[%p]: Powerup error: %s!", current, name);
+	}
 
 	ret = wait_for_err_ready(dev);
-	if (ret)
+	if (ret) {
+		notify_each_subsys_device(&dev, 1, SUBSYS_POWERUP_FAILURE,
+								NULL);
 		panic("[%p]: Timed out waiting for error ready: %s!",
 			current, name);
+	}
 	subsys_set_state(dev, SUBSYS_ONLINE);
 }
 
@@ -643,8 +650,11 @@ static int subsys_start(struct subsys_device *subsys)
 
 	init_completion(&subsys->err_ready);
 	ret = subsys->desc->start(subsys->desc);
-	if (ret)
+	if (ret){
+		notify_each_subsys_device(&subsys, 1, SUBSYS_POWERUP_FAILURE,
+									NULL);
 		return ret;
+	}
 
 	if (subsys->desc->is_not_loadable) {
 		subsys_set_state(subsys, SUBSYS_ONLINE);
@@ -652,9 +662,11 @@ static int subsys_start(struct subsys_device *subsys)
 	}
 
 	ret = wait_for_err_ready(subsys);
-	if (ret)
+	if (ret) {
+		notify_each_subsys_device(&subsys, 1, SUBSYS_POWERUP_FAILURE,
+									NULL);
 		subsys->desc->stop(subsys->desc);
-	else
+	} else
 		subsys_set_state(subsys, SUBSYS_ONLINE);
 
 	return ret;
@@ -918,6 +930,13 @@ int subsystem_restart(const char *name)
 
 	if (!dev)
 		return -ENODEV;
+
+	
+	
+	if (!strncmp(name, "modem", SUBSYS_NAME_MAX_LENGTH) || !strncmp(name, "wcnss", SUBSYS_NAME_MAX_LENGTH))
+	{
+		dev->crashed = true;
+	}
 
 	ret = subsystem_restart_dev(dev);
 	put_device(&dev->dev);

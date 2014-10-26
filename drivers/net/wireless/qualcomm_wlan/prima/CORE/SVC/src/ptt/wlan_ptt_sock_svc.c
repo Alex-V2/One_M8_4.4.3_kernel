@@ -39,10 +39,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/******************************************************************************
- * wlan_ptt_sock_svc.c
- *
- ******************************************************************************/
 #ifdef PTT_SOCK_SVC_ENABLE
 #include <wlan_nlink_srv.h>
 #include <halTypes.h>
@@ -61,9 +57,7 @@
 #else
 #define PTT_TRACE(level, args...)
 #endif
-// Global variables
 static struct hdd_context_s *pAdapterHandle;
-//Utility function to perform endianess swap
 static void ptt_sock_swap_32(void *pBuffer, unsigned int len)
 {
     v_U32_t *pBuf32, data;
@@ -81,7 +75,6 @@ static void ptt_sock_swap_32(void *pBuffer, unsigned int len)
     }
 }
 #ifdef PTT_SOCK_DEBUG_VERBOSE
-//Utility function to perform a hex dump
 static void ptt_sock_dump_buf(const unsigned char * pbuf, int cnt)
 {
     int i;
@@ -94,7 +87,6 @@ static void ptt_sock_dump_buf(const unsigned char * pbuf, int cnt)
     VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,"\n");
 }
 #endif
-//Utility function to send a netlink message to an application in user space
 int ptt_sock_send_msg_to_app(tAniHdr *wmsg, int radio, int src_mod, int pid)
 {
    int err = -1;
@@ -110,7 +102,7 @@ int ptt_sock_send_msg_to_app(tAniHdr *wmsg, int radio, int src_mod, int pid)
          __func__, radio);
       return -EINVAL;
    }
-   payload_len = wmsg_length + 4;  // 4 extra bytes for the radio idx
+   payload_len = wmsg_length + 4;  
    tot_msg_len = NLMSG_SPACE(payload_len);
    if ((skb = dev_alloc_skb(tot_msg_len)) == NULL) {
       PTT_TRACE(VOS_TRACE_LEVEL_ERROR, "%s: dev_alloc_skb() failed for msg size[%d]\n",
@@ -132,28 +124,22 @@ int ptt_sock_send_msg_to_app(tAniHdr *wmsg, int radio, int src_mod, int pid)
 #ifdef PTT_SOCK_DEBUG_VERBOSE
    ptt_sock_dump_buf((const unsigned char *)skb->data, skb->len);
 #endif
-   err = nl_srv_ucast(skb, pid);
+   err = nl_srv_ucast(skb, pid, MSG_DONTWAIT);
    return err;
 }
-/*
- * Process tregisteration request and send registration response messages
- * to the PTT Socket App in user space
- */
 static void ptt_sock_proc_reg_req(tAniHdr *wmsg, int radio)
 {
    tAniNlAppRegReq *reg_req;
    tAniNlAppRegRsp rspmsg;
    reg_req = (tAniNlAppRegReq *)(wmsg + 1);
    memset((char *)&rspmsg, 0, sizeof(rspmsg));
-   //send reg response message to the application
+   
    rspmsg.ret = ANI_NL_MSG_OK;
    rspmsg.regReq.type = reg_req->type;
 #ifdef WLAN_KD_READY_NOTIFIER
-   /* NL client try to registration
-    * to make sure connection, broadcast READY notification */
    nl_srv_nl_ready_indication();
-#endif /* WLAN_KD_READY_NOTIFIER */
-   /*Save the pid*/    
+#endif 
+       
    pAdapterHandle->ptt_pid = reg_req->pid;   
    rspmsg.regReq.pid= reg_req->pid;
    rspmsg.wniHdr.type = cpu_to_be16(ANI_MSG_APP_REG_RSP);
@@ -165,9 +151,6 @@ static void ptt_sock_proc_reg_req(tAniHdr *wmsg, int radio)
          __func__, reg_req->pid);
    }
 }
-/*
- * Process all the messages from the PTT Socket App in user space
- */
 static void ptt_proc_pumac_msg(struct sk_buff * skb, tAniHdr *wmsg, int radio)
 {
    u16 ani_msg_type = be16_to_cpu(wmsg->type);
@@ -184,9 +167,6 @@ static void ptt_proc_pumac_msg(struct sk_buff * skb, tAniHdr *wmsg, int radio)
          break;
    }
 }
-/*
- * Process all the messages from the Quarky Client
- */
 static void ptt_proc_quarky_msg(tAniNlHdr *wnl, tAniHdr *wmsg, int radio)
 {
    u16 ani_msg_type = be16_to_cpu(wmsg->type);
@@ -231,7 +211,7 @@ static void ptt_proc_quarky_msg(tAniNlHdr *wnl, tAniHdr *wmsg, int radio)
                PTT_TRACE(VOS_TRACE_LEVEL_ERROR, "%s: Write Register [0x%08lX] value [0x%08lX] failed!!\n",
                   __func__, reg_addr, reg_val);
             }
-            //send message to the app
+            
             ptt_sock_send_msg_to_app(wmsg, 0, ANI_NL_MSG_PUMAC, wnl->nlh.nlmsg_pid);
             break;
          case PTT_MSG_READ_MEMORY:
@@ -246,7 +226,7 @@ static void ptt_proc_quarky_msg(tAniNlHdr *wnl, tAniHdr *wmsg, int radio)
                   __func__, reg_addr);
             }
             ptt_sock_swap_32(buf, len_payload);
-            //send message to the app
+            
             ptt_sock_send_msg_to_app(wmsg, 0, ANI_NL_MSG_PUMAC, wnl->nlh.nlmsg_pid);
             break;
          case PTT_MSG_WRITE_MEMORY:
@@ -262,7 +242,7 @@ static void ptt_proc_quarky_msg(tAniNlHdr *wnl, tAniHdr *wmsg, int radio)
                PTT_TRACE(VOS_TRACE_LEVEL_ERROR, "%s: Memory write failed for addr [0x%08lX]!!\n",
                   __func__, reg_addr);
             }
-            //send message to the app
+            
             ptt_sock_send_msg_to_app(wmsg, 0, ANI_NL_MSG_PUMAC, wnl->nlh.nlmsg_pid);
             break;
          case PTT_MSG_LOG_DUMP_DBG:
@@ -273,7 +253,7 @@ static void ptt_proc_quarky_msg(tAniNlHdr *wnl, tAniHdr *wmsg, int radio)
             arg4 = *(unsigned int *) ((char *)wmsg + 24);
             PTT_TRACE(VOS_TRACE_LEVEL_INFO, "%s: PTT_MSG_LOG_DUMP_DBG %d arg1 %d arg2 %d arg3 %d arg4 %d\n",
                __func__, cmd, arg1, arg2, arg3, arg4);
-            //send message to the app
+            
             ptt_sock_send_msg_to_app(wmsg, 0, ANI_NL_MSG_PUMAC, wnl->nlh.nlmsg_pid);
             break;
          case PTT_MSG_FTM_CMDS_TYPE:
@@ -286,9 +266,6 @@ static void ptt_proc_quarky_msg(tAniNlHdr *wnl, tAniHdr *wmsg, int radio)
       }
    }
 }
-/*
- * Process all the Netlink messages from PTT Socket app in user space
- */
 static int ptt_sock_rx_nlink_msg (struct sk_buff * skb)
 {
    tAniNlHdr *wnl;
@@ -298,12 +275,12 @@ static int ptt_sock_rx_nlink_msg (struct sk_buff * skb)
    radio = wnl->radio;
    type = wnl->nlh.nlmsg_type;
    switch (type) {
-      case ANI_NL_MSG_PUMAC:  //Message from the PTT socket APP
+      case ANI_NL_MSG_PUMAC:  
          PTT_TRACE(VOS_TRACE_LEVEL_INFO, "%s: Received ANI_NL_MSG_PUMAC Msg [0x%X]\n",
             __func__, type);
          ptt_proc_pumac_msg(skb, &wnl->wmsg, radio);
          break;
-      case ANI_NL_MSG_PTT: //Message from Quarky GUI
+      case ANI_NL_MSG_PTT: 
          PTT_TRACE(VOS_TRACE_LEVEL_INFO, "%s: Received ANI_NL_MSG_PTT Msg [0x%X]\n",
             __func__, type);
          ptt_proc_quarky_msg(wnl, &wnl->wmsg, radio);
@@ -321,7 +298,7 @@ int ptt_sock_activate_svc(void *pAdapter)
    nl_srv_register(ANI_NL_MSG_PTT, ptt_sock_rx_nlink_msg);
 #ifdef WLAN_KD_READY_NOTIFIER
    nl_srv_nl_ready_indication();
-#endif /* WLAN_KD_READY_NOTIFIER */
+#endif 
    return 0;
 }
-#endif //PTT_SOCK_SVC_ENABLE
+#endif 

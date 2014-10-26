@@ -615,9 +615,12 @@ void slim_msg_response(struct slim_controller *ctrl, u8 *reply, u8 tid, u8 len)
 
 	mutex_lock(&ctrl->m_ctrl);
 	txn = ctrl->txnt[tid];
-	if (txn == NULL) {
-		dev_err(&ctrl->dev, "Got response to invalid TID:%d, len:%d",
+	if (txn == NULL || txn->rbuf == NULL) {
+		if (txn == NULL)
+			dev_err(&ctrl->dev, "Got response to invalid TID:%d, len:%d",
 				tid, len);
+		else
+			dev_err(&ctrl->dev, "Invalid client buffer passed\n");
 		mutex_unlock(&ctrl->m_ctrl);
 		return;
 	}
@@ -784,13 +787,11 @@ int slim_get_logical_addr(struct slim_device *sb, const u8 *e_addr,
 	struct slim_controller *ctrl = sb->ctrl;
 	if (!ctrl || !laddr || !e_addr || e_len != 6)
 		return -EINVAL;
-
 	mutex_lock(&ctrl->m_ctrl);
 	ret = ctrl_getlogical_addr(ctrl, e_addr, e_len, &entry);
 	if (!ret)
 		*laddr = ctrl->addrt[entry].laddr;
 	mutex_unlock(&ctrl->m_ctrl);
-
 	if (ret == -ENXIO && ctrl->get_laddr) {
 		ret = ctrl->get_laddr(ctrl, e_addr, e_len, laddr);
 		if (!ret)
@@ -2709,7 +2710,7 @@ int slim_control_ch(struct slim_device *sb, u16 chanh,
 					pch = list_entry(pos,
 						struct slim_pending_ch,
 						pending);
-					if (pch->chan == slc->chan) {
+					if (pch->chan == chan) {
 						list_del(&pch->pending);
 						kfree(pch);
 						add_mark_removal = false;

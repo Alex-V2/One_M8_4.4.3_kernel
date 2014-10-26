@@ -61,27 +61,7 @@
   Qualcomm Confidential and Proprietary
 ===========================================================================*/
 
-/*===========================================================================
 
-                      EDIT HISTORY FOR FILE
-
-
-  This section contains comments describing changes made to the module.
-  Notice that changes are listed in reverse chronological order.
-
-
-   $Header$$DateTime$$Author$
-
-
-  when        who     what, where, why
-----------    ---    --------------------------------------------------------
-2010-08-09    lti     Created module
-
-===========================================================================*/
-
-/*----------------------------------------------------------------------------
- * Include Files
- * -------------------------------------------------------------------------*/
 #include "wlan_qct_wdi.h" 
 #include "wlan_qct_wdi_i.h" 
 #include "wlan_qct_wdi_sta.h" 
@@ -89,32 +69,16 @@
 #include "wlan_qct_pal_trace.h"
 
 
-/*----------------------------------------------------------------------------
- * Function definition
- * -------------------------------------------------------------------------*/
-/**
- @brief WDI_STATableInit - Initializes the STA tables. 
-        Allocates the necesary memory.
-
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status WDI_STATableInit
 (
    WDI_ControlBlockType*  pWDICtx
 )
 {
     wpt_uint8  ucMaxStations;
-    /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/    
+        
 
     ucMaxStations     = (wpt_uint8) pWDICtx->ucMaxStations;
     
-    /*----------------------------------------------------------------------
-       Allocate the memory for sta table
-    ------------------------------------------------------------------------*/
     pWDICtx->staTable = wpalMemoryAllocate(ucMaxStations * sizeof(WDI_StaStruct));
 
     if (NULL == pWDICtx->staTable)
@@ -130,23 +94,13 @@ WDI_Status WDI_STATableInit
     wpalMemoryZero( pWDICtx->staTable, ucMaxStations * sizeof( WDI_StaStruct ));
 
 #ifndef HAL_SELF_STA_PER_BSS
-    // Initialize the Self STAID to an invalid value
+    
     pWDICtx->ucSelfStaId = WDI_STA_INVALID_IDX;
 #endif
 
     return WDI_STATUS_SUCCESS;
-}/*WDI_STATableInit*/
+}
 
-/**
- @brief WDI_STATableStart - resets the max and number values of 
-        STAtions
-
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableStart
 (
@@ -154,22 +108,13 @@ WDI_STATableStart
 )
 {
     wpt_uint8 ucMaxStations;
-    /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+    
     
     ucMaxStations     = (wpt_uint8) pWDICtx->ucMaxStations;
  
     return WDI_STATUS_SUCCESS;
-}/*WDI_STATableStart*/
+}
 
-/**
- @brief WDI_STATableStop - clears the sta table
-
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableStop
 (
@@ -177,10 +122,10 @@ WDI_STATableStop
 )
 {
     wpt_uint8 ucMaxStations;
-    /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+    
 
 #ifndef HAL_SELF_STA_PER_BSS
-    /* Clean up the Self STAID */
+    
     pWDICtx->ucSelfStaId = WDI_STA_INVALID_IDX;
 #endif
 
@@ -190,18 +135,8 @@ WDI_STATableStop
             ucMaxStations * sizeof( WDI_StaStruct ));
 
     return WDI_STATUS_SUCCESS;
-}/*WDI_STATableStop*/
+}
 
-/**
- @brief WDI_STATableClose - frees the resources used by the STA 
-        table.
-
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableClose
 (
@@ -210,25 +145,15 @@ WDI_STATableClose
 {
     WDI_Status status = WDI_STATUS_SUCCESS;
         
-    // Free memory
+    
     if (pWDICtx->staTable != NULL)
         wpalMemoryFree( pWDICtx->staTable);
 
     pWDICtx->staTable = NULL;
     return status;
-}/*WDI_STATableClose*/
+}
 
 
-/**
- @brief WDI_STATableAddSta - Function to Add Station
-
- 
- @param  pWDICtx:     pointer to the WLAN DAL context 
-         pwdiParam:   station parameters  
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_STATableAddSta
 (
@@ -238,13 +163,8 @@ WDI_STATableAddSta
 {
     wpt_uint8        ucSTAIdx  = 0;
     WDI_StaStruct*   pSTATable = (WDI_StaStruct*) pWDICtx->staTable;
-    /*- - - -  - - - - - - - - - - - -  - - - - - - - - - - - -  - - - - - */
+    
 
-    /*-----------------------------------------------------------------------
-      Sanity check
-      - station ids are allocated by the HAL located on RIVA SS - they must
-      always be valid 
-    -----------------------------------------------------------------------*/
     if (( pwdiParam->ucSTAIdx  == WDI_STA_INVALID_IDX) ||
         ( pwdiParam->ucSTAIdx >= pWDICtx->ucMaxStations ))
     {
@@ -256,12 +176,10 @@ WDI_STATableAddSta
     
     ucSTAIdx =  pwdiParam->ucSTAIdx;
 
-    /*Since we are not the allocator of STA Ids but HAL is - just set flag to
-      valid*/
     pSTATable[ucSTAIdx].valid = 1;     
     
     
-    // Save the STA type - this is used for lookup
+    
     WDI_STATableSetStaType(pWDICtx, ucSTAIdx, pwdiParam->ucStaType);
     WDI_STATableSetStaQosEnabled(pWDICtx, ucSTAIdx, 
           (wpt_uint8)(pwdiParam->ucWmmEnabled | pwdiParam->ucHTCapable) );
@@ -273,9 +191,6 @@ WDI_STATableAddSta
     wpalMemoryCopy(pSTATable[ucSTAIdx].macBSSID, 
                    pwdiParam->macBSSID, WDI_MAC_ADDR_LEN);
 
-    /*------------------------------------------------------------------------
-      Set DPU Related Information 
-    ------------------------------------------------------------------------*/
     pSTATable[ucSTAIdx].dpuIndex              = pwdiParam->dpuIndex; 
     pSTATable[ucSTAIdx].dpuSig                = pwdiParam->dpuSig; 
 
@@ -285,12 +200,12 @@ WDI_STATableAddSta
     pSTATable[ucSTAIdx].bcastMgmtDpuIndex     = pwdiParam->bcastMgmtDpuIndex; 
     pSTATable[ucSTAIdx].bcastMgmtDpuSignature = pwdiParam->bcastMgmtDpuSignature; 
 
-    /*Robust Mgmt Frame enabled */
+    
     pSTATable[ucSTAIdx].rmfEnabled            = pwdiParam->ucRmfEnabled;
 
     pSTATable[ucSTAIdx].bssIdx                = pwdiParam->ucBSSIdx;
 
-    /* Now update the STA entry with the new MAC address */
+    
     if(WDI_STATUS_SUCCESS != WDI_STATableSetStaAddr( pWDICtx, 
                                                      ucSTAIdx, 
                                                      pwdiParam->staMacAddr))
@@ -301,7 +216,7 @@ WDI_STATableAddSta
        return WDI_STATUS_E_FAILURE; 
     }
 
-    /* Now update the STA entry with the new BSSID address */
+    
     if(WDI_STATUS_SUCCESS != WDI_STATableSetBSSID( pWDICtx, 
                                                      ucSTAIdx, 
                                                      pwdiParam->macBSSID))
@@ -313,18 +228,8 @@ WDI_STATableAddSta
     }
 
     return WDI_STATUS_SUCCESS;
-}/*WDI_AddSta*/
+}
 
-/**
- @brief WDI_STATableDelSta - Function to Delete a Station
-
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         ucSTAIdx:        station to be deleted
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_STATableDelSta
 (
@@ -333,13 +238,8 @@ WDI_STATableDelSta
 )
 {
     WDI_StaStruct*   pSTATable = (WDI_StaStruct*) pWDICtx->staTable;
-    /*- - - -  - - - - - - - - - - - -  - - - - - - - - - - - -  - - - - - */
+    
 
-    /*-----------------------------------------------------------------------
-      Sanity check
-      - station ids are allocated by the HAL located on RIVA SS - they must
-      always be valid 
-    -----------------------------------------------------------------------*/
     if(( ucSTAIdx  == WDI_STA_INVALID_IDX )||
         ( ucSTAIdx >= pWDICtx->ucMaxStations ))
     {
@@ -352,18 +252,8 @@ WDI_STATableDelSta
     wpalMemoryZero(&pSTATable[ucSTAIdx], sizeof(pSTATable[ucSTAIdx])); 
     pSTATable->valid = 0; 
     return WDI_STATUS_SUCCESS;
-}/*WDI_STATableDelSta*/
+}
 
-/**
- @brief WDI_STATableBSSDelSta - Function to Delete Stations in this BSS
-
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         ucBSSIdx:        BSS index 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_STATableBSSDelSta
 (
@@ -373,7 +263,7 @@ WDI_STATableBSSDelSta
 {
     WDI_StaStruct*   pSTATable = (WDI_StaStruct*) pWDICtx->staTable;
     wpt_uint8        ucSTAIdx;
-    /*- - - -  - - - - - - - - - - - -  - - - - - - - - - - - -  - - - - - */
+    
 
     for (ucSTAIdx = 0; (ucSTAIdx < pWDICtx->ucMaxStations); ucSTAIdx++)
     {
@@ -385,21 +275,9 @@ WDI_STATableBSSDelSta
     }
 
     return WDI_STATUS_SUCCESS;
-}/*WDI_STATableBSSDelSta*/
+}
 
 
-/**
- @brief WDI_STATableGetStaBSSIDAddr - Gets the BSSID associated 
-        with this station
-
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         ucSTAIdx:        station index
-         pmacBSSID:      out BSSID for this STA
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableGetStaBSSIDAddr
 (
@@ -409,7 +287,7 @@ WDI_STATableGetStaBSSIDAddr
 )
 {
   WDI_StaStruct* pSTATable = (WDI_StaStruct*) pWDICtx->staTable;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   if ((ucSTAIdx < pWDICtx->ucMaxStations) && (pSTATable[ucSTAIdx].valid))
   {
@@ -418,21 +296,9 @@ WDI_STATableGetStaBSSIDAddr
   }
   else
      return WDI_STATUS_E_FAILURE;
-}/*WDI_STATableGetStaQosEnabled*/
+}
 
 
-/**
- @brief WDI_STATableGetStaQosEnabled - Gets is qos is enabled 
-        for a sta
-
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         ucSTAIdx:        station index
-         qosEnabled:      out qos enabled
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableGetStaQosEnabled
 (
@@ -442,7 +308,7 @@ WDI_STATableGetStaQosEnabled
 )
 {
   WDI_StaStruct* pSTATable = (WDI_StaStruct*) pWDICtx->staTable;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   if ((ucSTAIdx < pWDICtx->ucMaxStations) && (pSTATable[ucSTAIdx].valid) && qosEnabled)
   {
@@ -451,19 +317,8 @@ WDI_STATableGetStaQosEnabled
   }
   else
      return WDI_STATUS_E_FAILURE;
-}/*WDI_STATableGetStaQosEnabled*/
+}
 
-/**
- @brief WDI_STATableSetStaQosEnabled - set qos mode for STA
-
- 
- @param  pWDICtx:    pointer to the WLAN DAL context 
-         ucSTAIdx:   station index
-         qosEnabled: qos enabled
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableSetStaQosEnabled
 (
@@ -480,19 +335,8 @@ WDI_STATableSetStaQosEnabled
     }
     else
         return WDI_STATUS_E_FAILURE;
-}/*WDI_STATableSetStaQosEnabled*/
+}
 
-/**
- @brief WDI_STATableGetStaType - get sta type for STA
-
- 
- @param  pWDICtx:   pointer to the WLAN DAL context 
-         ucSTAIdx:  station index
-         pStaType:  qos enabled
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableGetStaType
 (
@@ -509,19 +353,8 @@ WDI_STATableGetStaType
     }
     else
         return WDI_STATUS_E_FAILURE;
-}/*WDI_STATableGetStaType*/
+}
 
-/**
- @brief WDI_STATableSetStaType - sets sta type for STA
-
- 
- @param  pWDICtx:   pointer to the WLAN DAL context 
-         ucSTAIdx:  station index
-         staType:   sta type
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableSetStaType
 (
@@ -538,19 +371,9 @@ WDI_STATableSetStaType
     }
     else
         return WDI_STATUS_E_FAILURE;
-}/*WDI_STATableSetStaType*/
+}
 
 
-/**
- @brief WDI_CompareMacAddr - compare the MAC address
-
- 
- @param  addr1: address 1 
-         addr2: address 2  
-  
- @see
- @return Result of the function call
-*/
 WPT_STATIC WPT_INLINE wpt_uint8
 WDI_CompareMacAddr
 (
@@ -584,20 +407,9 @@ WDI_CompareMacAddr
             (addr1[4]==addr2[4])&&
             (addr1[5]==addr2[5]));
 #endif
-}/*WDI_CompareMacAddr*/
+}
 
 
-/**
- @brief WDI_STATableFindStaidByAddr - Given a station mac address, search
-        for the corresponding station index from the Station Table.
- 
- @param  pWDICtx:  WDI Context pointer
-         staAddr:  station address
-         pucStaId: output station id 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_STATableFindStaidByAddr
 (
@@ -620,18 +432,8 @@ WDI_STATableFindStaidByAddr
         }
     }
     return wdiStatus;
-}/*WDI_STATableFindStaidByAddr*/
+}
 
-/**
- @brief WDI_STATableGetStaAddr - get station address
- 
- @param  pWDICtx:  WDI Context pointer
-         ucSTAIdx:  station index
-         pStaAddr: output station address 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableGetStaAddr
 (
@@ -648,18 +450,8 @@ WDI_STATableGetStaAddr
     }
     else
         return WDI_STATUS_E_FAILURE;
-}/*WDI_STATableGetStaAddr*/
+}
 
-/**
- @brief WDI_STATableSetStaAddr - set station address
- 
- @param  pWDICtx:  WDI Context pointer
-         ucSTAIdx:   station index
-         pStaAddr: output station address 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableSetStaAddr
 (
@@ -676,18 +468,8 @@ WDI_STATableSetStaAddr
     }
     else
         return WDI_STATUS_E_FAILURE;
-}/*WDI_STATableSetStaAddr*/
+}
 
-/**
- @brief WDI_STATableSetBSSID - set station corresponding BSSID
- 
- @param  pWDICtx:  WDI Context pointer
-         ucSTAIdx:   station index
-         pStaAddr: output station address 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableSetBSSID
 (
@@ -704,18 +486,8 @@ WDI_STATableSetBSSID
     }
     else
         return WDI_STATUS_E_FAILURE;
-}/*WDI_STATableSetBSSID*/
+}
 
-/**
- @brief WDI_STATableSetBSSIdx - set station corresponding BSS index
- 
- @param  pWDICtx:  WDI Context pointer
-         ucSTAIdx:   station index
-         ucBSSIdx:   BSS index
-  
- @see
- @return Result of the function call
-*/
 WDI_Status 
 WDI_STATableSetBSSIdx
 (
@@ -732,5 +504,5 @@ WDI_STATableSetBSSIdx
     }
     else
         return WDI_STATUS_E_FAILURE;
-}/*WDI_STATableSetBSSIdx*/
+}
 

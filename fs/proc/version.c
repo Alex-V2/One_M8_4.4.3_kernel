@@ -4,13 +4,20 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/utsname.h>
+#include <mach/devices_cmdline.h>
 
 static int version_proc_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, linux_proc_banner,
-		utsname()->sysname,
-		utsname()->release,
-		utsname()->version);
+	if(board_rom_type())
+		seq_printf(m, linux_proc_banner_stockui,
+			utsname()->sysname,
+			utsname()->release,
+			utsname()->version);
+	else
+		seq_printf(m, linux_proc_banner,
+			utsname()->sysname,
+			utsname()->release,
+			utsname()->version);
 	return 0;
 }
 

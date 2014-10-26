@@ -92,4 +92,5 @@ extern void mmc_exit_clk_scaling(struct mmc_host *host);
 extern void mmc_reset_clk_scale_stats(struct mmc_host *host);
 extern unsigned long mmc_get_max_frequency(struct mmc_host *host);
 void mmc_init_context_info(struct mmc_host *host);
+int mmc_send_single_read(struct mmc_card *card, struct mmc_host *host, unsigned int from);
 #endif

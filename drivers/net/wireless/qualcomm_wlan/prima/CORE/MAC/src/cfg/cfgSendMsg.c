@@ -39,17 +39,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * Airgo Networks, Inc proprietary. All rights reserved.
- * This file contains the source code for composing and sending messages
- * to host.
- *
- * Author:      Kevin Nguyen
- * Date:        04/09/02
- * History:-
- * 04/09/02     Created.
- * --------------------------------------------------------------------
- */
 #include "palTypes.h"
 #include "cfgPriv.h"
 #include "limTrace.h"
@@ -57,36 +46,8 @@
 
 extern void SysProcessMmhMsg(tpAniSirGlobal pMac, tSirMsgQ* pMsg);
 
-/*--------------------------------------------------------------------*/
-/* ATTENTION:  The functions contained in this module are to be used  */
-/*             by CFG module ONLY.                                    */
-/*--------------------------------------------------------------------*/
 
 
-/**---------------------------------------------------------------------
- * cfgSendHostMsg()
- *
- * FUNCTION:
- * Send CNF/RSP to host.
- *
- * LOGIC:
- * Please see Configuration & Statistic Collection Micro-Architecture
- * specification for details.
- *
- * ASSUMPTIONS:
- *
- * NOTE:
- *
- * @param msgType:     message type
- * @param msgLen:      message length
- * @param paramNum:    number of parameters
- * @param pParamList:  pointer to parameter list
- * @param dataLen:     data length
- * @param pData:       pointer to additional data
- *
- * @return None.
- *
- */
 void
 cfgSendHostMsg(tpAniSirGlobal pMac, tANI_U16 msgType, tANI_U32 msgLen, tANI_U32 paramNum, tANI_U32 *pParamList,
               tANI_U32 dataLen, tANI_U32 *pData)
@@ -94,7 +55,7 @@ cfgSendHostMsg(tpAniSirGlobal pMac, tANI_U16 msgType, tANI_U32 msgLen, tANI_U32 
     tANI_U32        *pMsg, *pEnd;
     tSirMsgQ    mmhMsg;
 
-    // sanity
+    
     if ((paramNum > 0) && (NULL == pParamList))
     {
         PELOGE(cfgLog(pMac, LOGE,
@@ -108,7 +69,7 @@ cfgSendHostMsg(tpAniSirGlobal pMac, tANI_U16 msgType, tANI_U32 msgLen, tANI_U32 
         return;
     }
 
-    // Allocate message buffer
+    
     pMsg = vos_mem_malloc(msgLen);
     if ( NULL == pMsg )
     {
@@ -117,7 +78,7 @@ cfgSendHostMsg(tpAniSirGlobal pMac, tANI_U16 msgType, tANI_U32 msgLen, tANI_U32 
         return;
     }
 
-    // Fill in message details
+    
     mmhMsg.type = msgType;
     mmhMsg.bodyptr = pMsg;
     mmhMsg.bodyval = 0;
@@ -131,7 +92,7 @@ cfgSendHostMsg(tpAniSirGlobal pMac, tANI_U16 msgType, tANI_U32 msgLen, tANI_U32 
         case WNI_CFG_DNLD_REQ:
         case WNI_CFG_DNLD_CNF:
         case WNI_CFG_SET_CNF:
-            // Fill in parameters
+            
             pMsg++;
             if (NULL != pParamList)
             {
@@ -141,7 +102,7 @@ cfgSendHostMsg(tpAniSirGlobal pMac, tANI_U16 msgType, tANI_U32 msgLen, tANI_U32 
                     *pMsg++ = *pParamList++;
                 }
             }
-            // Copy data if there is any
+            
             if (NULL != pData)
             {
                 pEnd = pMsg + (dataLen >> 2);
@@ -159,11 +120,11 @@ cfgSendHostMsg(tpAniSirGlobal pMac, tANI_U16 msgType, tANI_U32 msgLen, tANI_U32 
             return;
     }
 
-    // Ship it
+    
     MTRACE(macTraceMsgTx(pMac, NO_SESSION, mmhMsg.type));
     SysProcessMmhMsg(pMac, &mmhMsg);
 
-} /*** end cfgSendHostMsg() ***/
+} 
 
 
 

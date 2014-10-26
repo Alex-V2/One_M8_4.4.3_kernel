@@ -39,18 +39,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * Airgo Networks, Inc proprietary. All rights reserved. 
- * 
- * This file limSerDesUtils.cc contains the serializer/deserializer
- * utility functions LIM uses while communicating with upper layer
- * software entities
- * Author:        Chandra Modumudi
- * Date:          10/20/02
- * History:-
- * Date           Modified by    Modification Information
- * --------------------------------------------------------------------
- */
 
 #include "aniSystemDefs.h"
 #include "utilsApi.h"
@@ -60,25 +48,6 @@
 
 
 
-/**
- * limCheckRemainingLength()
- *
- *FUNCTION:
- * This function is called while de-serializing received SME_REQ
- * message.
- *
- *LOGIC:
- * Remaining message length is checked for > 0.
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  len     - Remaining message length
- * @return retCode - eSIR_SUCCESS if len > 0, else eSIR_FAILURE
- */
 
 static inline tSirRetStatus
 limCheckRemainingLength(tpAniSirGlobal pMac, tANI_S16 len)
@@ -92,30 +61,8 @@ limCheckRemainingLength(tpAniSirGlobal pMac, tANI_S16 len)
            len);
         return eSIR_FAILURE;
     }
-} /*** end limCheckRemainingLength(pMac, ) ***/
+} 
 
-/**
- * limGetBssDescription()
- *
- *FUNCTION:
- * This function is called by various LIM functions to copy
- * BSS description from a tANI_U8* buffer pointer to tSirBssDescription
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pBssDescription  Pointer to the BssDescription to be copied
- * @param  *pBuf            Pointer to the source buffer
- * @param  rLen             Remaining message length being extracted
- * @return retCode          Indicates whether message is successfully
- *                          de-serialized (eSIR_SUCCESS) or
- *                          failure (eSIR_FAILURE).
- */
 
 static tSirRetStatus
 limGetBssDescription( tpAniSirGlobal pMac, tSirBssDescription *pBssDescription,
@@ -132,7 +79,7 @@ limGetBssDescription( tpAniSirGlobal pMac, tSirBssDescription *pBssDescription,
 
     *lenUsed = len + sizeof(tANI_U16);
 
-    // Extract bssId
+    
     vos_mem_copy( (tANI_U8 *) pBssDescription->bssId,
                   pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
@@ -140,7 +87,7 @@ limGetBssDescription( tpAniSirGlobal pMac, tSirBssDescription *pBssDescription,
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract timer
+    
     vos_mem_copy( (tANI_U8 *) (&pBssDescription->scanSysTimeMsec),
                   pBuf, sizeof(v_TIME_t));
     pBuf += sizeof(v_TIME_t);
@@ -148,7 +95,7 @@ limGetBssDescription( tpAniSirGlobal pMac, tSirBssDescription *pBssDescription,
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract timeStamp
+    
     vos_mem_copy( (tANI_U8 *) pBssDescription->timeStamp,
                   pBuf, sizeof(tSirMacTimeStamp));
     pBuf += sizeof(tSirMacTimeStamp);
@@ -156,78 +103,78 @@ limGetBssDescription( tpAniSirGlobal pMac, tSirBssDescription *pBssDescription,
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract beaconInterval
+    
     pBssDescription->beaconInterval = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len  -= sizeof(tANI_U16);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract capabilityInfo
+    
     pBssDescription->capabilityInfo = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len  -= sizeof(tANI_U16);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract nwType
+    
     pBssDescription->nwType = (tSirNwType) limGetU32(pBuf);
     pBuf += sizeof(tSirNwType);
     len  -= sizeof(tSirNwType);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract aniIndicator
+    
     pBssDescription->aniIndicator = *pBuf++;
     len --;
 
-    // Extract rssi
+    
     pBssDescription->rssi = (tANI_S8) *pBuf++;
     len --;
 
-    // Extract sinr
+    
     pBssDescription->sinr = (tANI_S8) *pBuf++;
     len --;
 
-    // Extract channelId
+    
     pBssDescription->channelId = *pBuf++;
     len --;
 
-    // Extract channelIdSelf
+    
     pBssDescription->channelIdSelf = *pBuf++;
     len --;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
  
-    // Extract reserved bssDescription
+    
     pBuf += sizeof(pBssDescription->sSirBssDescriptionRsvd);
     len -= sizeof(pBssDescription->sSirBssDescriptionRsvd);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    //pass the timestamp
+    
     pBssDescription->nReceivedTime = limGetU32( pBuf );
     pBuf += sizeof(tANI_TIMESTAMP);
     len -= sizeof(tANI_TIMESTAMP);
 
 #if defined WLAN_FEATURE_VOWIFI
-    //TSF when the beacon received (parent TSF)
+    
     pBssDescription->parentTSF = limGetU32( pBuf );
     pBuf += sizeof(tANI_U32);
     len -= sizeof(tANI_U32);
 
-    //start TSF of scan during which this BSS desc was updated.
+    
     pBssDescription->startTSF[0] = limGetU32( pBuf );
     pBuf += sizeof(tANI_U32);
     len -= sizeof(tANI_U32);
 
-    //start TSF of scan during which this BSS desc was updated.
+    
     pBssDescription->startTSF[1] = limGetU32( pBuf );
     pBuf += sizeof(tANI_U32);
     len -= sizeof(tANI_U32);
 #endif
 #ifdef WLAN_FEATURE_VOWIFI_11R
-    // MobilityDomain
+    
     pBssDescription->mdiePresent = *pBuf++;
     len --;
     pBssDescription->mdie[0] = *pBuf++;
@@ -251,7 +198,7 @@ limGetBssDescription( tpAniSirGlobal pMac, tSirBssDescription *pBssDescription,
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract QBSSLoad_avail
+    
     pBssDescription->QBSSLoad_avail = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len  -= sizeof(tANI_U16);
@@ -263,7 +210,7 @@ limGetBssDescription( tpAniSirGlobal pMac, tSirBssDescription *pBssDescription,
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    /* 3 reserved bytes for padding */
+    
     pBuf += (3 * sizeof(tANI_U8));
     len  -= 3;
 
@@ -275,10 +222,6 @@ limGetBssDescription( tpAniSirGlobal pMac, tSirBssDescription *pBssDescription,
     
     if (WSCIE_PROBE_RSP_LEN < len)
     {
-        /* Do not copy with WscIeLen
-         * if WscIeLen is not set properly, memory overwrite happen
-         * Ended up with memory corruption and crash
-         * Copy with Fixed size */
         vos_mem_copy( (tANI_U8 *) pBssDescription->WscIeProbeRsp,
                        pBuf,
                        WSCIE_PROBE_RSP_LEN);
@@ -292,7 +235,7 @@ limGetBssDescription( tpAniSirGlobal pMac, tSirBssDescription *pBssDescription,
         return eSIR_FAILURE;
     }
 
-    /* 1 reserved byte padding */
+    
     pBuf += (WSCIE_PROBE_RSP_LEN + 1);
     len -= (WSCIE_PROBE_RSP_LEN + 1);
 
@@ -311,7 +254,7 @@ limGetBssDescription( tpAniSirGlobal pMac, tSirBssDescription *pBssDescription,
     }    
 
     return eSIR_SUCCESS;
-} /*** end limGetBssDescription() ***/
+} 
 
 
 
@@ -397,32 +340,12 @@ limCopyBssDescription(tpAniSirGlobal pMac, tANI_U8 *pBuf, tSirBssDescription *pB
                   limGetIElenFromBssDescription(pBssDescription));
 
     return (len + sizeof(tANI_U16));
-} /*** end limCopyBssDescription() ***/
+} 
 
 
 
 
 
-/**
- * limGetKeysInfo()
- *
- *FUNCTION:
- * This function is called by various LIM functions to copy
- * key information from a tANI_U8* buffer pointer to tSirKeys
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param *pKeyInfo   Pointer to the keyInfo to be copied
- * @param *pBuf       Pointer to the source buffer
- *
- * @return Length of key info extracted
- */
 
 static tANI_U32
 limGetKeysInfo(tpAniSirGlobal pMac, tpSirKeys pKeyInfo, tANI_U8 *pBuf)
@@ -458,33 +381,10 @@ limGetKeysInfo(tpAniSirGlobal pMac, tpSirKeys pKeyInfo, tANI_U8 *pBuf)
                pKeyInfo->key, pKeyInfo->keyLength);)
 
     return len;
-} /*** end limGetKeysInfo() ***/
+} 
 
 
 
-/**
- * limStartBssReqSerDes()
- *
- *FUNCTION:
- * This function is called by limProcessSmeMessages() upon receiving
- * SME_START_BSS_REQ from host
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pStartBssReq  Pointer to tSirSmeStartBssReq being extracted
- * @param  pBuf          Pointer to serialized buffer
- * @return retCode       Indicates whether message is successfully
- *                       de-serialized (eSIR_SUCCESS) or
- *                       not (eSIR_FAILURE)
- */
 
 tSirRetStatus
 limStartBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStartBssReq pStartBssReq, tANI_U8 *pBuf)
@@ -510,61 +410,61 @@ limStartBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStartBssReq pStartBssReq, tANI
     if (len < (tANI_S16) sizeof(tANI_U32))
         return eSIR_FAILURE;
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract sessionId
+    
     pStartBssReq->sessionId = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract transactionId
+    
     pStartBssReq->transactionId = limGetU16( pBuf );
     pBuf += sizeof( tANI_U16 );
     len -= sizeof( tANI_U16 );
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bssId
+    
     vos_mem_copy( (tANI_U8 *) pStartBssReq->bssId, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len  -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract selfMacAddr
+    
     vos_mem_copy( (tANI_U8 *) pStartBssReq->selfMacAddr, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len  -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract beaconInterval
+    
     pStartBssReq->beaconInterval = limGetU16( pBuf );
     pBuf += sizeof( tANI_U16 );
     len -= sizeof( tANI_U16 );
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract dot11Mode
+    
     pStartBssReq->dot11mode = *pBuf++;
     len --;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bssType
+    
     pStartBssReq->bssType = (tSirBssType) limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len  -= sizeof(tANI_U32);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract ssId
+    
     if (*pBuf > SIR_MAC_MAX_SSID_LENGTH)
     {
-        // SSID length is more than max allowed 32 bytes
+        
         PELOGW(limLog(pMac, LOGW, FL("Invalid SSID length, len=%d"), *pBuf);)
         return eSIR_FAILURE;
     }
@@ -587,11 +487,11 @@ limStartBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStartBssReq pStartBssReq, tANI
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract channelId
+    
     pStartBssReq->channelId = *pBuf++;
     len--;
 
-    // Extract CB secondary channel info
+    
     pStartBssReq->cbMode = (ePhyChanBondState)limGetU32( pBuf );
     pBuf += sizeof( tANI_U32 );
     len -= sizeof( tANI_U32 );
@@ -600,19 +500,19 @@ limStartBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStartBssReq pStartBssReq, tANI
         return eSIR_FAILURE;
 
 
-    // Extract privacy setting
+    
     pStartBssReq->privacy = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    //Extract Uapsd Enable 
+    
     pStartBssReq->apUapsdEnable = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    //Extract SSID hidden
+    
     pStartBssReq->ssidHidden = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
@@ -623,13 +523,13 @@ limStartBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStartBssReq pStartBssReq, tANI
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
     
-    //Extract HT Protection Enable 
+    
     pStartBssReq->protEnabled = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
        return eSIR_FAILURE;
 
-    //Extract OBSS Protection Enable 
+    
     pStartBssReq->obssProtEnabled = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
@@ -641,50 +541,50 @@ limStartBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStartBssReq pStartBssReq, tANI
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract AuthType
+    
     pStartBssReq->authType = (tSirBssType) limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len  -= sizeof(tANI_U32);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract dtimPeriod
+    
     pStartBssReq->dtimPeriod = limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len  -= sizeof(tANI_U32);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract wps state
+    
     pStartBssReq->wps_state = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bssPersona
+    
+    pStartBssReq->isCoalesingInIBSSAllowed = *pBuf++;
+    len--;
+    if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+        return eSIR_FAILURE;
+
+    
     pStartBssReq->bssPersona = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
 
-    // Extract txLdpcIniFeatureEnabled
+    
     pStartBssReq->txLdpcIniFeatureEnabled = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract oxygenNwkIniFeatureEnabled
-    pStartBssReq->oxygenNwkIniFeatureEnabled = *pBuf++;
-    len--;
-    if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
-       return eSIR_FAILURE;
-
-    // Extract rsnIe
+    
     pStartBssReq->rsnIE.length = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
 
-    // Check for RSN IE length (that includes length of type & length
+    
     if (pStartBssReq->rsnIE.length > SIR_MAC_MAX_IE_LENGTH + 2)
     {
         limLog(pMac, LOGW,
@@ -701,17 +601,17 @@ limStartBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStartBssReq pStartBssReq, tANI
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract nwType
+    
     pStartBssReq->nwType = (tSirNwType) limGetU32(pBuf);
     pBuf += sizeof(tSirNwType);
     len  -= sizeof(tSirNwType);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract operationalRateSet
+    
     pStartBssReq->operationalRateSet.numRates = *pBuf++;
 
-    // Check for number of rates
+    
     if (pStartBssReq->operationalRateSet.numRates >
         SIR_MAC_MAX_NUMBER_OF_RATES)
     {
@@ -730,7 +630,7 @@ limStartBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStartBssReq pStartBssReq, tANI
     pBuf += pStartBssReq->operationalRateSet.numRates;
     len  -= pStartBssReq->operationalRateSet.numRates;
 
-    // Extract extendedRateSet
+    
     if ((pStartBssReq->nwType == eSIR_11G_NW_TYPE) ||
         (pStartBssReq->nwType == eSIR_11N_NW_TYPE ))
     {
@@ -742,40 +642,16 @@ limStartBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStartBssReq pStartBssReq, tANI
         len  -= pStartBssReq->extendedRateSet.numRates;
     }
 
-
     if (len)
     {
         limLog(pMac, LOGW, FL("Extra bytes left in SME_START_BSS_REQ, len=%d"), len);
     }
 
     return eSIR_SUCCESS;
-} /*** end limStartBssReqSerDes() ***/
+} 
 
 
 
-/**
- * limStopBssReqSerDes()
- *
- *FUNCTION:
- * This function is called by limProcessSmeMessages() upon receiving
- * SME_STOP_BSS_REQ from host
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pStopBssReq   Pointer to tSirSmeStopBssReq being extracted
- * @param  pBuf          Pointer to serialized buffer
- * @return retCode       Indicates whether message is successfully
- *                       de-serialized (eSIR_SUCCESS) or
- *                       not (eSIR_FAILURE)
- */
 
 tSirRetStatus
 limStopBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStopBssReq pStopBssReq, tANI_U8 *pBuf)
@@ -798,27 +674,27 @@ limStopBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStopBssReq pStopBssReq, tANI_U8
     if (len < (tANI_S16) sizeof(tANI_U32))
         return eSIR_FAILURE;
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract sessionId
+    
     pStopBssReq->sessionId = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract transactionId
+    
     pStopBssReq->transactionId = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len -= sizeof(tANI_U16); 
 
-    // Extract reasonCode
+    
     pStopBssReq->reasonCode = (tSirResultCodes) limGetU32(pBuf);
     pBuf += sizeof(tSirResultCodes);
     len -= sizeof(tSirResultCodes);
 
-    // Extract bssId
+    
     vos_mem_copy( (tANI_U8 *) pStopBssReq->bssId, pBuf, sizeof(tSirMacAddr));
     len  -= sizeof(tSirMacAddr);
   
@@ -827,33 +703,10 @@ limStopBssReqSerDes(tpAniSirGlobal pMac, tpSirSmeStopBssReq pStopBssReq, tANI_U8
     else
         return eSIR_SUCCESS;
 
-} /*** end limStopBssReqSerDes() ***/
+} 
 
 
 
-/**
- * limJoinReqSerDes()
- *
- *FUNCTION:
- * This function is called by limProcessSmeMessages() upon receiving
- * SME_JOIN_REQ from host
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pJoinReq  Pointer to tSirSmeJoinReq being extracted
- * @param  pBuf      Pointer to serialized buffer
- * @return retCode   Indicates whether message is successfully
- *                   de-serialized (eSIR_SUCCESS) or
- *                   not (eSIR_FAILURE)
- */
 
 tSirRetStatus
 limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
@@ -867,97 +720,126 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
 
     if (!pJoinReq || !pBuf)
     {
-        PELOGE(limLog(pMac, LOGE, FL("NULL ptr received"));)
+        PELOGE(limLog(pMac, LOGE, FL("pJoinReq or pBuf is NULL"));)
         return eSIR_FAILURE;
     }
 
-    // Extract messageType
+    
     pJoinReq->messageType = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
 
-    // Extract length
+    
     len = pJoinReq->length = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
 
     if (pJoinReq->messageType == eWNI_SME_JOIN_REQ)
         PELOG1(limLog(pMac, LOG3, FL("SME_JOIN_REQ length %d bytes is:"), len);)
     else
-        PELOG1(limLog(pMac, LOG3, FL("SME_REASSOC_REQ length %d bytes is:"), len);)
+        PELOG1(limLog(pMac, LOG3, FL("SME_REASSOC_REQ length %d bytes is:"),
+                      len);)
 
     PELOG1(sirDumpBuf(pMac, SIR_LIM_MODULE_ID, LOG3, pTemp, len);)
 
     if (len < (tANI_S16) sizeof(tANI_U32))
     {
-        PELOGE(limLog(pMac, LOGE, FL("len too short %d"), len);)
+        PELOGE(limLog(pMac, LOGE, FL("len %d is too short"), len);)
         return eSIR_FAILURE;
     }
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
-
-    // Extract sessionId
+    }
+    
     pJoinReq->sessionId = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
-
-    // Extract transactionId
+    }
+    
     pJoinReq->transactionId = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len  -= sizeof(tANI_U16);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
-    // Extract ssId
+    
     pJoinReq->ssId.length = *pBuf++;
     len--;
     vos_mem_copy( (tANI_U8 *) pJoinReq->ssId.ssId, pBuf, pJoinReq->ssId.length);
     pBuf += pJoinReq->ssId.length;
     len -= pJoinReq->ssId.length;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
-    // Extract selfMacAddr
+    
     vos_mem_copy( pJoinReq->selfMacAddr, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
-    // Extract bsstype
+    
     pJoinReq->bsstype = (tSirBssType) limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len  -= sizeof(tANI_U32);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
-    // Extract dot11mode
+    
     pJoinReq->dot11mode= *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
-    // Extract bssPersona
+    
     pJoinReq->staPersona = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
-    // Extract cbMode
+    
     pJoinReq->cbMode = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
-    // Extract uapsdPerAcBitmask
+    
     pJoinReq->uapsdPerAcBitmask = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
 
-    // Extract operationalRateSet
+    
     pJoinReq->operationalRateSet.numRates= *pBuf++;
     len--;
     if (pJoinReq->operationalRateSet.numRates)
@@ -967,10 +849,13 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
         pBuf += pJoinReq->operationalRateSet.numRates;
         len -= pJoinReq->operationalRateSet.numRates;
         if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+        {
+            limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
             return eSIR_FAILURE;
+        }
     }
 
-    // Extract extendedRateSet
+    
     pJoinReq->extendedRateSet.numRates = *pBuf++;
     len--;
     if (pJoinReq->extendedRateSet.numRates)
@@ -979,17 +864,20 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
         pBuf += pJoinReq->extendedRateSet.numRates;
         len  -= pJoinReq->extendedRateSet.numRates;
         if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+        {
+            limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
             return eSIR_FAILURE;
+        }
     }
 
-    // Extract RSN IE
+    
     pJoinReq->rsnIE.length = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len -= sizeof(tANI_U16);
 
     if (pJoinReq->rsnIE.length)
     {
-        // Check for RSN IE length (that includes length of type & length)
+        
         if ((pJoinReq->rsnIE.length > SIR_MAC_MAX_IE_LENGTH + 2) ||
              (pJoinReq->rsnIE.length != 2 + *(pBuf + 1)))
         {
@@ -1001,19 +889,22 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
         vos_mem_copy( (tANI_U8 *) pJoinReq->rsnIE.rsnIEdata,
                       pBuf, pJoinReq->rsnIE.length);
         pBuf += pJoinReq->rsnIE.length;
-        len  -= pJoinReq->rsnIE.length; // skip RSN IE
+        len  -= pJoinReq->rsnIE.length; 
         if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+        {
+            limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
             return eSIR_FAILURE;
+        }
     }
 
 #ifdef FEATURE_WLAN_CCX
-    // Extract CCKM IE
+    
     pJoinReq->cckmIE.length = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len -= sizeof(tANI_U16);
     if (pJoinReq->cckmIE.length)
     {
-        // Check for CCKM IE length (that includes length of type & length)
+        
         if ((pJoinReq->cckmIE.length > SIR_MAC_MAX_IE_LENGTH) ||
              (pJoinReq->cckmIE.length != (2 + *(pBuf + 1))))
         {
@@ -1025,20 +916,23 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
         vos_mem_copy((tANI_U8 *) pJoinReq->cckmIE.cckmIEdata,
                       pBuf, pJoinReq->cckmIE.length);
         pBuf += pJoinReq->cckmIE.length;
-        len  -= pJoinReq->cckmIE.length; // skip CCKM IE
+        len  -= pJoinReq->cckmIE.length; 
         if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+        {
+            limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
             return eSIR_FAILURE;
+        }
     }
 #endif
 
-    // Extract Add IE for scan
+    
     pJoinReq->addIEScan.length = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len -= sizeof(tANI_U16);
 
     if (pJoinReq->addIEScan.length)
     {
-        // Check for IE length (that includes length of type & length)
+        
         if (pJoinReq->addIEScan.length > SIR_MAC_MAX_IE_LENGTH + 2)
         {
             limLog(pMac, LOGE,
@@ -1046,23 +940,26 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
                    pJoinReq->addIEScan.length);
             return eSIR_FAILURE;
         }
-        // Check for P2P IE length (that includes length of type & length)
+        
         vos_mem_copy( (tANI_U8 *) pJoinReq->addIEScan.addIEdata,
                       pBuf, pJoinReq->addIEScan.length);
         pBuf += pJoinReq->addIEScan.length;
-        len  -= pJoinReq->addIEScan.length; // skip add IE
+        len  -= pJoinReq->addIEScan.length; 
         if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+        {
+            limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
             return eSIR_FAILURE;
+        }
     }
 
     pJoinReq->addIEAssoc.length = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len -= sizeof(tANI_U16);
 
-    // Extract Add IE for assoc
+    
     if (pJoinReq->addIEAssoc.length)
     {
-        // Check for IE length (that includes length of type & length)
+        
         if (pJoinReq->addIEAssoc.length > SIR_MAC_MAX_IE_LENGTH + 2)
         {
             limLog(pMac, LOGE,
@@ -1070,60 +967,80 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
                    pJoinReq->addIEAssoc.length);
             return eSIR_FAILURE;
         }
-        // Check for P2P IE length (that includes length of type & length)
+        
         vos_mem_copy( (tANI_U8 *) pJoinReq->addIEAssoc.addIEdata,
                       pBuf, pJoinReq->addIEAssoc.length);
         pBuf += pJoinReq->addIEAssoc.length;
-        len  -= pJoinReq->addIEAssoc.length; // skip add IE
+        len  -= pJoinReq->addIEAssoc.length; 
         if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+        {
+            limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
             return eSIR_FAILURE;
+        }
     }
 
     pJoinReq->UCEncryptionType = limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len -= sizeof(tANI_U32);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
-        return eSIR_FAILURE;    
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
+        return eSIR_FAILURE;
+    }
     
     pJoinReq->MCEncryptionType = limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len -= sizeof(tANI_U32);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
-        return eSIR_FAILURE;    
-    
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
+        return eSIR_FAILURE;
+    }
 #ifdef WLAN_FEATURE_11W
     pJoinReq->MgmtEncryptionType = limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len -= sizeof(tANI_U32);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 #endif
 
 #ifdef WLAN_FEATURE_VOWIFI_11R
-    //is11Rconnection;
+    
     pJoinReq->is11Rconnection = (tAniBool)limGetU32(pBuf);
     pBuf += sizeof(tAniBool);
     len -= sizeof(tAniBool);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
-        return eSIR_FAILURE;    
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
+        return eSIR_FAILURE;
+    }
 #endif
 
 #ifdef FEATURE_WLAN_CCX
-    //CCX version IE
+    
     pJoinReq->isCCXFeatureIniEnabled = (tAniBool)limGetU32(pBuf);
     pBuf += sizeof(tAniBool);
     len -= sizeof(tAniBool);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
        return eSIR_FAILURE;
+    }
 
-    //isCCXconnection;
+    
     pJoinReq->isCCXconnection = (tAniBool)limGetU32(pBuf);
     pBuf += sizeof(tAniBool);
     len -= sizeof(tAniBool);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
-        return eSIR_FAILURE;    
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
+        return eSIR_FAILURE;
+    }
 
-    // TSPEC information
+    
     pJoinReq->ccxTspecInfo.numTspecs = *pBuf++;
     len -= sizeof(tANI_U8);
     vos_mem_copy((void*)&pJoinReq->ccxTspecInfo.tspec[0], pBuf,
@@ -1131,49 +1048,70 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
     pBuf += sizeof(tTspecInfo)*SIR_CCX_MAX_TSPEC_IES;
     len  -= sizeof(tTspecInfo)*SIR_CCX_MAX_TSPEC_IES;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 #endif
     
 #if defined WLAN_FEATURE_VOWIFI_11R || defined FEATURE_WLAN_CCX || defined(FEATURE_WLAN_LFR)
-    //isFastTransitionEnabled;
+    
     pJoinReq->isFastTransitionEnabled = (tAniBool)limGetU32(pBuf);
     pBuf += sizeof(tAniBool);
     len -= sizeof(tAniBool);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
-        return eSIR_FAILURE;    
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
+        return eSIR_FAILURE;
+    }
 #endif
 
 #ifdef FEATURE_WLAN_LFR
-    //isFastRoamIniFeatureEnabled;
+    
     pJoinReq->isFastRoamIniFeatureEnabled = (tAniBool)limGetU32(pBuf);
     pBuf += sizeof(tAniBool);
     len -= sizeof(tAniBool);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
-        return eSIR_FAILURE;    
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
+        return eSIR_FAILURE;
+    }
 #endif
 
-    //txLdpcIniFeatureEnabled
+    
     pJoinReq->txLdpcIniFeatureEnabled= *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
-    //txBFIniFeatureEnabled
+    
     pJoinReq->txBFIniFeatureEnabled= *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
-    //txBFCsnValue
+    
     pJoinReq->txBFCsnValue= *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
     pJoinReq->isAmsduSupportInAMPDU= *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
     pJoinReq->isWMEenabled = (tAniBool)limGetU32(pBuf);
     pBuf += sizeof(tAniBool);
@@ -1187,7 +1125,7 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract Titan CB Neighbor BSS info
+    
     pJoinReq->cbNeighbors.cbBssFoundPri = *pBuf;
     pBuf++;
     pJoinReq->cbNeighbors.cbBssFoundSecUp = *pBuf;
@@ -1196,7 +1134,7 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
     pBuf++;
     len -= 3;
 
-    // Extract Spectrum Mgt Indicator
+    
     pJoinReq->spectrumMgtIndicator = (tAniBool) limGetU32(pBuf);
     pBuf += sizeof(tAniBool);       
     len -= sizeof(tAniBool);
@@ -1204,7 +1142,6 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
     pJoinReq->powerCap.minTxPower = *pBuf++;
     pJoinReq->powerCap.maxTxPower = *pBuf++;
     len -=2;
-    limLog(pMac, LOG1, FL("Power Caps: Min power = %d, Max power = %d"), pJoinReq->powerCap.minTxPower, pJoinReq->powerCap.maxTxPower);
 
     pJoinReq->supportedChannels.numChnl = *pBuf++;
     len--;
@@ -1219,44 +1156,36 @@ limJoinReqSerDes(tpAniSirGlobal pMac, tpSirSmeJoinReq pJoinReq, tANI_U8 *pBuf)
             pJoinReq->powerCap.maxTxPower,
             pJoinReq->supportedChannels.numChnl);)
 
-    // Extract uapsdPerAcBitmask
+    
     pJoinReq->uapsdPerAcBitmask = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
+    {
+        limLog(pMac, LOGE, FL("remaining len %d is too short"), len);
         return eSIR_FAILURE;
+    }
 
-    //
-    // NOTE - tSirBssDescription is now moved to the end
-    // of tSirSmeJoinReq structure. This is to accomodate
-    // the variable length data member ieFields[1]
-    //
+    
+    
+    
+    
+    
     if (limGetBssDescription( pMac, &pJoinReq->bssDescription,
                              len, &lenUsed, pBuf) == eSIR_FAILURE)
     {
         PELOGE(limLog(pMac, LOGE, FL("get bss description failed"));)
         return eSIR_FAILURE;
     }
-    PELOG3(sirDumpBuf(pMac, SIR_LIM_MODULE_ID, LOG3, (tANI_U8 *) &(pJoinReq->bssDescription), pJoinReq->bssDescription.length + 2);)
+    PELOG3(sirDumpBuf(pMac, SIR_LIM_MODULE_ID, LOG3,
+                      (tANI_U8 *) &(pJoinReq->bssDescription),
+                       pJoinReq->bssDescription.length + 2);)
     pBuf += lenUsed;
     len -= lenUsed;
 
     return eSIR_SUCCESS;
-} /*** end limJoinReqSerDes() ***/
+} 
 
 
-/**---------------------------------------------------------------
-\fn     limAssocIndSerDes
-\brief  This function is called by limProcessMlmAssocInd() to 
-\       populate the SME_ASSOC_IND message based on the received
-\       MLM_ASSOC_IND.
-\
-\param pMac
-\param pAssocInd - Pointer to the received tLimMlmAssocInd
-\param pBuf - Pointer to serialized buffer
-\param psessionEntry - pointer to PE session entry
-\
-\return None
-------------------------------------------------------------------*/
 void
 limAssocIndSerDes(tpAniSirGlobal pMac, tpLimMlmAssocInd pAssocInd, tANI_U8 *pBuf, tpPESession psessionEntry)
 {
@@ -1274,37 +1203,37 @@ limAssocIndSerDes(tpAniSirGlobal pMac, tpLimMlmAssocInd pAssocInd, tANI_U8 *pBuf
     *pBuf = psessionEntry->smeSessionId;
     pBuf   += sizeof(tANI_U8);
 
-     // Fill in peerMacAddr
+     
     vos_mem_copy( pBuf, pAssocInd->peerMacAddr, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     mLen += sizeof(tSirMacAddr);
 
-    // Fill in aid
+    
     limCopyU16(pBuf, pAssocInd->aid);
     pBuf += sizeof(tANI_U16);
     mLen += sizeof(tANI_U16);
 
-   // Fill in bssId
+   
     vos_mem_copy( pBuf, psessionEntry->bssId, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     mLen += sizeof(tSirMacAddr);
 
-    // Fill in staId
+    
     limCopyU16(pBuf, psessionEntry->staId);
     pBuf += sizeof(tANI_U16);
     mLen += sizeof(tANI_U16);
 
-    // Fill in authType
+    
     limCopyU32(pBuf, pAssocInd->authType);
     pBuf += sizeof(tANI_U32);
     mLen += sizeof(tANI_U32);
 
-    // Fill in ssId
+    
     vos_mem_copy( pBuf, (tANI_U8 *) &(pAssocInd->ssId), pAssocInd->ssId.length + 1);
     pBuf += (1 + pAssocInd->ssId.length);
     mLen += (1 + pAssocInd->ssId.length);
 
-    // Fill in rsnIE
+    
     limCopyU16(pBuf, pAssocInd->rsnIE.length);
     pBuf += sizeof(tANI_U16);
     mLen += sizeof(tANI_U16);
@@ -1341,39 +1270,15 @@ limAssocIndSerDes(tpAniSirGlobal pMac, tpLimMlmAssocInd pAssocInd, tANI_U8 *pBuf
     limCopyU32(pBuf, pAssocInd->WmmStaInfoPresent);
     pBuf += sizeof(tANI_U32);
     mLen += sizeof(tANI_U32);
-     // Fill in length of SME_ASSOC_IND message
+     
     limCopyU16(pLen, mLen);
 
     PELOG1(limLog(pMac, LOG1, FL("Sending SME_ASSOC_IND length %d bytes:"), mLen);)
     PELOG1(sirDumpBuf(pMac, SIR_LIM_MODULE_ID, LOG1, pTemp, mLen);)
-} /*** end limAssocIndSerDes() ***/
+} 
 
 
 
-/**
- * limAssocCnfSerDes()
- *
- *FUNCTION:
- * This function is called by limProcessLmmMessages() when
- * SME_ASSOC_CNF or SME_REASSOC_CNF message is received from
- * upper layer software.
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pAssocCnf  Pointer to tSirSmeAssocCnf being extracted into
- * @param  pBuf       Pointer to serialized buffer
- * @return retCode    Indicates whether message is successfully
- *                    de-serialized (eSIR_SUCCESS) or
- *                    not (eSIR_FAILURE)
- */
 
 tSirRetStatus
 limAssocCnfSerDes(tpAniSirGlobal pMac, tpSirSmeAssocCnf pAssocCnf, tANI_U8 *pBuf)
@@ -1401,58 +1306,34 @@ limAssocCnfSerDes(tpAniSirGlobal pMac, tpSirSmeAssocCnf pAssocCnf, tANI_U8 *pBuf
     }
     PELOG1(sirDumpBuf(pMac, SIR_LIM_MODULE_ID, LOG1, pTemp, pAssocCnf->length);)
 
-    // status code
+    
     pAssocCnf->statusCode = (tSirResultCodes) limGetU32(pBuf);
     pBuf += sizeof(tSirResultCodes);
 
-    // bssId
+    
     vos_mem_copy( pAssocCnf->bssId, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
 
-    // peerMacAddr
+    
     vos_mem_copy( pAssocCnf->peerMacAddr, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
 
 
     pAssocCnf->aid = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
-    // alternateBssId
+    
     vos_mem_copy( pAssocCnf->alternateBssId, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
 
-    // alternateChannelId
+    
     pAssocCnf->alternateChannelId = *pBuf;
     pBuf++;
 
     return eSIR_SUCCESS;
-} /*** end limAssocCnfSerDes() ***/
+} 
 
 
 
-/**
- * limDisassocCnfSerDes()
- *
- *FUNCTION:
- * This function is called by limProcessSmeMessages() when
- * SME_DISASSOC_CNF message is received from upper layer software.
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pDisassocCnf  Pointer to tSirSmeDisassocCnf being
- *                       extracted into
- * @param  pBuf          Pointer to serialized buffer
- * @return retCode       Indicates whether message is successfully
- *                       de-serialized (eSIR_SUCCESS) or
- *                       not (eSIR_FAILURE)
- */
 
 tSirRetStatus
 limDisassocCnfSerDes(tpAniSirGlobal pMac, tpSirSmeDisassocCnf pDisassocCnf, tANI_U8 *pBuf)
@@ -1483,25 +1364,12 @@ limDisassocCnfSerDes(tpAniSirGlobal pMac, tpSirSmeDisassocCnf pDisassocCnf, tANI
 
 
     return eSIR_SUCCESS;
-} /*** end limDisassocCnfSerDes() ***/
+} 
 
 
 
 
 
-/**---------------------------------------------------------------
-\fn     limReassocIndSerDes
-\brief  This function is called by limProcessMlmReassocInd() to 
-\       populate the SME_REASSOC_IND message based on the received
-\       MLM_REASSOC_IND.
-\
-\param pMac
-\param pReassocInd - Pointer to the received tLimMlmReassocInd
-\param pBuf - Pointer to serialized buffer
-\param psessionEntry - pointer to PE session entry
-\
-\return None
-------------------------------------------------------------------*/
 void
 limReassocIndSerDes(tpAniSirGlobal pMac, tpLimMlmReassocInd pReassocInd, tANI_U8 *pBuf, tpPESession psessionEntry)
 {
@@ -1518,43 +1386,43 @@ limReassocIndSerDes(tpAniSirGlobal pMac, tpLimMlmReassocInd pReassocInd, tANI_U8
     *pBuf++ = psessionEntry->smeSessionId;
     mLen += sizeof(tANI_U8);
 
-    // Fill in peerMacAddr
+    
     vos_mem_copy( pBuf, pReassocInd->peerMacAddr, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     mLen += sizeof(tSirMacAddr);
 
-    // Fill in oldMacAddr
+    
     vos_mem_copy( pBuf, pReassocInd->currentApAddr, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     mLen += sizeof(tSirMacAddr);
 
-    // Fill in aid
+    
     limCopyU16(pBuf, pReassocInd->aid);
     pBuf += sizeof(tANI_U16);
     mLen += sizeof(tANI_U16);
  
-    // Fill in bssId
+    
     vos_mem_copy( pBuf, psessionEntry->bssId, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     mLen += sizeof(tSirMacAddr);
 
-    // Fill in staId
+    
     limCopyU16(pBuf, psessionEntry->staId);
     pBuf += sizeof(tANI_U16);
     mLen += sizeof(tANI_U16);
 
-    // Fill in authType
+    
     limCopyU32(pBuf, pReassocInd->authType);
     pBuf += sizeof(tAniAuthType);
     mLen += sizeof(tAniAuthType);
 
-    // Fill in ssId
+    
     vos_mem_copy( pBuf, (tANI_U8 *) &(pReassocInd->ssId),
                   pReassocInd->ssId.length + 1);
     pBuf += 1 + pReassocInd->ssId.length;
     mLen += pReassocInd->ssId.length + 1;
 
-    // Fill in rsnIE
+    
     limCopyU16(pBuf, pReassocInd->rsnIE.length);
     pBuf += sizeof(tANI_U16);
     mLen += sizeof(tANI_U16);
@@ -1563,7 +1431,7 @@ limReassocIndSerDes(tpAniSirGlobal pMac, tpLimMlmReassocInd pReassocInd, tANI_U8
     pBuf += pReassocInd->rsnIE.length;
     mLen += pReassocInd->rsnIE.length;
 
-    // Fill in addIE
+    
     limCopyU16(pBuf, pReassocInd->addIE.length);
     pBuf += sizeof(tANI_U16);
     mLen += sizeof(tANI_U16);
@@ -1600,36 +1468,14 @@ limReassocIndSerDes(tpAniSirGlobal pMac, tpLimMlmReassocInd pReassocInd, tANI_U8
     pBuf += sizeof(tANI_U32);
     mLen += sizeof(tANI_U32);
 
-    // Fill in length of SME_REASSOC_IND message
+    
     limCopyU16(pLen, mLen);
 
     PELOG1(limLog(pMac, LOG1, FL("Sending SME_REASSOC_IND length %d bytes:"), mLen);)
     PELOG1(sirDumpBuf(pMac, SIR_LIM_MODULE_ID, LOG1, pTemp, mLen);)
-} /*** end limReassocIndSerDes() ***/
+} 
 
 
-/**
- * limAuthIndSerDes()
- *
- *FUNCTION:
- * This function is called by limProcessMlmAuthInd() while sending
- * SME_AUTH_IND to host
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pAuthInd          Pointer to tSirSmeAuthInd being sent
- * @param  pBuf         Pointer to serialized buffer
- *
- * @return None
- */
 
 void
 limAuthIndSerDes(tpAniSirGlobal pMac, tpLimMlmAuthInd pAuthInd, tANI_U8 *pBuf)
@@ -1646,7 +1492,7 @@ limAuthIndSerDes(tpAniSirGlobal pMac, tpLimMlmAuthInd pAuthInd, tANI_U8 *pBuf)
     *pBuf++ = pAuthInd->sessionId;
     mLen += sizeof(tANI_U8);
 
-    // BTAMP TODO:  Fill in bssId
+    
     vos_mem_set(pBuf, sizeof(tSirMacAddr), 0);
     pBuf += sizeof(tSirMacAddr);
     mLen += sizeof(tSirMacAddr);
@@ -1663,41 +1509,16 @@ limAuthIndSerDes(tpAniSirGlobal pMac, tpLimMlmAuthInd pAuthInd, tANI_U8 *pBuf)
 
     PELOG1(limLog(pMac, LOG1, FL("Sending SME_AUTH_IND length %d bytes:"), mLen);)
     PELOG1(sirDumpBuf(pMac, SIR_LIM_MODULE_ID, LOG1, pTemp, mLen);)
-} /*** end limAuthIndSerDes() ***/
+} 
 
 
 
-/**
- * limSetContextReqSerDes()
- *
- *FUNCTION:
- * This function is called by limProcessSmeMessages() upon receiving
- * SME_SETCONTEXT_REQ from host
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pSetContextReq  Pointer to tSirSmeSetContextReq being
- *                         extracted
- * @param  pBuf            Pointer to serialized buffer
- *
- * @return retCode         Indicates whether message is successfully
- *                         de-serialized (eSIR_SUCCESS) or
- *                         not (eSIR_FAILURE)
- */
 
 tSirRetStatus
 limSetContextReqSerDes(tpAniSirGlobal pMac, tpSirSmeSetContextReq pSetContextReq, tANI_U8 *pBuf)
 {
     tANI_S16 len = 0;
-    tANI_U16 totalKeySize = sizeof(tANI_U8); // initialized to sizeof numKeys
+    tANI_U16 totalKeySize = sizeof(tANI_U8); 
     tANI_U8  numKeys;
     tANI_U8 *pKeys;
 
@@ -1719,17 +1540,17 @@ limSetContextReqSerDes(tpAniSirGlobal pMac, tpSirSmeSetContextReq pSetContextReq
     if (len < (tANI_S16) sizeof(tANI_U32))
         return eSIR_FAILURE;
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract sessionId
+    
     pSetContextReq->sessionId = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract transactionId
+    
     pSetContextReq->transactionId = sirReadU16N(pBuf);
     pBuf += sizeof(tANI_U16);
     len  -= sizeof(tANI_U16);
@@ -1748,14 +1569,7 @@ limSetContextReqSerDes(tpAniSirGlobal pMac, tpSirSmeSetContextReq pSetContextReq
         return eSIR_FAILURE;
 
 
-//    pSetContextReq->qosInfoPresent = limGetU32(pBuf);
-//    pBuf += sizeof(tAniBool);
 
-//    if (pSetContextReq->qosInfoPresent)
-//    {
-//        len   = limGetQosInfo(&pSetContextReq->qos, pBuf);
-//        pBuf += len;
-//    }
 
     pSetContextReq->keyMaterial.length = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
@@ -1775,7 +1589,7 @@ limSetContextReqSerDes(tpAniSirGlobal pMac, tpSirSmeSetContextReq pSetContextReq
     if (numKeys > SIR_MAC_MAX_NUM_OF_DEFAULT_KEYS)
         return eSIR_FAILURE;
 
-    /** Initialize the Default Keys if no Keys are being sent from the upper layer*/
+    
     if( limCheckRemainingLength(pMac, len) == eSIR_FAILURE) {
         tpSirKeys pKeyinfo = pSetContextReq->keyMaterial.key;
 
@@ -1801,33 +1615,8 @@ limSetContextReqSerDes(tpAniSirGlobal pMac, tpSirSmeSetContextReq pSetContextReq
         }while (numKeys);
     }
     return eSIR_SUCCESS;
-} /*** end limSetContextReqSerDes() ***/
+} 
 
-/**
- * limRemoveKeyReqSerDes()
- *
- *FUNCTION:
- * This function is called by limProcessSmeMessages() upon receiving
- * SME_REMOVEKEY_REQ from host
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pRemoveKeyReq  Pointer to tSirSmeRemoveKeyReq being
- *                         extracted
- * @param  pBuf            Pointer to serialized buffer
- *
- * @return retCode         Indicates whether message is successfully
- *                         de-serialized (eSIR_SUCCESS) or
- *                         not (eSIR_FAILURE)
- */
 
 tSirRetStatus
 limRemoveKeyReqSerDes(tpAniSirGlobal pMac, tpSirSmeRemoveKeyReq pRemoveKeyReq, tANI_U8 *pBuf)
@@ -1852,7 +1641,7 @@ limRemoveKeyReqSerDes(tpAniSirGlobal pMac, tpSirSmeRemoveKeyReq pRemoveKeyReq, t
     if (len < (tANI_S16) sizeof(tANI_U32))
         return eSIR_FAILURE;
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
@@ -1889,20 +1678,20 @@ limRemoveKeyReqSerDes(tpAniSirGlobal pMac, tpSirSmeRemoveKeyReq pRemoveKeyReq, t
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bssId
+    
     vos_mem_copy( pRemoveKeyReq->bssId, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract sessionId
+    
     pRemoveKeyReq->sessionId = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract transactionId
+    
     pRemoveKeyReq->transactionId = sirReadU16N(pBuf);
     pBuf += sizeof(tANI_U16);
     len  -= sizeof(tANI_U16);
@@ -1910,34 +1699,10 @@ limRemoveKeyReqSerDes(tpAniSirGlobal pMac, tpSirSmeRemoveKeyReq pRemoveKeyReq, t
         return eSIR_FAILURE;
     
     return eSIR_SUCCESS;
-} /*** end limRemoveKeyReqSerDes() ***/
+} 
 
 
 
-/**
- * limDisassocReqSerDes()
- *
- *FUNCTION:
- * This function is called by limProcessSmeMessages() upon receiving
- * SME_DISASSOC_REQ from host
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pDisassocReq  Pointer to tSirSmeDisassocReq being extracted
- * @param  pBuf          Pointer to serialized buffer
- *
- * @return retCode       Indicates whether message is successfully
- *                       de-serialized (eSIR_SUCCESS) or
- *                       not (eSIR_FAILURE)
- */
 
 tSirRetStatus
 limDisassocReqSerDes(tpAniSirGlobal pMac, tSirSmeDisassocReq *pDisassocReq, tANI_U8 *pBuf)
@@ -1962,39 +1727,39 @@ limDisassocReqSerDes(tpAniSirGlobal pMac, tSirSmeDisassocReq *pDisassocReq, tANI
     if (len < (tANI_S16) sizeof(tANI_U32))
         return eSIR_FAILURE;
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract sessionID
+    
     pDisassocReq->sessionId = *pBuf;
     pBuf += sizeof(tANI_U8);
     len -= sizeof(tANI_U8);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract transactionid
+    
     pDisassocReq->transactionId = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len -= sizeof(tANI_U16);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bssId
+    
     vos_mem_copy( (tANI_U8 *) pDisassocReq->bssId, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len  -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract peerMacAddr
+    
     vos_mem_copy( pDisassocReq->peerMacAddr, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len  -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract reasonCode
+    
     pDisassocReq->reasonCode = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len  -= sizeof(tANI_U16);
@@ -2007,34 +1772,10 @@ limDisassocReqSerDes(tpAniSirGlobal pMac, tSirSmeDisassocReq *pDisassocReq, tANI
 
 
     return eSIR_SUCCESS;
-} /*** end limDisassocReqSerDes() ***/
+} 
 
 
 
-/**
- * limDeauthReqSerDes()
- *
- *FUNCTION:
- * This function is called by limProcessSmeMessages() upon receiving
- * SME_DEAUTH_REQ from host
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pDeauthReq           Pointer to tSirSmeDeauthReq being extracted
- * @param  pBuf          Pointer to serialized buffer
- *
- * @return retCode       Indicates whether message is successfully
- *                       de-serialized (eSIR_SUCCESS) or
- *                       not (eSIR_FAILURE)
- */
 tSirRetStatus
 limDeauthReqSerDes(tpAniSirGlobal pMac, tSirSmeDeauthReq *pDeauthReq, tANI_U8 *pBuf)
 {
@@ -2059,73 +1800,51 @@ limDeauthReqSerDes(tpAniSirGlobal pMac, tSirSmeDeauthReq *pDeauthReq, tANI_U8 *p
     if (len < (tANI_S16) sizeof(tANI_U32))
         return eSIR_FAILURE;
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract sessionId
+    
     pDeauthReq->sessionId = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract transactionId
+    
     pDeauthReq->transactionId = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len  -= sizeof(tANI_U16);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bssId
+    
     vos_mem_copy( pDeauthReq->bssId, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract peerMacAddr
+    
     vos_mem_copy( pDeauthReq->peerMacAddr, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract reasonCode
+    
     pDeauthReq->reasonCode = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len  -= sizeof(tANI_U16);
 
     
     return eSIR_SUCCESS;
-} /*** end limDisassocReqSerDes() ***/
+} 
 
 
 
 
 
 
-/**
- * limStatSerDes()
- *
- *FUNCTION:
- * This function is called by limSendSmeDisassocNtf() while sending
- * SME_DISASSOC_IND/eWNI_SME_DISASSOC_RSP to host
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pAssocInd  Pointer to tpAniStaStatStruct being sent
- * @param  pBuf       Pointer to serialized buffer
- *
- * @return None
- */
 
 void
 limStatSerDes(tpAniSirGlobal pMac, tpAniStaStatStruct pStat, tANI_U8 *pBuf)
@@ -2212,19 +1931,11 @@ limStatSerDes(tpAniSirGlobal pMac, tpAniStaStatStruct pStat, tANI_U8 *pBuf)
     PELOG1(limLog(pMac, LOG1, FL("STAT: length %d bytes is:"), sizeof(tAniStaStatStruct));)
     PELOG1(sirDumpBuf(pMac, SIR_LIM_MODULE_ID, LOG1, pTemp,  sizeof(tAniStaStatStruct));)
 
-} /*** end limStatSerDes() ***/
+} 
 
 
 
 
-/**
- * limPackBkgndScanFailNotify()
- *
- *FUNCTION:
- * This function is called by limSendSmeWmStatusChangeNtf()
- * to pack the tSirBackgroundScanInfo message
- *
- */
 void
 limPackBkgndScanFailNotify(tpAniSirGlobal pMac,
                            tSirSmeStatusChangeCode statusChangeCode,
@@ -2247,25 +1958,6 @@ limPackBkgndScanFailNotify(tpAniSirGlobal pMac,
 }
 
 
-/**
- * limIsSmeGetAssocSTAsReqValid()
- *
- *FUNCTION:
- * This function is called by limProcessSmeReqMessages() upon
- * receiving SME_GET_ASSOC_STAS_REQ message from application.
- *
- *LOGIC:
- * Message validity checks are performed in this function
- *
- *ASSUMPTIONS:
- *
- *NOTE:
- *
- * @param  pBuf    - Pointer to a serialized SME_GET_ASSOC_STAS_REQ message
- * @param  pSmeMsg - Pointer to a tSirSmeGetAssocSTAsReq structure
- * @return true if SME_GET_ASSOC_STAS_REQ message is formatted correctly
- *                false otherwise
- */
 tANI_BOOLEAN
 limIsSmeGetAssocSTAsReqValid(tpAniSirGlobal pMac, tpSirSmeGetAssocSTAsReq pGetAssocSTAsReq, tANI_U8 *pBuf)
 {
@@ -2280,39 +1972,39 @@ limIsSmeGetAssocSTAsReqValid(tpAniSirGlobal pMac, tpSirSmeGetAssocSTAsReq pGetAs
     if (len < (tANI_S16) sizeof(tANI_U32))
         return eSIR_FAILURE;
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bssId
+    
     vos_mem_copy( (tANI_U8 *) pGetAssocSTAsReq->bssId, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len  -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract modId
+    
     pGetAssocSTAsReq->modId = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len  -= sizeof(tANI_U16);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract pUsrContext
+    
     pGetAssocSTAsReq->pUsrContext = (void *)limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len  -= sizeof(tANI_U32);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract pSapEventCallback
+    
     pGetAssocSTAsReq->pSapEventCallback = (void *)limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len  -= sizeof(tANI_U32);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract pAssocStasArray
+    
     pGetAssocSTAsReq->pAssocStasArray = (void *)limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len  -= sizeof(tANI_U32);
@@ -2328,29 +2020,6 @@ limIsSmeGetAssocSTAsReqValid(tpAniSirGlobal pMac, tpSirSmeGetAssocSTAsReq pGetAs
     return eANI_BOOLEAN_TRUE;
 }
 
-/**
- * limTkipCntrMeasReqSerDes()
- *
- *FUNCTION:
- * This function is called by limProcessSmeMessages() upon receiving
- * eWNI_SME_TKIP_CNTR_MEAS_REQ from host HDD
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  tpSirSmeTkipCntrMeasReq  Pointer to tSirSmeTkipCntrMeasReq being extracted
- * @param  pBuf                     Pointer to serialized buffer
- * @return retCode                  Indicates whether message is successfully
- *                                  de-serialized (eSIR_SUCCESS) or
- *                                  not (eSIR_FAILURE)
- */
 tSirRetStatus
 limTkipCntrMeasReqSerDes(tpAniSirGlobal pMac, tpSirSmeTkipCntrMeasReq  pTkipCntrMeasReq, tANI_U8 *pBuf)
 {
@@ -2372,31 +2041,31 @@ limTkipCntrMeasReqSerDes(tpAniSirGlobal pMac, tpSirSmeTkipCntrMeasReq  pTkipCntr
     if (len < (tANI_S16) sizeof(tANI_U32))
         return eSIR_FAILURE;
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract sessionId
+    
     pTkipCntrMeasReq->sessionId = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract transactionId
+    
     pTkipCntrMeasReq->transactionId = limGetU16(pBuf);
     pBuf += sizeof(tANI_U16);
     len -= sizeof(tANI_U16); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bssId
+    
     vos_mem_copy( (tANI_U8 *) pTkipCntrMeasReq->bssId, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bEnable
+    
     pTkipCntrMeasReq->bEnable = *pBuf++;
     len --;
 
@@ -2411,25 +2080,6 @@ limTkipCntrMeasReqSerDes(tpAniSirGlobal pMac, tpSirSmeTkipCntrMeasReq  pTkipCntr
         return eSIR_SUCCESS;
 }
 
-/**
- * limIsSmeGetWPSPBCSessionsReqValid()
- *
- *FUNCTION:
- * This function is called by limProcessSmeGetWPSPBCSessions() upon
- * receiving query WPS PBC overlap information message from application.
- *
- *LOGIC:
- * Message validity checks are performed in this function
- *
- *ASSUMPTIONS:
- *
- *NOTE:
- *
- * @param  pBuf    - Pointer to a serialized SME_GET_WPSPBC_SESSION_REQ message
- * @param  pGetWPSPBCSessionsReq - Pointer to a tSirSmeGetWPSPBCSessionsReq structure
- * @return true if SME_GET_WPSPBC_SESSION_REQ message is formatted correctly
- *                false otherwise
- */
  
 tSirRetStatus
 limIsSmeGetWPSPBCSessionsReqValid(tpAniSirGlobal pMac, tSirSmeGetWPSPBCSessionsReq *pGetWPSPBCSessionsReq, tANI_U8 *pBuf)
@@ -2447,30 +2097,30 @@ limIsSmeGetWPSPBCSessionsReqValid(tpAniSirGlobal pMac, tSirSmeGetWPSPBCSessionsR
     if (len < (tANI_S16) sizeof(tANI_U32))
         return eSIR_FAILURE;
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-   // Extract pUsrContext
+   
     pGetWPSPBCSessionsReq->pUsrContext = (void *)limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len  -= sizeof(tANI_U32);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract pSapEventCallback
+    
     pGetWPSPBCSessionsReq->pSapEventCallback = (void *)limGetU32(pBuf);
     pBuf += sizeof(tANI_U32);
     len  -= sizeof(tANI_U32);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bssId
+    
     vos_mem_copy( (tANI_U8 *) pGetWPSPBCSessionsReq->bssId, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len  -= sizeof(tSirMacAddr);
  
-    // Extract MAC address of Station to be removed
+    
     vos_mem_copy( (tANI_U8 *) pGetWPSPBCSessionsReq->pRemoveMac, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len  -= sizeof(tSirMacAddr);
@@ -2487,21 +2137,6 @@ limIsSmeGetWPSPBCSessionsReqValid(tpAniSirGlobal pMac, tSirSmeGetWPSPBCSessionsR
 }
 
 
-/**---------------------------------------------------------------
-\fn     limGetSessionInfo
-\brief  This function returns the sessionId and transactionId
-\       of a message. This assumes that the message structure 
-\       is of format:
-\          tANI_U16   messageType
-\          tANI_U16   messageLength
-\          tANI_U8    sessionId
-\          tANI_U16   transactionId
-\param  pMac          - pMac global structure
-\param  *pBuf         - pointer to the message buffer
-\param  sessionId     - returned session id value
-\param  transactionId - returned transaction ID value
-\return None
-------------------------------------------------------------------*/
 void
 limGetSessionInfo(tpAniSirGlobal pMac, tANI_U8 *pBuf, tANI_U8 *sessionId, tANI_U16 *transactionId)
 {
@@ -2511,41 +2146,17 @@ limGetSessionInfo(tpAniSirGlobal pMac, tANI_U8 *pBuf, tANI_U8 *sessionId, tANI_U
         return;
     }
 
-    pBuf += sizeof(tANI_U16);   // skip message type 
-    pBuf += sizeof(tANI_U16);   // skip message length
+    pBuf += sizeof(tANI_U16);   
+    pBuf += sizeof(tANI_U16);   
 
-    *sessionId = *pBuf;            // get sessionId
+    *sessionId = *pBuf;            
     pBuf++;    
-    *transactionId = limGetU16(pBuf);  // get transactionId
+    *transactionId = limGetU16(pBuf);  
 
     return;
 }
 
 
-/**
- * limUpdateAPWPSIEsReqSerDes()
- *
- *FUNCTION:
- * This function is to deserialize UpdateAPWPSIEs message
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pUpdateAPWPSIEsReq  Pointer to tSirUpdateAPWPSIEsReq being
- *                         extracted
- * @param  pBuf            Pointer to serialized buffer
- *
- * @return retCode         Indicates whether message is successfully
- *                         de-serialized (eSIR_SUCCESS) or
- *                         not (eSIR_FAILURE)
- */
 
 tSirRetStatus
 limUpdateAPWPSIEsReqSerDes(tpAniSirGlobal pMac, tpSirUpdateAPWPSIEsReq pUpdateAPWPSIEsReq, tANI_U8 *pBuf)
@@ -2566,31 +2177,31 @@ limUpdateAPWPSIEsReqSerDes(tpAniSirGlobal pMac, tpSirUpdateAPWPSIEsReq pUpdateAP
     if (len < (tANI_S16) sizeof(tANI_U32))
         return eSIR_FAILURE;
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
         
-    // Extract transactionId
+    
     pUpdateAPWPSIEsReq->transactionId = limGetU16( pBuf );
     pBuf += sizeof( tANI_U16 );
     len -= sizeof( tANI_U16 );
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bssId
+    
     vos_mem_copy( (tANI_U8 *) pUpdateAPWPSIEsReq->bssId, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len  -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract sessionId
+    
     pUpdateAPWPSIEsReq->sessionId = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract APWPSIEs
+    
     vos_mem_copy( (tSirAPWPSIEs *) &pUpdateAPWPSIEsReq->APWPSIEs, pBuf, sizeof(tSirAPWPSIEs));
     pBuf += sizeof(tSirAPWPSIEs);
     len  -= sizeof(tSirAPWPSIEs);
@@ -2604,32 +2215,8 @@ limUpdateAPWPSIEsReqSerDes(tpAniSirGlobal pMac, tpSirUpdateAPWPSIEsReq pUpdateAP
     }
 
     return eSIR_SUCCESS;
-} /*** end limSetContextReqSerDes() ***/
+} 
 
-/**
- * limUpdateAPWPARSNIEsReqSerDes ()
- *
- *FUNCTION:
- * This function is to deserialize UpdateAPWPSIEs message
- *
- *PARAMS:
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- *NOTE:
- * NA
- *
- * @param  pUpdateAPWPARSNIEsReq  Pointer to tpSirUpdateAPWPARSNIEsReq being
- *                         extracted
- * @param  pBuf            Pointer to serialized buffer
- *
- * @return retCode         Indicates whether message is successfully
- *                         de-serialized (eSIR_SUCCESS) or
- *                         not (eSIR_FAILURE)
- */
 
 tSirRetStatus
 limUpdateAPWPARSNIEsReqSerDes(tpAniSirGlobal pMac, tpSirUpdateAPWPARSNIEsReq pUpdateAPWPARSNIEsReq, tANI_U8 *pBuf)
@@ -2650,31 +2237,31 @@ limUpdateAPWPARSNIEsReqSerDes(tpAniSirGlobal pMac, tpSirUpdateAPWPARSNIEsReq pUp
     if (len < (tANI_S16) sizeof(tANI_U32))
         return eSIR_FAILURE;
 
-    len -= sizeof(tANI_U32); // skip message header
+    len -= sizeof(tANI_U32); 
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract transactionId
+    
     pUpdateAPWPARSNIEsReq->transactionId = limGetU16( pBuf );
     pBuf += sizeof(tANI_U16);
     len -= sizeof( tANI_U16 );
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract bssId
+    
     vos_mem_copy( (tANI_U8 *) pUpdateAPWPARSNIEsReq->bssId, pBuf, sizeof(tSirMacAddr));
     pBuf += sizeof(tSirMacAddr);
     len  -= sizeof(tSirMacAddr);
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract sessionId
+    
     pUpdateAPWPARSNIEsReq->sessionId = *pBuf++;
     len--;
     if (limCheckRemainingLength(pMac, len) == eSIR_FAILURE)
         return eSIR_FAILURE;
 
-    // Extract APWPARSNIEs
+    
     vos_mem_copy( (tSirRSNie *) &pUpdateAPWPARSNIEsReq->APWPARSNIEs, pBuf, sizeof(tSirRSNie));
     pBuf += sizeof(tSirRSNie);
     len  -= sizeof(tSirRSNie);
@@ -2686,5 +2273,5 @@ limUpdateAPWPARSNIEsReqSerDes(tpAniSirGlobal pMac, tpSirUpdateAPWPARSNIEsReq pUp
     }
 
     return eSIR_SUCCESS;
-} /*** end limUpdateAPWPARSNIEsReqSerDes() ***/
+} 
 

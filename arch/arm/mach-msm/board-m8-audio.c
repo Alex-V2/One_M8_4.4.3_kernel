@@ -2467,7 +2467,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 	{
 		.name = "Listen Audio Service",
 		.stream_name = "Listen Audio Service",
-		.cpu_dai_name = "LSM",
+		.cpu_dai_name = "LSM1",
 		.platform_name = "msm-lsm-client",
 		.dynamic = 1,
 		.trigger = { SND_SOC_DPCM_TRIGGER_POST,

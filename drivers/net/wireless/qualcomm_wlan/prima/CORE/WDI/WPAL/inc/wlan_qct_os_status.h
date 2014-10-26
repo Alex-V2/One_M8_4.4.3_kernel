@@ -58,9 +58,6 @@
 
 #include "vos_status.h"
 
-/**
- * \brief Macros to derive PAL STATUS from the VOS STATUS
- */
 
 #define WPAL_IS_VOS_STATUS_E_RESOURCES(status) ( VOS_STATUS_E_RESOURCES == (status)) 
 #define WPAL_IS_VOS_STATUS_E_NOMEM(status) ( VOS_STATUS_E_NOMEM == (status)) 
@@ -99,4 +96,4 @@
 
 #define WPAL_VOS_TO_WPAL_STATUS(status) ( VOS_IS_STATUS_SUCCESS(status)? eWLAN_PAL_STATUS_SUCCESS : WPAL_STATUS_E_RESOURCES_CHECK(status) )
 
-#endif // __WLAN_QCT_OS_STATUS_H
+#endif 

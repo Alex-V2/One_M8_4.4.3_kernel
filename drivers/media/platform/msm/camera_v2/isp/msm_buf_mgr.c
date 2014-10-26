@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -409,11 +409,14 @@ static int msm_isp_get_buf(struct msm_isp_buf_mgr *buf_mgr, uint32_t id,
 		if (bufq->buf_type == ISP_SHARE_BUF) {
 			temp_buf_info = kzalloc(
 			   sizeof(struct msm_isp_buffer), GFP_ATOMIC);
-			temp_buf_info->buf_reuse_flag = 1;
-			temp_buf_info->buf_used[id] = 1;
-			temp_buf_info->buf_get_count = 1;
-			list_add_tail(&temp_buf_info->share_list,
-						  &bufq->share_head);
+			if (temp_buf_info) {
+				temp_buf_info->buf_reuse_flag = 1;
+				temp_buf_info->buf_used[id] = 1;
+				temp_buf_info->buf_get_count = 1;
+				list_add_tail(&temp_buf_info->share_list,
+							  &bufq->share_head);
+			} else
+				rc = -ENOMEM;
 		}
 	} else {
 		(*buf_info)->state = MSM_ISP_BUFFER_STATE_DEQUEUED;
@@ -654,6 +657,11 @@ static int msm_isp_buf_enqueue(struct msm_isp_buf_mgr *buf_mgr,
 			rc = msm_isp_put_buf(buf_mgr,
 				info->handle, info->buf_idx);
 		} else {
+			bufq = msm_isp_get_bufq(buf_mgr, info->handle);
+			if (!bufq) {
+				pr_err("%s: Invalid bufq\n", __func__);
+				return rc;
+			}
 			if (BUF_SRC(bufq->stream_id))
 				pr_err("%s: Invalid native buffer state\n",
 					__func__);
@@ -696,7 +704,7 @@ static int msm_isp_request_bufq(struct msm_isp_buf_mgr *buf_mgr,
 	struct msm_isp_bufq *bufq = NULL;
 	CDBG("%s: E\n", __func__);
 
-	if (!buf_request->num_buf) {
+	if (!buf_request->num_buf || buf_request->num_buf > VIDEO_MAX_FRAME) {
 		pr_err("Invalid buffer request\n");
 		return rc;
 	}

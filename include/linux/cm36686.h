@@ -136,6 +136,7 @@ struct cm36686_platform_data {
 	uint32_t dark_level;
 	uint32_t use__PS2v85;
 	uint8_t ps_ms_val;
+	uint32_t SR_3v_used;
 };
 
 #endif

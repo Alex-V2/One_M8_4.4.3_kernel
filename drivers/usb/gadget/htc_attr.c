@@ -137,6 +137,8 @@ static int intrsharing;
 #define PID_ACM			0x0ff4
 #define PID_MTPUMS		0x0f91
 #define PID_MTPUMS_STOCKUI	0x0f26
+#define PID_STOCKUI	0x060d
+#define PID_UL 0x061A
 
 #define PDATA_NOT_DEFINED(field) \
 	printk(KERN_INFO "[USB] %s: %s isnt defined\n",	__func__, field);
@@ -583,7 +585,10 @@ int android_switch_function(unsigned func)
 
 	if (rom_stockui && (product_id == PID_MTPUMS)) {
 		product_id = PID_MTPUMS_STOCKUI;
-		pr_info("%s: stockUI ROM\n", __func__);
+		pr_info("%s: stockUI ROM for mtp+ums\n", __func__);
+	} else if (rom_stockui && (product_id == PID_UL)) {
+		product_id = PID_STOCKUI;
+		pr_info("%s: stockUI ROM for default function\n", __func__);
 	}
 	pr_info("%s: rom_stockui=%d\n", __func__, rom_stockui);
 
@@ -754,6 +759,19 @@ void init_mfg_serialno(void)
 	use_mfg_serialno = (board_mfg_mode() == 1) ? 1 : 0;
 	strncpy(mfg_df_serialno, serialno, strlen(serialno));
 }
+static ssize_t show_usb_ac_cable_status(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	unsigned length;
+
+#ifdef CONFIG_USB_DWC3
+	length = sprintf(buf, "%d",usb_get_connect_type());
+#else
+	length = sprintf(buf, "%d",msm_usb_get_connect_type());
+#endif
+	return length;
+}
+
 static int usb_disable;
 static ssize_t show_usb_cable_connect(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1049,6 +1067,7 @@ static ssize_t store_ats(struct device *dev,
 	return count;
 }
 
+static DEVICE_ATTR(usb_ac_cable_status, 0444, show_usb_ac_cable_status, NULL);
 static DEVICE_ATTR(usb_cable_connect, 0444, show_usb_cable_connect, NULL);
 static DEVICE_ATTR(usb_function_switch, 0664,
 		show_usb_function_switch, store_usb_function_switch);
@@ -1068,6 +1087,7 @@ static DEVICE_ATTR(os_type, 0444, show_os_type, NULL);
 static DEVICE_ATTR(ats, 0664, show_ats, store_ats);
 
 static __maybe_unused struct attribute *android_htc_usb_attributes[] = {
+	&dev_attr_usb_ac_cable_status.attr,
 	&dev_attr_usb_cable_connect.attr,
 	&dev_attr_usb_function_switch.attr,
 	&dev_attr_USB_ID_status.attr, 
@@ -1207,6 +1227,9 @@ static void setup_vendor_info(struct android_dev *dev) {
 	if (rom_stockui && (product_id == PID_MTPUMS)) {
 		product_id = PID_MTPUMS_STOCKUI;
 		pr_info("%s: stockUI ROM\n", __func__);
+	} else if (rom_stockui && (product_id == PID_UL)) {
+		product_id = PID_STOCKUI;
+		pr_info("%s: stockUI ROM for default function\n", __func__);
 	}
 
 	pr_info("%s: rom_stockui=%d\n", __func__, rom_stockui);

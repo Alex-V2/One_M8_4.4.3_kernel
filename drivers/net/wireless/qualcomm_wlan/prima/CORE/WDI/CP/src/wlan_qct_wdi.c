@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -39,50 +39,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*===========================================================================
-
-                       W L A N _ Q C T _ W D I. C
-
-  OVERVIEW:
-
-  This software unit holds the implementation of the WLAN Device Abstraction
-  Layer Interface.
-
-  The functions externalized by this module are to be called by any upper
-  MAC implementation that wishes to use the WLAN Device.
-
-  DEPENDENCIES:
-
-  Are listed for each API below.
 
 
-  Copyright (c) 2008 QUALCOMM Incorporated.
-  All Rights Reserved.
-  Qualcomm Confidential and Proprietary
-===========================================================================*/
-
-/*===========================================================================
-
-                      EDIT HISTORY FOR FILE
-
-
-  This section contains comments describing changes made to the module.
-  Notice that changes are listed in reverse chronological order.
-
-
-   $Header$$DateTime$$Author$
-
-
-  when        who     what, where, why
-----------    ---    --------------------------------------------------------
-10/05/11      hap     Adding support for Keep Alive
-2010-08-09    lti     Created module
-
-===========================================================================*/
-
-/*----------------------------------------------------------------------------
- * Include Files
- * -------------------------------------------------------------------------*/
 #include "wlan_qct_wdi.h"
 #include "wlan_qct_wdi_i.h"
 #include "wlan_qct_wdi_sta.h"
@@ -105,10 +63,7 @@
 #include "pttMsgApi.h"
 #include "vos_trace.h"
 
-/*===========================================================================
-   WLAN DAL Control Path Internal Data Definitions and Declarations
- ===========================================================================*/
-#define WDI_WCTS_ACTION_TIMEOUT       2000 /* in msec a very high upper limit */
+#define WDI_WCTS_ACTION_TIMEOUT       2000 
 
 #define MAC_ADDR_ARRAY(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
 #define MAC_ADDRESS_STR "%02x:%02x:%02x:%02x:%02x:%02x"
@@ -119,680 +74,656 @@
 #define WDI_PNO_VERSION_MASK 0x8000
 #endif
 
-/* host capability bitmap global */
 static tWlanFeatCaps *gpHostWlanFeatCaps;
-/* FW capability bitmap global */
 static tWlanFeatCaps *gpFwWlanFeatCaps;
-/* array of features supported. Need to add a new feature
- * and other two places - wlan_hal_msg.h and halMsg.c (FW file)
- */
 static placeHolderInCapBitmap supportEnabledFeatures[] =
    {MCC, P2P, DOT11AC, SLM_SESSIONIZATION, DOT11AC_OPMODE
 #ifdef WLAN_SOFTAP_VSTA_FEATURE
-    ,SAP32STA                       //5
+    ,SAP32STA                       
 #else
     ,FEATURE_NOT_SUPPORTED
 #endif
 #ifdef FEATURE_WLAN_TDLS
-    ,TDLS                           //6
+    ,TDLS                           
 #else
     ,FEATURE_NOT_SUPPORTED
 #endif
-    ,P2P_GO_NOA_DECOUPLE_INIT_SCAN  //7
+    ,P2P_GO_NOA_DECOUPLE_INIT_SCAN  
 #ifdef WLAN_ACTIVEMODE_OFFLOAD_FEATURE
-    ,WLANACTIVE_OFFLOAD             //8
+    ,WLANACTIVE_OFFLOAD             
 #else
     ,FEATURE_NOT_SUPPORTED
 #endif
-    ,FEATURE_NOT_SUPPORTED          //9
-    ,FEATURE_NOT_SUPPORTED          //10
-    ,FEATURE_NOT_SUPPORTED          //11
-    ,FEATURE_NOT_SUPPORTED          //12
-    ,FEATURE_NOT_SUPPORTED          //13
-    ,FEATURE_NOT_SUPPORTED          //14
-    ,FEATURE_NOT_SUPPORTED          //15
-    ,FEATURE_NOT_SUPPORTED          //16
-    ,FEATURE_NOT_SUPPORTED          //17
-    ,FEATURE_NOT_SUPPORTED          //18
-    ,FEATURE_NOT_SUPPORTED          //19
-    ,FEATURE_NOT_SUPPORTED          //20
-    ,FEATURE_NOT_SUPPORTED          //21
-    ,WOW                            //22
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,WOW                            
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
-    ,WLAN_ROAM_SCAN_OFFLOAD         //23
+    ,WLAN_ROAM_SCAN_OFFLOAD         
 #else
     ,FEATURE_NOT_SUPPORTED
 #endif
-    ,FEATURE_NOT_SUPPORTED          //24
-    ,FEATURE_NOT_SUPPORTED          //25
-    ,IBSS_HEARTBEAT_OFFLOAD         //26
-    ,FEATURE_NOT_SUPPORTED          //27
-    ,WLAN_PERIODIC_TX_PTRN          //28
-   };
+    ,FEATURE_NOT_SUPPORTED          
+    ,FEATURE_NOT_SUPPORTED          
+    ,IBSS_HEARTBEAT_OFFLOAD         
+    ,FEATURE_NOT_SUPPORTED          
+    ,WLAN_PERIODIC_TX_PTRN          
+#ifdef FEATURE_WLAN_TDLS
+    ,ADVANCE_TDLS                   
+#else
+    ,FEATURE_NOT_SUPPORTED          
+#endif
+    ,FEATURE_NOT_SUPPORTED          
+    ,FW_IN_TX_PATH                  
+    ,CH_SWITCH_V1                   
+};
 
-/*-------------------------------------------------------------------------- 
-   WLAN DAL  State Machine
- --------------------------------------------------------------------------*/
 WPT_STATIC const WDI_MainFsmEntryType wdiMainFSM[WDI_MAX_ST] =
 {
-  /*WDI_INIT_ST*/
+  
   {{
-    WDI_MainStart,              /*WDI_START_EVENT*/
-    NULL,                       /*WDI_STOP_EVENT*/
-    WDI_MainReqBusy,            /*WDI_REQUEST_EVENT*/
-    WDI_MainRspInit,            /*WDI_RESPONSE_EVENT*/
-    WDI_MainClose,              /*WDI_CLOSE_EVENT*/
-    WDI_MainShutdown            /*WDI_SHUTDOWN_EVENT*/
+    WDI_MainStart,              
+    NULL,                       
+    WDI_MainReqBusy,            
+    WDI_MainRspInit,            
+    WDI_MainClose,              
+    WDI_MainShutdown            
   }},
 
-  /*WDI_STARTED_ST*/
+  
   {{
-    WDI_MainStartStarted,       /*WDI_START_EVENT*/
-    WDI_MainStopStarted,        /*WDI_STOP_EVENT*/
-    WDI_MainReqStarted,         /*WDI_REQUEST_EVENT*/
-    WDI_MainRsp,                /*WDI_RESPONSE_EVENT*/
-    NULL,                       /*WDI_CLOSE_EVENT*/
-    WDI_MainShutdown            /*WDI_SHUTDOWN_EVENT*/
+    WDI_MainStartStarted,       
+    WDI_MainStopStarted,        
+    WDI_MainReqStarted,         
+    WDI_MainRsp,                
+    NULL,                       
+    WDI_MainShutdown            
   }},
 
-  /*WDI_STOPPED_ST*/
+  
   {{
-    WDI_MainStart,              /*WDI_START_EVENT*/
-    WDI_MainStopStopped,        /*WDI_STOP_EVENT*/
-    NULL,                       /*WDI_REQUEST_EVENT*/
-    WDI_MainRsp,                /*WDI_RESPONSE_EVENT*/
-    WDI_MainClose,              /*WDI_CLOSE_EVENT*/
-    WDI_MainShutdown            /*WDI_SHUTDOWN_EVENT*/
+    WDI_MainStart,              
+    WDI_MainStopStopped,        
+    NULL,                       
+    WDI_MainRsp,                
+    WDI_MainClose,              
+    WDI_MainShutdown            
   }},
 
-  /*WDI_BUSY_ST*/
+  
   {{
-    WDI_MainStartBusy,          /*WDI_START_EVENT*/
-    WDI_MainStopBusy,           /*WDI_STOP_EVENT*/
-    WDI_MainReqBusy,            /*WDI_REQUEST_EVENT*/
-    WDI_MainRsp,                /*WDI_RESPONSE_EVENT*/
-    WDI_MainCloseBusy,          /*WDI_CLOSE_EVENT*/
-    WDI_MainShutdownBusy        /*WDI_SHUTDOWN_EVENT*/
+    WDI_MainStartBusy,          
+    WDI_MainStopBusy,           
+    WDI_MainReqBusy,            
+    WDI_MainRsp,                
+    WDI_MainCloseBusy,          
+    WDI_MainShutdownBusy        
   }}
 };
 
-/*---------------------------------------------------------------------------
-  DAL Request Processing Array  - the functions in this table will only be
-  called when the processing of the specific request is allowed by the
-  Main FSM
- ---------------------------------------------------------------------------*/
 WDI_ReqProcFuncType  pfnReqProcTbl[WDI_MAX_UMAC_IND] =
 {
-  /*INIT*/
-  WDI_ProcessStartReq,      /* WDI_START_REQ  */
-  WDI_ProcessStopReq,       /* WDI_STOP_REQ  */
-  WDI_ProcessCloseReq,      /* WDI_CLOSE_REQ  */
+  
+  WDI_ProcessStartReq,      
+  WDI_ProcessStopReq,       
+  WDI_ProcessCloseReq,      
 
-  /*SCAN*/
-  WDI_ProcessInitScanReq,   /* WDI_INIT_SCAN_REQ  */
-  WDI_ProcessStartScanReq,  /* WDI_START_SCAN_REQ  */
-  WDI_ProcessEndScanReq,    /* WDI_END_SCAN_REQ  */
-  WDI_ProcessFinishScanReq, /* WDI_FINISH_SCAN_REQ  */
+  
+  WDI_ProcessInitScanReq,   
+  WDI_ProcessStartScanReq,  
+  WDI_ProcessEndScanReq,    
+  WDI_ProcessFinishScanReq, 
 
-  /*ASSOCIATION*/
-  WDI_ProcessJoinReq,       /* WDI_JOIN_REQ  */
-  WDI_ProcessConfigBSSReq,  /* WDI_CONFIG_BSS_REQ  */
-  WDI_ProcessDelBSSReq,     /* WDI_DEL_BSS_REQ  */
-  WDI_ProcessPostAssocReq,  /* WDI_POST_ASSOC_REQ  */
-  WDI_ProcessDelSTAReq,     /* WDI_DEL_STA_REQ  */
+  
+  WDI_ProcessJoinReq,       
+  WDI_ProcessConfigBSSReq,  
+  WDI_ProcessDelBSSReq,     
+  WDI_ProcessPostAssocReq,  
+  WDI_ProcessDelSTAReq,     
 
-  /* Security */
-  WDI_ProcessSetBssKeyReq,        /* WDI_SET_BSS_KEY_REQ  */
-  WDI_ProcessRemoveBssKeyReq,     /* WDI_RMV_BSS_KEY_REQ  */
-  WDI_ProcessSetStaKeyReq,        /* WDI_SET_STA_KEY_REQ  */
-  WDI_ProcessRemoveStaKeyReq,     /* WDI_RMV_BSS_KEY_REQ  */
+  
+  WDI_ProcessSetBssKeyReq,        
+  WDI_ProcessRemoveBssKeyReq,     
+  WDI_ProcessSetStaKeyReq,        
+  WDI_ProcessRemoveStaKeyReq,     
 
-  /* QoS and BA APIs */
-  WDI_ProcessAddTSpecReq,          /* WDI_ADD_TS_REQ  */
-  WDI_ProcessDelTSpecReq,          /* WDI_DEL_TS_REQ  */
-  WDI_ProcessUpdateEDCAParamsReq,  /* WDI_UPD_EDCA_PRMS_REQ  */
-  WDI_ProcessAddBASessionReq,      /* WDI_ADD_BA_SESSION_REQ  */
-  WDI_ProcessDelBAReq,             /* WDI_DEL_BA_REQ  */
+  
+  WDI_ProcessAddTSpecReq,          
+  WDI_ProcessDelTSpecReq,          
+  WDI_ProcessUpdateEDCAParamsReq,  
+  WDI_ProcessAddBASessionReq,      
+  WDI_ProcessDelBAReq,             
 
-  /* Miscellaneous Control APIs */
-  WDI_ProcessChannelSwitchReq,     /* WDI_CH_SWITCH_REQ  */
-  WDI_ProcessConfigStaReq,         /* WDI_CONFIG_STA_REQ  */
-  WDI_ProcessSetLinkStateReq,      /* WDI_SET_LINK_ST_REQ  */
-  WDI_ProcessGetStatsReq,          /* WDI_GET_STATS_REQ  */
-  WDI_ProcessUpdateCfgReq,         /* WDI_UPDATE_CFG_REQ  */
+  
+  WDI_ProcessChannelSwitchReq,     
+  WDI_ProcessConfigStaReq,         
+  WDI_ProcessSetLinkStateReq,      
+  WDI_ProcessGetStatsReq,          
+  WDI_ProcessUpdateCfgReq,         
 
-  /*BA APIs*/
-  WDI_ProcessAddBAReq,             /* WDI_ADD_BA_REQ  */
-  WDI_ProcessTriggerBAReq,         /* WDI_TRIGGER_BA_REQ  */
+  
+  WDI_ProcessAddBAReq,             
+  WDI_ProcessTriggerBAReq,         
 
-  /*Beacon processing APIs*/
-  WDI_ProcessUpdateBeaconParamsReq, /* WDI_UPD_BCON_PRMS_REQ */
-  WDI_ProcessSendBeaconParamsReq, /* WDI_SND_BCON_REQ */
+  
+  WDI_ProcessUpdateBeaconParamsReq, 
+  WDI_ProcessSendBeaconParamsReq, 
 
-  WDI_ProcessUpdateProbeRspTemplateReq, /* WDI_UPD_PROBE_RSP_TEMPLATE_REQ */
-  WDI_ProcessSetStaBcastKeyReq,        /* WDI_SET_STA_BCAST_KEY_REQ  */
-  WDI_ProcessRemoveStaBcastKeyReq,     /* WDI_RMV_STA_BCAST_KEY_REQ  */
-  WDI_ProcessSetMaxTxPowerReq,         /*WDI_SET_MAX_TX_POWER_REQ*/
-  WDI_ProcessP2PGONOAReq,              /* WDI_P2P_GO_NOTICE_OF_ABSENCE_REQ */
-  /* PowerSave APIs */
-  WDI_ProcessEnterImpsReq,         /* WDI_ENTER_IMPS_REQ  */
-  WDI_ProcessExitImpsReq,          /* WDI_EXIT_IMPS_REQ  */
-  WDI_ProcessEnterBmpsReq,         /* WDI_ENTER_BMPS_REQ  */
-  WDI_ProcessExitBmpsReq,          /* WDI_EXIT_BMPS_REQ  */
-  WDI_ProcessEnterUapsdReq,        /* WDI_ENTER_UAPSD_REQ  */
-  WDI_ProcessExitUapsdReq,         /* WDI_EXIT_UAPSD_REQ  */
-  WDI_ProcessSetUapsdAcParamsReq,  /* WDI_SET_UAPSD_PARAM_REQ  */
-  WDI_ProcessUpdateUapsdParamsReq, /* WDI_UPDATE_UAPSD_PARAM_REQ  */
-  WDI_ProcessConfigureRxpFilterReq, /* WDI_CONFIGURE_RXP_FILTER_REQ  */
-  WDI_ProcessSetBeaconFilterReq,   /* WDI_SET_BEACON_FILTER_REQ  */
-  WDI_ProcessRemBeaconFilterReq,   /* WDI_REM_BEACON_FILTER_REQ  */
-  WDI_ProcessSetRSSIThresholdsReq, /* WDI_SET_RSSI_THRESHOLDS_REQ  */
-  WDI_ProcessHostOffloadReq,       /* WDI_HOST_OFFLOAD_REQ  */
-  WDI_ProcessWowlAddBcPtrnReq,     /* WDI_WOWL_ADD_BC_PTRN_REQ  */
-  WDI_ProcessWowlDelBcPtrnReq,     /* WDI_WOWL_DEL_BC_PTRN_REQ  */
-  WDI_ProcessWowlEnterReq,         /* WDI_WOWL_ENTER_REQ  */
-  WDI_ProcessWowlExitReq,          /* WDI_WOWL_EXIT_REQ  */
-  WDI_ProcessConfigureAppsCpuWakeupStateReq, /* WDI_CONFIGURE_APPS_CPU_WAKEUP_STATE_REQ  */
-  /*NV Download APIs*/
-  WDI_ProcessNvDownloadReq,      /* WDI_NV_DOWNLOAD_REQ*/
-  WDI_ProcessFlushAcReq,           /* WDI_FLUSH_AC_REQ  */
-  WDI_ProcessBtAmpEventReq,        /* WDI_BTAMP_EVENT_REQ  */
+  WDI_ProcessUpdateProbeRspTemplateReq, 
+  WDI_ProcessSetStaBcastKeyReq,        
+  WDI_ProcessRemoveStaBcastKeyReq,     
+  WDI_ProcessSetMaxTxPowerReq,         
+  WDI_ProcessP2PGONOAReq,              
+  
+  WDI_ProcessEnterImpsReq,         
+  WDI_ProcessExitImpsReq,          
+  WDI_ProcessEnterBmpsReq,         
+  WDI_ProcessExitBmpsReq,          
+  WDI_ProcessEnterUapsdReq,        
+  WDI_ProcessExitUapsdReq,         
+  WDI_ProcessSetUapsdAcParamsReq,  
+  WDI_ProcessUpdateUapsdParamsReq, 
+  WDI_ProcessConfigureRxpFilterReq, 
+  WDI_ProcessSetBeaconFilterReq,   
+  WDI_ProcessRemBeaconFilterReq,   
+  WDI_ProcessSetRSSIThresholdsReq, 
+  WDI_ProcessHostOffloadReq,       
+  WDI_ProcessWowlAddBcPtrnReq,     
+  WDI_ProcessWowlDelBcPtrnReq,     
+  WDI_ProcessWowlEnterReq,         
+  WDI_ProcessWowlExitReq,          
+  WDI_ProcessConfigureAppsCpuWakeupStateReq, 
+  
+  WDI_ProcessNvDownloadReq,      
+  WDI_ProcessFlushAcReq,           
+  WDI_ProcessBtAmpEventReq,        
 #ifdef WLAN_FEATURE_VOWIFI_11R
-  WDI_ProcessAggrAddTSpecReq,      /* WDI_AGGR_ADD_TS_REQ */
+  WDI_ProcessAggrAddTSpecReq,      
 #else
   NULL,
-#endif /* WLAN_FEATURE_VOWIFI_11R */
-  WDI_ProcessAddSTASelfReq,         /* WDI_ADD_STA_SELF_REQ */
-  WDI_ProcessDelSTASelfReq,          /* WDI DEL STA SELF REQ */
-  WDI_ProcessFTMCommandReq,            /* WDI_FTM_CMD_REQ */
+#endif 
+  WDI_ProcessAddSTASelfReq,         
+  WDI_ProcessDelSTASelfReq,          
+  WDI_ProcessFTMCommandReq,            
 
 #ifdef FEATURE_OEM_DATA_SUPPORT
-  WDI_ProcessStartOemDataReq,     /*WDI_START_OEM_DATA_REQ*/
+  WDI_ProcessStartOemDataReq,     
 #else
   NULL,
-#endif /*FEATURE_OEM_DATA_SUPPORT*/
-  WDI_ProcessHostResumeReq,            /*WDI_HOST_RESUME_REQ*/
+#endif 
+  WDI_ProcessHostResumeReq,            
 
-  WDI_ProcessKeepAliveReq,       /* WDI_KEEP_ALIVE_REQ */
+  WDI_ProcessKeepAliveReq,       
 
 #ifdef FEATURE_WLAN_SCAN_PNO
-  WDI_ProcessSetPreferredNetworkReq,  /* WDI_SET_PREF_NETWORK_REQ */
-  WDI_ProcessSetRssiFilterReq,        /* WDI_SET_RSSI_FILTER_REQ */
-  WDI_ProcessUpdateScanParamsReq,     /* WDI_UPDATE_SCAN_PARAMS_REQ */
+  WDI_ProcessSetPreferredNetworkReq,  
+  WDI_ProcessSetRssiFilterReq,        
+  WDI_ProcessUpdateScanParamsReq,     
 #else
   NULL,
   NULL,
   NULL,
-#endif /* FEATURE_WLAN_SCAN_PNO */
+#endif 
 
-  WDI_ProcessSetTxPerTrackingReq,     /* WDI_SET_TX_PER_TRACKING_REQ  */
+  WDI_ProcessSetTxPerTrackingReq,     
 
 #ifdef WLAN_FEATURE_PACKET_FILTERING
-  /* WDI_8023_MULTICAST_LIST_REQ */
+  
   WDI_Process8023MulticastListReq,
-  /* WDI_RECEIVE_FILTER_SET_FILTER_REQ */
+  
   WDI_ProcessReceiveFilterSetFilterReq,
-  /* WDI_PACKET_COALESCING_FILTER_MATCH_COUNT_REQ */
+  
   WDI_ProcessFilterMatchCountReq,
-  /* WDI_RECEIVE_FILTER_CLEAR_FILTER_REQ */
+  
   WDI_ProcessReceiveFilterClearFilterReq,
 #else
   NULL,
   NULL,
   NULL,
   NULL,
-#endif // WLAN_FEATURE_PACKET_FILTERING
-  WDI_ProcessInitScanReq,               /* WDI_INIT_SCAN_CON_REQ */
-  WDI_ProcessHALDumpCmdReq,             /*WDI_HAL_DUMP_CMD_REQ */
-  WDI_ProcessShutdownReq,               /* WDI_SHUTDOWN_REQ  */
+#endif 
+  WDI_ProcessInitScanReq,               
+  WDI_ProcessHALDumpCmdReq,             
+  WDI_ProcessShutdownReq,               
 
-  WDI_ProcessSetPowerParamsReq,         /*WDI_SET_POWER_PARAMS_REQ*/
+  WDI_ProcessSetPowerParamsReq,         
 #ifdef FEATURE_WLAN_CCX
-  WDI_ProcessTSMStatsReq,          /* WDI_TSM_STATS_REQ */
+  WDI_ProcessTSMStatsReq,          
 #else
   NULL,
 #endif
 
 #ifdef WLAN_FEATURE_GTK_OFFLOAD
-  WDI_ProcessGTKOffloadReq,          /* WDI_GTK_OFFLOAD_REQ  */
-  WDI_ProcessGTKOffloadGetInfoReq,   /* WDI_GTK_OFFLOAD_GETINFO_REQ  */
+  WDI_ProcessGTKOffloadReq,          
+  WDI_ProcessGTKOffloadGetInfoReq,   
 #else
   NULL,
   NULL,
-#endif // WLAN_FEATURE_GTK_OFFLOAD
+#endif 
 
-  WDI_ProcessSetTmLevelReq,             /*WDI_SET_TM_LEVEL_REQ*/
-  WDI_ProcessFeatureCapsExchangeReq,    /* WDI_FEATURE_CAPS_EXCHANGE_REQ */
+  WDI_ProcessSetTmLevelReq,             
+  WDI_ProcessFeatureCapsExchangeReq,    
 #ifdef WLAN_FEATURE_11AC
-  WDI_ProcessUpdateVHTOpModeReq,        /* WDI_UPDATE_VHT_OP_MODE_REQ */
+  WDI_ProcessUpdateVHTOpModeReq,        
 #else
   NULL,
 #endif
 #if defined WLAN_FEATURE_VOWIFI_11R || defined FEATURE_WLAN_CCX || defined(FEATURE_WLAN_LFR)
-  WDI_ProcessGetRoamRssiReq,            /* WDI_GET_ROAM_RSSI_REQ  */
+  WDI_ProcessGetRoamRssiReq,            
 #else
   NULL,
 #endif
-  WDI_ProcessSetTxPowerReq,             /* WDI_SET_TX_POWER_REQ*/
+  WDI_ProcessSetTxPowerReq,             
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
-  WDI_ProcessRoamScanOffloadReq,  /* WDI_ROAM_SCAN_OFFLOAD_REQ */
+  WDI_ProcessRoamScanOffloadReq,  
 #else
   NULL,
-#endif /* WLAN_FEATURE_ROAM_SCAN_OFFLOAD */
+#endif 
 #ifdef FEATURE_WLAN_TDLS
-  WDI_ProcessTdlsLinkEstablishReq,       /* WDI_TDLS_LINK_ESTABLISH_REQ */
+  WDI_ProcessTdlsLinkEstablishReq,       
 #else
  NULL,
 #endif
 #ifdef FEATURE_WLAN_LPHB
-  WDI_ProcessLPHBConfReq,               /* WDI_LPHB_CFG_REQ */
+  WDI_ProcessLPHBConfReq,               
 #else
   NULL,
-#endif /* FEATURE_WLAN_LPHB */
+#endif 
 
 #ifdef FEATURE_WLAN_BATCH_SCAN
-  WDI_ProcessSetBatchScanReq,               /* WDI_SET_BATCH_SCAN_REQ */
+  WDI_ProcessSetBatchScanReq,               
 #else
   NULL,
-#endif /* FEATURE_WLAN_BATCH_SCAN */
+#endif 
 
-  WDI_ProcessSetMaxTxPowerPerBandReq,   /* WDI_SET_MAX_TX_POWER_PER_BAND_REQ*/
+  WDI_ProcessUpdateChannelParamsReq,    
 
-  WDI_ProcessUpdateChannelParamsReq,        /* WDI_UPDATE_CHAN_REQ */
+  WDI_ProcessSetMaxTxPowerPerBandReq,   
 
-  /*-------------------------------------------------------------------------
-    Indications
-  -------------------------------------------------------------------------*/
-  WDI_ProcessHostSuspendInd,            /* WDI_HOST_SUSPEND_IND*/
-  WDI_ProcessTrafficStatsInd,           /* WDI_TRAFFIC_STATS_IND*/
-  WDI_ProcessDHCPStartInd,              /* WDI_DHCP_START_IND*/
-  WDI_ProcessDHCPStopInd,               /* WDI_DHCP_STOP_IND*/
+  WDI_ProcessGetBcnMissRateReq,          
+  WDI_ProcessHostSuspendInd,            
+  WDI_ProcessTrafficStatsInd,           
+  WDI_ProcessDHCPStartInd,              
+  WDI_ProcessDHCPStopInd,               
 #ifdef WLAN_FEATURE_11W
-  WDI_ProcessExcludeUnencryptInd,       /* WDI_EXCLUDE_UNENCRYPTED_IND */
+  WDI_ProcessExcludeUnencryptInd,       
 #else
   NULL,
 #endif
-  WDI_ProcessAddPeriodicTxPtrnInd,      /* WDI_ADD_PERIODIC_TX_PATTERN_IND */
-  WDI_ProcessDelPeriodicTxPtrnInd,      /* WDI_DEL_PERIODIC_TX_PATTERN_IND */
+  WDI_ProcessAddPeriodicTxPtrnInd,      
+  WDI_ProcessDelPeriodicTxPtrnInd,      
 #ifdef FEATURE_WLAN_BATCH_SCAN
-  WDI_ProcessStopBatchScanInd,          /* WDI_STOP_BATCH_SCAN_IND */
-  WDI_ProcessTriggerBatchScanResultInd, /* WDI_TRIGGER_BATCH_SCAN_RESULT_IND */
+  WDI_ProcessStopBatchScanInd,          
+  WDI_ProcessTriggerBatchScanResultInd, 
 #else
   NULL,
   NULL,
-#endif /* FEATURE_WLAN_BATCH_SCAN */
+#endif 
+  WDI_ProcessRateUpdateInd,             
+
+  WDI_ProcessChannelSwitchReq_V1,    
+
 };
 
 
-/*---------------------------------------------------------------------------
-  DAL Request Processing Array  - the functions in this table will only be
-  called when the processing of the specific request is allowed by the
-  Main FSM
- ---------------------------------------------------------------------------*/
 WDI_RspProcFuncType  pfnRspProcTbl[WDI_MAX_RESP] =
 {
-  /*INIT*/
-  WDI_ProcessStartRsp,            /* WDI_START_RESP  */
-  WDI_ProcessStopRsp,             /* WDI_STOP_RESP  */
-  WDI_ProcessCloseRsp,            /* WDI_CLOSE_RESP  */
+  
+  WDI_ProcessStartRsp,            
+  WDI_ProcessStopRsp,             
+  WDI_ProcessCloseRsp,            
 
-  /*SCAN*/
-  WDI_ProcessInitScanRsp,         /* WDI_INIT_SCAN_RESP  */
-  WDI_ProcessStartScanRsp,        /* WDI_START_SCAN_RESP  */
-  WDI_ProcessEndScanRsp,          /* WDI_END_SCAN_RESP  */
-  WDI_ProcessFinishScanRsp,       /* WDI_FINISH_SCAN_RESP  */
+  
+  WDI_ProcessInitScanRsp,         
+  WDI_ProcessStartScanRsp,        
+  WDI_ProcessEndScanRsp,          
+  WDI_ProcessFinishScanRsp,       
 
-  /* ASSOCIATION*/
-  WDI_ProcessJoinRsp,             /* WDI_JOIN_RESP  */
-  WDI_ProcessConfigBSSRsp,        /* WDI_CONFIG_BSS_RESP  */
-  WDI_ProcessDelBSSRsp,           /* WDI_DEL_BSS_RESP  */
-  WDI_ProcessPostAssocRsp,        /* WDI_POST_ASSOC_RESP  */
-  WDI_ProcessDelSTARsp,           /* WDI_DEL_STA_RESP  */
+  
+  WDI_ProcessJoinRsp,             
+  WDI_ProcessConfigBSSRsp,        
+  WDI_ProcessDelBSSRsp,           
+  WDI_ProcessPostAssocRsp,        
+  WDI_ProcessDelSTARsp,           
 
-  /* Security */
-  WDI_ProcessSetBssKeyRsp,        /* WDI_SET_BSS_KEY_RESP  */
-  WDI_ProcessRemoveBssKeyRsp,     /* WDI_RMV_BSS_KEY_RESP  */
-  WDI_ProcessSetStaKeyRsp,        /* WDI_SET_STA_KEY_RESP  */
-  WDI_ProcessRemoveStaKeyRsp,     /* WDI_RMV_BSS_KEY_RESP  */
+  
+  WDI_ProcessSetBssKeyRsp,        
+  WDI_ProcessRemoveBssKeyRsp,     
+  WDI_ProcessSetStaKeyRsp,        
+  WDI_ProcessRemoveStaKeyRsp,     
 
-  /* QoS and BA APIs */
-  WDI_ProcessAddTSpecRsp,          /* WDI_ADD_TS_RESP  */
-  WDI_ProcessDelTSpecRsp,          /* WDI_DEL_TS_RESP  */
-  WDI_ProcessUpdateEDCAParamsRsp,  /* WDI_UPD_EDCA_PRMS_RESP  */
-  WDI_ProcessAddBASessionRsp,      /* WDI_ADD_BA_SESSION_RESP  */
-  WDI_ProcessDelBARsp,             /* WDI_DEL_BA_RESP  */
+  
+  WDI_ProcessAddTSpecRsp,          
+  WDI_ProcessDelTSpecRsp,          
+  WDI_ProcessUpdateEDCAParamsRsp,  
+  WDI_ProcessAddBASessionRsp,      
+  WDI_ProcessDelBARsp,             
 
-  /* Miscellaneous Control APIs */
-  WDI_ProcessChannelSwitchRsp,     /* WDI_CH_SWITCH_RESP  */
-  WDI_ProcessConfigStaRsp,         /* WDI_CONFIG_STA_RESP  */
-  WDI_ProcessSetLinkStateRsp,      /* WDI_SET_LINK_ST_RESP  */
-  WDI_ProcessGetStatsRsp,          /* WDI_GET_STATS_RESP  */
-  WDI_ProcessUpdateCfgRsp,         /* WDI_UPDATE_CFG_RESP  */
+  
+  WDI_ProcessChannelSwitchRsp,     
+  WDI_ProcessConfigStaRsp,         
+  WDI_ProcessSetLinkStateRsp,      
+  WDI_ProcessGetStatsRsp,          
+  WDI_ProcessUpdateCfgRsp,         
 
-  /* BA APIs*/
-  WDI_ProcessAddBARsp,             /* WDI_ADD_BA_RESP  */
-  WDI_ProcessTriggerBARsp,         /* WDI_TRIGGER_BA_RESP  */
+  
+  WDI_ProcessAddBARsp,             
+  WDI_ProcessTriggerBARsp,         
 
-  /* IBSS APIs*/
-  WDI_ProcessUpdateBeaconParamsRsp, /* WDI_UPD_BCON_PRMS_RSP */
-  WDI_ProcessSendBeaconParamsRsp,   /* WDI_SND_BCON_RSP */
+  
+  WDI_ProcessUpdateBeaconParamsRsp, 
+  WDI_ProcessSendBeaconParamsRsp,   
 
-  /*Soft AP APIs*/
-  WDI_ProcessUpdateProbeRspTemplateRsp,/*WDI_UPD_PROBE_RSP_TEMPLATE_RESP */
-  WDI_ProcessSetStaBcastKeyRsp,        /*WDI_SET_STA_BCAST_KEY_RESP */
-  WDI_ProcessRemoveStaBcastKeyRsp,     /*WDI_RMV_STA_BCAST_KEY_RESP */
-  WDI_ProcessSetMaxTxPowerRsp,         /*WDI_SET_MAX_TX_POWER_RESP */
+  
+  WDI_ProcessUpdateProbeRspTemplateRsp,
+  WDI_ProcessSetStaBcastKeyRsp,        
+  WDI_ProcessRemoveStaBcastKeyRsp,     
+  WDI_ProcessSetMaxTxPowerRsp,         
 
-  /* PowerSave APIs */
-  WDI_ProcessEnterImpsRsp,         /* WDI_ENTER_IMPS_RESP  */
-  WDI_ProcessExitImpsRsp,          /* WDI_EXIT_IMPS_RESP  */
-  WDI_ProcessEnterBmpsRsp,         /* WDI_ENTER_BMPS_RESP  */
-  WDI_ProcessExitBmpsRsp,          /* WDI_EXIT_BMPS_RESP  */
-  WDI_ProcessEnterUapsdRsp,        /* WDI_ENTER_UAPSD_RESP  */
-  WDI_ProcessExitUapsdRsp,         /* WDI_EXIT_UAPSD_RESP  */
-  WDI_ProcessSetUapsdAcParamsRsp,  /* WDI_SET_UAPSD_PARAM_RESP  */
-  WDI_ProcessUpdateUapsdParamsRsp, /* WDI_UPDATE_UAPSD_PARAM_RESP  */
-  WDI_ProcessConfigureRxpFilterRsp,/* WDI_CONFIGURE_RXP_FILTER_RESP  */
-  WDI_ProcessSetBeaconFilterRsp,   /* WDI_SET_BEACON_FILTER_RESP  */
-  WDI_ProcessRemBeaconFilterRsp,   /* WDI_REM_BEACON_FILTER_RESP  */
-  WDI_ProcessSetRSSIThresoldsRsp,  /* WDI_SET_RSSI_THRESHOLDS_RESP  */
-  WDI_ProcessHostOffloadRsp,       /* WDI_HOST_OFFLOAD_RESP  */
-  WDI_ProcessWowlAddBcPtrnRsp,     /* WDI_WOWL_ADD_BC_PTRN_RESP  */
-  WDI_ProcessWowlDelBcPtrnRsp,     /* WDI_WOWL_DEL_BC_PTRN_RESP  */
-  WDI_ProcessWowlEnterRsp,         /* WDI_WOWL_ENTER_RESP  */
-  WDI_ProcessWowlExitRsp,          /* WDI_WOWL_EXIT_RESP  */
-  WDI_ProcessConfigureAppsCpuWakeupStateRsp, /* WDI_CONFIGURE_APPS_CPU_WAKEUP_STATE_RESP  */
+  
+  WDI_ProcessEnterImpsRsp,         
+  WDI_ProcessExitImpsRsp,          
+  WDI_ProcessEnterBmpsRsp,         
+  WDI_ProcessExitBmpsRsp,          
+  WDI_ProcessEnterUapsdRsp,        
+  WDI_ProcessExitUapsdRsp,         
+  WDI_ProcessSetUapsdAcParamsRsp,  
+  WDI_ProcessUpdateUapsdParamsRsp, 
+  WDI_ProcessConfigureRxpFilterRsp,
+  WDI_ProcessSetBeaconFilterRsp,   
+  WDI_ProcessRemBeaconFilterRsp,   
+  WDI_ProcessSetRSSIThresoldsRsp,  
+  WDI_ProcessHostOffloadRsp,       
+  WDI_ProcessWowlAddBcPtrnRsp,     
+  WDI_ProcessWowlDelBcPtrnRsp,     
+  WDI_ProcessWowlEnterRsp,         
+  WDI_ProcessWowlExitRsp,          
+  WDI_ProcessConfigureAppsCpuWakeupStateRsp, 
 
 
-  WDI_ProcessNvDownloadRsp, /* WDI_NV_DOWNLOAD_RESP*/
+  WDI_ProcessNvDownloadRsp, 
 
-  WDI_ProcessFlushAcRsp,           /* WDI_FLUSH_AC_RESP  */
-  WDI_ProcessBtAmpEventRsp,        /* WDI_BTAMP_EVENT_RESP  */
+  WDI_ProcessFlushAcRsp,           
+  WDI_ProcessBtAmpEventRsp,        
 #ifdef WLAN_FEATURE_VOWIFI_11R
-  WDI_ProcessAggrAddTSpecRsp,       /* WDI_AGGR_ADD_TS_RESP  */
+  WDI_ProcessAggrAddTSpecRsp,       
 #else
   NULL,
-#endif /* WLAN_FEATURE_VOWIFI_11R */
-  WDI_ProcessAddSTASelfRsp,          /* WDI_ADD_STA_SELF_RESP */
-  WDI_ProcessDelSTASelfRsp,          /* WDI_DEL_STA_SELF_RESP */
+#endif 
+  WDI_ProcessAddSTASelfRsp,          
+  WDI_ProcessDelSTASelfRsp,          
 #ifdef FEATURE_OEM_DATA_SUPPORT
-  WDI_ProcessStartOemDataRsp,     /*WDI_START_OEM_DATA_RESP*/
+  WDI_ProcessStartOemDataRsp,     
 #else
   NULL,
-#endif /*FEATURE_OEM_DATA_SUPPORT*/
-  WDI_ProcessHostResumeRsp,        /*WDI_HOST_RESUME_RESP*/
+#endif 
+  WDI_ProcessHostResumeRsp,        
 
-  WDI_ProcessP2PGONOARsp,           /*WDI_P2P_GO_NOTICE_OF_ABSENCE_RESP */
+  WDI_ProcessP2PGONOARsp,           
 
-  WDI_ProcessFTMCommandRsp,         /* WDI_FTM_CMD_RESP */
+  WDI_ProcessFTMCommandRsp,         
 
-  WDI_ProcessKeepAliveRsp,       /* WDI_KEEP_ALIVE_RESP  */
+  WDI_ProcessKeepAliveRsp,       
 
 #ifdef FEATURE_WLAN_SCAN_PNO
-  WDI_ProcessSetPreferredNetworkRsp,     /* WDI_SET_PREF_NETWORK_RESP */
-  WDI_ProcessSetRssiFilterRsp,           /* WDI_SET_RSSI_FILTER_RESP */
-  WDI_ProcessUpdateScanParamsRsp,        /* WDI_UPDATE_SCAN_PARAMS_RESP */
+  WDI_ProcessSetPreferredNetworkRsp,     
+  WDI_ProcessSetRssiFilterRsp,           
+  WDI_ProcessUpdateScanParamsRsp,        
 #else
   NULL,
   NULL,
   NULL,
-#endif // FEATURE_WLAN_SCAN_PNO
+#endif 
 
-  WDI_ProcessSetTxPerTrackingRsp,      /* WDI_SET_TX_PER_TRACKING_RESP  */
-
-  /*---------------------------------------------------------------------
-    Indications
-  ---------------------------------------------------------------------*/
+  WDI_ProcessSetTxPerTrackingRsp,      
+  
 #ifdef WLAN_FEATURE_PACKET_FILTERING
-  /* WDI_8023_MULTICAST_LIST_RESP */
+  
   WDI_Process8023MulticastListRsp,
-  /* WDI_RECEIVE_FILTER_SET_FILTER_RESP */
+  
   WDI_ProcessReceiveFilterSetFilterRsp,
-  /* WDI_PACKET_COALESCING_FILTER_MATCH_COUNT_RESP */
+  
   WDI_ProcessFilterMatchCountRsp,
-  /* WDI_RECEIVE_FILTER_CLEAR_FILTER_RESP */
+  
   WDI_ProcessReceiveFilterClearFilterRsp,
 #else
   NULL,
   NULL,
   NULL,
   NULL,
-#endif // WLAN_FEATURE_PACKET_FILTERING
+#endif 
 
-  WDI_ProcessHALDumpCmdRsp,       /* WDI_HAL_DUMP_CMD_RESP */
-  WDI_ProcessShutdownRsp,         /* WDI_SHUTDOWN_RESP */
+  WDI_ProcessHALDumpCmdRsp,       
+  WDI_ProcessShutdownRsp,         
   
-  WDI_ProcessSetPowerParamsRsp,         /*WDI_SET_POWER_PARAMS_RESP*/
+  WDI_ProcessSetPowerParamsRsp,         
 #ifdef FEATURE_WLAN_CCX
-  WDI_ProcessTsmStatsRsp,          /* WDI_TSM_STATS_RESP  */
+  WDI_ProcessTsmStatsRsp,          
 #else
   NULL,
 #endif
   
 #ifdef WLAN_FEATURE_GTK_OFFLOAD
-  WDI_ProcessGtkOffloadRsp,             /* WDI_GTK_OFFLOAD_RESP  */
-  WDI_ProcessGTKOffloadGetInfoRsp,      /* WDI_GTK_OFFLOAD_GETINFO_RESP  */
+  WDI_ProcessGtkOffloadRsp,             
+  WDI_ProcessGTKOffloadGetInfoRsp,      
 #else
   NULL,
   NULL,
-#endif // WLAN_FEATURE_GTK_OFFLOAD
-  WDI_ProcessSetTmLevelRsp,             /* WDI_SET_TM_LEVEL_RESP */
-  WDI_ProcessFeatureCapsExchangeRsp,    /* WDI_FEATURE_CAPS_EXCHANGE_RESP */
+#endif 
+  WDI_ProcessSetTmLevelRsp,             
+  WDI_ProcessFeatureCapsExchangeRsp,    
 #ifdef WLAN_FEATURE_11AC
-  WDI_ProcessUpdateVHTOpModeRsp,        /* WDI_UPDATE_VHT_OP_MODE_RESP */
+  WDI_ProcessUpdateVHTOpModeRsp,        
 #else
    NULL,
 #endif
 #if defined WLAN_FEATURE_VOWIFI_11R || defined FEATURE_WLAN_CCX || defined(FEATURE_WLAN_LFR)
-  WDI_ProcessGetRoamRssiRsp,            /* WDI_GET_ROAM_RSSI_RESP  */
+  WDI_ProcessGetRoamRssiRsp,            
 #else
   NULL,
 #endif
-  WDI_ProcessSetTxPowerRsp,             /* WDI_SET_TX_POWER_RESP */
+  WDI_ProcessSetTxPowerRsp,             
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
-    WDI_ProcessRoamScanOffloadRsp, /* WDI_ROAM_SCAN_OFFLOAD_RESP */
+    WDI_ProcessRoamScanOffloadRsp, 
 #else
     NULL,
 #endif
 #ifdef FEATURE_WLAN_TDLS
-  WDI_ProcessLinkEstablishReqRsp,       /*WDI_TDLS_LINK_ESTABLISH_REQ_RESP*/
+  WDI_ProcessLinkEstablishReqRsp,       
 #else
   NULL,
 #endif
 #ifdef FEATURE_WLAN_LPHB
-    WDI_ProcessLphbCfgRsp,             /* WDI_LPHB_CFG_RESP */
+    WDI_ProcessLphbCfgRsp,             
 #else
     NULL,
-#endif /* FEATURE_WLAN_LPHB */
+#endif 
 
 #ifdef FEATURE_WLAN_BATCH_SCAN
-    WDI_ProcessSetBatchScanRsp,        /* WDI_SET_BATCH_SCAN_RESP */
+    WDI_ProcessSetBatchScanRsp,        
 #else
     NULL,
-#endif /*FEATURE_WLAN_BATCH_SCAN*/
-  WDI_ProcessSetMaxTxPowerPerBandRsp,  /* WDI_SET_MAX_TX_POWER_PER_BAND_RSP */
+#endif 
 
-  WDI_ProcessUpdateChanRsp,         /* WDI_UPDATE_CHAN_RESP */
-  /*---------------------------------------------------------------------
-    Indications
-  ---------------------------------------------------------------------*/
-  WDI_ProcessLowRSSIInd,            /* Just threshold crossing not really low WDI_HAL_RSSI_NOTIFICATION_IND  */
-  WDI_ProcessMissedBeaconInd,       /* WDI_HAL_MISSED_BEACON_IND  */
-  WDI_ProcessUnkAddrFrameInd,       /* WDI_HAL_UNKNOWN_ADDR2_FRAME_RX_IND  */
-  WDI_ProcessMicFailureInd,         /* WDI_HAL_MIC_FAILURE_IND  */
-  WDI_ProcessFatalErrorInd,         /* WDI_HAL_FATAL_ERROR_IND  */
-  WDI_ProcessDelSTAInd,             /* WDI_HAL_DEL_STA_IND  */
+  WDI_ProcessUpdateChanRsp,         
 
-  WDI_ProcessCoexInd,               /* WDI_HAL_COEX_IND  */
+  WDI_ProcessSetMaxTxPowerPerBandRsp,  
 
-  WDI_ProcessTxCompleteInd,         /* WDI_HAL_TX_COMPLETE_IND  */
+  WDI_ProcessGetBcnMissRateRsp,        
 
-  WDI_ProcessP2pNoaAttrInd,         /*WDI_HOST_NOA_ATTR_IND*/
+  WDI_ProcessChannelSwitchRsp_V1,     
+
+  WDI_ProcessLowRSSIInd,            
+  WDI_ProcessMissedBeaconInd,       
+  WDI_ProcessUnkAddrFrameInd,       
+  WDI_ProcessMicFailureInd,         
+  WDI_ProcessFatalErrorInd,         
+  WDI_ProcessDelSTAInd,             
+
+  WDI_ProcessCoexInd,               
+
+  WDI_ProcessTxCompleteInd,         
+
+  WDI_ProcessP2pNoaAttrInd,         
 
 #ifdef FEATURE_WLAN_SCAN_PNO
-  WDI_ProcessPrefNetworkFoundInd,   /* WDI_HAL_PREF_NETWORK_FOUND_IND */
+  WDI_ProcessPrefNetworkFoundInd,   
 #else
   NULL,
-#endif // FEATURE_WLAN_SCAN_PNO
+#endif 
 
 #ifdef WLAN_WAKEUP_EVENTS
-  WDI_ProcessWakeReasonInd,          /* WDI_WAKE_REASON_IND */
-#else // WLAN_WAKEUP_EVENTS
+  WDI_ProcessWakeReasonInd,          
+#else 
   NULL,
-#endif // WLAN_WAKEUP_EVENTS
+#endif 
 
-  WDI_ProcessTxPerHitInd,               /* WDI_HAL_TX_PER_HIT_IND  */
+  WDI_ProcessTxPerHitInd,               
 
-  WDI_ProcessP2pNoaStartInd,             /* WDI_NOA_START_IND */
+  WDI_ProcessP2pNoaStartInd,             
 #ifdef FEATURE_WLAN_TDLS
-  WDI_ProcessTdlsInd,                   /* WDI_HAL_TDLS_IND */
+  WDI_ProcessTdlsInd,                   
 #else
   NULL,
 #endif
 
 #ifdef FEATURE_WLAN_LPHB
-  WDI_ProcessLphbWaitTimeoutInd,    /* WDI_HAL_LPHB_WAIT_TIMEOUT_IND */
+  WDI_ProcessLphbInd,                   
 #else
   NULL,
-#endif /* FEATURE_WLAN_LPHB */
+#endif 
 
-  WDI_ProcessIbssPeerInactivityInd,     /* WDI_HAL_IBSS_PEER_INACTIVITY_IND */
+  WDI_ProcessIbssPeerInactivityInd,     
 
-  WDI_ProcessPeriodicTxPtrnFwInd,   /* WDI_HAL_PERIODIC_TX_PTRN_FW_IND */
+  WDI_ProcessPeriodicTxPtrnFwInd,   
 
 #ifdef FEATURE_WLAN_BATCH_SCAN
-  WDI_ProcessBatchScanResultInd,     /* WDI_BATCHSCAN_RESULT_IND */
+  WDI_ProcessBatchScanResultInd,     
 #else
   NULL,
 #endif
 
+#ifdef FEATURE_WLAN_CH_AVOID
+    WDI_ProcessChAvoidInd,               
+#else
+   NULL,
+#endif 
+
+  WDI_printRegInfo,                        
 };
 
 
-/*---------------------------------------------------------------------------
-  WLAN DAL Global Control Block
- ---------------------------------------------------------------------------*/
 WDI_ControlBlockType  gWDICb;
 static wpt_uint8      gWDIInitialized = eWLAN_PAL_FALSE;
 
 const wpt_uint8 szTransportChName[] = "WLAN_CTRL";
 
-/*Helper routine for retrieving the PAL Context from WDI*/
 WPT_INLINE
 void* WDI_GET_PAL_CTX( void )
 {
   return gWDICb.pPALContext;
-}/*WDI_GET_PAL_CTX*/
+}
 
-/*============================================================================
-  Helper inline converters
- ============================================================================*/
-/*Convert WDI driver type into HAL driver type*/
 WPT_STATIC WPT_INLINE WDI_Status
 WDI_HAL_2_WDI_STATUS
 (
   eHalStatus halStatus
 );
 
-/*Convert WDI request type into HAL request type*/
 WPT_STATIC WPT_INLINE tHalHostMsgType
 WDI_2_HAL_REQ_TYPE
 (
   WDI_RequestEnumType    wdiReqType
 );
 
-/*Convert WDI response type into HAL response type*/
 WPT_STATIC WPT_INLINE WDI_ResponseEnumType
 HAL_2_WDI_RSP_TYPE
 (
   tHalHostMsgType halMsg
 );
 
-/*Convert WDI driver type into HAL driver type*/
 WPT_STATIC WPT_INLINE tDriverType
 WDI_2_HAL_DRV_TYPE
 (
   WDI_DriverType wdiDriverType
 );
 
-/*Convert WDI stop reason into HAL stop reason*/
 WPT_STATIC WPT_INLINE tHalStopType
 WDI_2_HAL_STOP_REASON
 (
   WDI_StopType wdiStopType
 );
 
-/*Convert WDI scan mode type into HAL scan mode type*/
 WPT_STATIC WPT_INLINE eHalSysMode
 WDI_2_HAL_SCAN_MODE
 (
   WDI_ScanMode wdiScanMode
 );
 
-/*Convert WDI sec ch offset into HAL sec ch offset type*/
 WPT_STATIC WPT_INLINE ePhyChanBondState
 WDI_2_HAL_SEC_CH_OFFSET
 (
   WDI_HTSecondaryChannelOffset wdiSecChOffset
 );
 
-/*Convert WDI BSS type into HAL BSS type*/
 WPT_STATIC WPT_INLINE tSirBssType
 WDI_2_HAL_BSS_TYPE
 (
   WDI_BssType wdiBSSType
 );
 
-/*Convert WDI NW type into HAL NW type*/
 WPT_STATIC WPT_INLINE tSirNwType
 WDI_2_HAL_NW_TYPE
 (
   WDI_NwType wdiNWType
 );
 
-/*Convert WDI chanel bonding type into HAL cb type*/
 WPT_STATIC WPT_INLINE ePhyChanBondState
 WDI_2_HAL_CB_STATE
 (
   WDI_PhyChanBondState wdiCbState
 );
 
-/*Convert WDI chanel bonding type into HAL cb type*/
 WPT_STATIC WPT_INLINE tSirMacHTOperatingMode
 WDI_2_HAL_HT_OPER_MODE
 (
   WDI_HTOperatingMode wdiHTOperMode
 );
 
-/*Convert WDI mimo PS type into HAL mimo PS type*/
 WPT_STATIC WPT_INLINE tSirMacHTMIMOPowerSaveState
 WDI_2_HAL_MIMO_PS
 (
   WDI_HTMIMOPowerSaveState wdiHTOperMode
 );
 
-/*Convert WDI ENC type into HAL ENC type*/
 WPT_STATIC WPT_INLINE tAniEdType
 WDI_2_HAL_ENC_TYPE
 (
   WDI_EncryptType wdiEncType
 );
 
-/*Convert WDI WEP type into HAL WEP type*/
 WPT_STATIC WPT_INLINE tAniWepType
 WDI_2_HAL_WEP_TYPE
 (
   WDI_WepType  wdiWEPType
 );
 
-/*Convert WDI Link State into HAL Link State*/
 WPT_STATIC WPT_INLINE tSirLinkState
 WDI_2_HAL_LINK_STATE
 (
   WDI_LinkStateType  wdiLinkState
 );
 
-/*Translate a STA Context from WDI into HAL*/
 WPT_STATIC WPT_INLINE
 void
 WDI_CopyWDIStaCtxToHALStaCtx
@@ -801,7 +732,6 @@ WDI_CopyWDIStaCtxToHALStaCtx
   WDI_ConfigStaReqInfoType*  pwdiConfigSta
 );
 
-/*Translate a Rate set info from WDI into HAL*/
 WPT_STATIC WPT_INLINE void
 WDI_CopyWDIRateSetToHALRateSet
 (
@@ -809,7 +739,6 @@ WDI_CopyWDIRateSetToHALRateSet
   WDI_RateSet*    pwdiRateSet
 );
 
-/*Translate an EDCA Parameter Record from WDI into HAL*/
 WPT_STATIC WPT_INLINE void
 WDI_CopyWDIEDCAParamsToHALEDCAParams
 (
@@ -817,7 +746,6 @@ WDI_CopyWDIEDCAParamsToHALEDCAParams
   WDI_EdcaParamRecord*    pWDIEdcaParam
 );
 
-/*Copy a management frame header from WDI fmt into HAL fmt*/
 WPT_STATIC WPT_INLINE void
 WDI_CopyWDIMgmFrameHdrToHALMgmFrameHdr
 (
@@ -825,7 +753,6 @@ WDI_CopyWDIMgmFrameHdrToHALMgmFrameHdr
   WDI_MacMgmtHdr* pwdiMacMgmtHdr
 );
 
-/*Copy config bss parameters from WDI fmt into HAL fmt*/
 WPT_STATIC WPT_INLINE void
 WDI_CopyWDIConfigBSSToHALConfigBSS
 (
@@ -833,8 +760,6 @@ WDI_CopyWDIConfigBSSToHALConfigBSS
   WDI_ConfigBSSReqInfoType* pwdiConfigBSS
 );
 
-/*Extract the request CB function and user data from a request structure
-  pointed to by user data */
 WPT_STATIC WPT_INLINE void
 WDI_ExtractRequestCBFromEvent
 (
@@ -872,17 +797,6 @@ WDI_SetPowerStateCb
    void      *pContext
 );
 
-#define CASE_RETURN_STRING( str )           \
-    case ( ( str ) ): return( #str ); break \
-
-/**
- @brief WDI_getReqMsgString prints the WDI request message in string.
-
- @param wdiReqMsgId: WDI Message request Id
-
- @see
- @return Result of the function call
-*/
 static char *WDI_getReqMsgString(wpt_uint16 wdiReqMsgId)
 {
   switch (wdiReqMsgId)
@@ -909,6 +823,7 @@ static char *WDI_getReqMsgString(wpt_uint16 wdiReqMsgId)
     CASE_RETURN_STRING( WDI_ADD_BA_SESSION_REQ );
     CASE_RETURN_STRING( WDI_DEL_BA_REQ );
     CASE_RETURN_STRING( WDI_CH_SWITCH_REQ );
+    CASE_RETURN_STRING( WDI_CH_SWITCH_REQ_V1);
     CASE_RETURN_STRING( WDI_CONFIG_STA_REQ );
     CASE_RETURN_STRING( WDI_SET_LINK_ST_REQ );
     CASE_RETURN_STRING( WDI_GET_STATS_REQ );
@@ -982,6 +897,7 @@ static char *WDI_getReqMsgString(wpt_uint16 wdiReqMsgId)
     CASE_RETURN_STRING( WDI_TRIGGER_BATCH_SCAN_RESULT_IND);
 #endif
     CASE_RETURN_STRING(WDI_UPDATE_CHAN_REQ);
+    CASE_RETURN_STRING( WDI_GET_BCN_MISS_RATE_REQ );
     default:
         return "Unknown WDI MessageId";
   }
@@ -989,14 +905,6 @@ static char *WDI_getReqMsgString(wpt_uint16 wdiReqMsgId)
 
 
 
-/**
- @brief WDI_getRespMsgString prints the WDI resonse message in string.
-
- @param wdiRespMsgId: WDI Message response Id
-
- @see
- @return Result of the function call
-*/
 static char *WDI_getRespMsgString(wpt_uint16 wdiRespMsgId)
 {
   switch (wdiRespMsgId)
@@ -1089,26 +997,22 @@ static char *WDI_getRespMsgString(wpt_uint16 wdiRespMsgId)
     CASE_RETURN_STRING( WDI_SET_BATCH_SCAN_RESP);
 #endif
     CASE_RETURN_STRING( WDI_UPDATE_CHAN_RESP);
+    CASE_RETURN_STRING( WDI_CH_SWITCH_RESP_V1 );
+    CASE_RETURN_STRING( WDI_GET_BCN_MISS_RATE_RSP );
     default:
         return "Unknown WDI MessageId";
   }
 }
 
-/**
-  @brief WDI_TraceHostFWCapabilities - Parses both host and Firmware
-                                         Capability bitmap array.
-  @param capabilityBitmap - Base address of Bitmap array
-  @see
-  @returns  None
-  */
 void WDI_TraceHostFWCapabilities(tANI_U32 *capabilityBitmap)
 {
-     int i;
+     int i,j;
      char capStr[512];
      char *pCapStr = capStr;
-     for (i = 0; i < 32; i++) {
-          if ((*(capabilityBitmap + 0) & (1 << i))) {
-               switch(i) {
+     for (j = 0; j < 4; j++) {
+         for (i = 0; i < 32; i++) {
+             if ((*(capabilityBitmap + j) & (1 << i))) {
+                 switch(i + (j * 32)) {
                      case MCC: snprintf(pCapStr, sizeof("MCC"), "%s", "MCC");
                           pCapStr += strlen("MCC");
                           break;
@@ -1178,9 +1082,21 @@ void WDI_TraceHostFWCapabilities(tANI_U32 *capabilityBitmap)
                      case WLAN_ROAM_SCAN_OFFLOAD: snprintf(pCapStr, sizeof("WLAN_ROAM_SCAN_OFFLOAD"), "%s", "WLAN_ROAM_SCAN_OFFLOAD");
                           pCapStr += strlen("WLAN_ROAM_SCAN_OFFLOAD");
                           break;
-              }
-              *pCapStr++ = ',';
-              *pCapStr++ = ' ';
+                     case FW_IN_TX_PATH: snprintf(pCapStr, sizeof("FW_IN_TX_PATH"), "%s", "FW_IN_TX_PATH");
+                          pCapStr += strlen("FW_IN_TX_PATH");
+                          break;
+                     case EXTENDED_NSOFFLOAD_SLOT: snprintf(pCapStr,
+                                              sizeof("EXTENDED_NSOFFLOAD_SLOT"),
+                                              "%s", "EXTENDED_NSOFFLOAD_SLOT");
+                          pCapStr += strlen("EXTENDED_NSOFFLOAD_SLOT");
+                          break;
+                     case CH_SWITCH_V1: snprintf(pCapStr, sizeof("CH_SWITCH_V1"), "%s", "CH_SWITCH_V1");
+                          pCapStr += strlen("CH_SWITCH_V1");
+                          break;
+                 }
+                 *pCapStr++ = ',';
+                 *pCapStr++ = ' ';
+             }
          }
      }
      pCapStr -= 2;
@@ -1189,14 +1105,6 @@ void WDI_TraceHostFWCapabilities(tANI_U32 *capabilityBitmap)
      WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_ERROR, "\t\t%s", pCapStr);
 }
 
-/**
- @brief WDI_getHALStatusMsgString prints the HAL status in string.
-
- @param halStatusId: HAL status Id
-
- @see
- @return Result of the function call
-*/
 static char *WDI_getHALStatusMsgString(wpt_uint16 halStatusId)
 {
   switch (halStatusId)
@@ -1239,26 +1147,7 @@ static char *WDI_getHALStatusMsgString(wpt_uint16 halStatusId)
   }
 }
 
-/*========================================================================
 
-                             INITIALIZATION APIs
-
-==========================================================================*/
-
-/**
- @brief WDI_Init is used to initialize the DAL.
-
- DAL will allocate all the resources it needs. It will open PAL, it will also
- open both the data and the control transport which in their turn will open
- DXE/SMD or any other drivers that they need.
-
- @param pOSContext: pointer to the OS context provided by the UMAC
-                    will be passed on to PAL on Open
-        ppWDIGlobalCtx: output pointer of Global Context
-        pWdiDevCapability: output pointer of device capability
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_Init
 (
@@ -1272,11 +1161,8 @@ WDI_Init
   wpt_status              wptStatus;
   WDI_Status              wdiStatus;
   WCTS_TransportCBsType   wctsCBs;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+  
 
-  /*---------------------------------------------------------------------
-    Sanity check
-  ---------------------------------------------------------------------*/
   if (( NULL == ppWDIGlobalCtx ) || ( NULL == pWdiDevCapability ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -1285,9 +1171,6 @@ WDI_Init
     return WDI_STATUS_E_FAILURE;
   }
 
-  /*---------------------------------------------------------------------
-    Check to see if the module has already been initialized or not
-  ---------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE != gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -1296,17 +1179,13 @@ WDI_Init
     return WDI_STATUS_SUCCESS;
   }
 
-  /*Module is now initialized - this flag is to ensure the fact that multiple
-   init will not happen on WDI
-   !! - potential race does exist because read and set are not atomic,
-   however an atomic operation would be closely here - reanalyze if necessary*/
   gWDIInitialized = eWLAN_PAL_TRUE;
 
-  /*Setup the control block */
+  
   WDI_CleanCB(&gWDICb);
   gWDICb.pOSContext = pOSContext;
 
-  /*Setup the STA Table*/
+  
   wdiStatus = WDI_STATableInit(&gWDICb);
   if ( WDI_STATUS_SUCCESS != wdiStatus )
   {
@@ -1316,9 +1195,6 @@ WDI_Init
     goto fail_STATableInit;
   }
 
-  /*------------------------------------------------------------------------
-    Open the PAL
-   ------------------------------------------------------------------------*/
   wptStatus =  wpalOpen(&gWDICb.pPALContext, pOSContext);
   if ( eWLAN_PAL_STATUS_SUCCESS != wptStatus )
   {
@@ -1328,8 +1204,6 @@ WDI_Init
     goto fail_wpalOpen;
   }
 
-  /*Initialize main synchro mutex - it will be used to ensure integrity of
-   the main WDI Control Block*/
   wptStatus =  wpalMutexInit(&gWDICb.wptMutex);
   if ( eWLAN_PAL_STATUS_SUCCESS !=  wptStatus )
   {
@@ -1339,8 +1213,6 @@ WDI_Init
     goto fail_mutex;
   }
 
-  /*Initialize the response timer - it will be used to time all messages
-    expected as response from device*/
   wptStatus = wpalTimerInit( &gWDICb.wptResponseTimer,
                              WDI_ResponseTimerCB,
                              &gWDICb);
@@ -1362,7 +1234,7 @@ WDI_Init
                __func__, wptStatus);
     goto fail_timer2;
   }
-  /* Initialize the  WDI Pending Request Queue*/
+  
   wptStatus = wpal_list_init(&(gWDICb.wptPendingQueue));
   if ( eWLAN_PAL_STATUS_SUCCESS != wptStatus )
   {
@@ -1372,7 +1244,7 @@ WDI_Init
     goto fail_pend_queue;
   }
 
-  /*Init WDI Pending Assoc Id Queue */
+  
   wptStatus = wpal_list_init(&(gWDICb.wptPendingAssocSessionIdQueue));
   if ( eWLAN_PAL_STATUS_SUCCESS !=  wptStatus )
   {
@@ -1382,7 +1254,7 @@ WDI_Init
     goto fail_assoc_queue;
   }
 
-  /*Initialize the BSS sessions pending Queue */
+  
   for ( i = 0; i < WDI_MAX_BSS_SESSIONS; i++ )
   {
     wptStatus = wpal_list_init(&(gWDICb.aBSSSessions[i].wptPendingQueue));
@@ -1395,12 +1267,9 @@ WDI_Init
     }
   }
 
-  /*Indicate the control block is sufficiently initialized for callbacks*/
+  
   gWDICb.magic = WDI_CONTROL_BLOCK_MAGIC;
 
-  /*------------------------------------------------------------------------
-    Initialize the Data Path Utility Module
-   ------------------------------------------------------------------------*/
   wdiStatus = WDI_DP_UtilsInit(&gWDICb);
   if ( WDI_STATUS_SUCCESS != wdiStatus )
   {
@@ -1410,7 +1279,7 @@ WDI_Init
     goto fail_dp_util_init;
   }
 
-  /* Init Set power state event */
+  
   wptStatus = wpalEventInit(&gWDICb.setPowerStateEvent);
   if ( eWLAN_PAL_STATUS_SUCCESS != wptStatus )
   {
@@ -1420,7 +1289,7 @@ WDI_Init
      goto fail_power_event;
   }
 
-  /* Init WCTS action event */
+  
   wptStatus = wpalEventInit(&gWDICb.wctsActionEvent);
   if ( eWLAN_PAL_STATUS_SUCCESS !=  wptStatus )
   {
@@ -1430,9 +1299,6 @@ WDI_Init
      goto fail_wcts_event;
   }
 
-  /*------------------------------------------------------------------------
-    Open the Transport Services for Control and Data
-   ------------------------------------------------------------------------*/
   wctsCBs.wctsNotifyCB      = WDI_NotifyMsgCTSCB;
   wctsCBs.wctsNotifyCBData  = &gWDICb;
   wctsCBs.wctsRxMsgCB       = WDI_RXMsgCTSCB;
@@ -1451,12 +1317,9 @@ WDI_Init
   }
 
   gWDICb.driverMode = (tDriverType)driverType;
-  /* FTM mode not need to open Transport Driver */
+  
   if(eDRIVER_TYPE_MFG != (tDriverType)driverType)
   {
-    /*------------------------------------------------------------------------
-     Open the Data Transport
-     ------------------------------------------------------------------------*/
     if(eWLAN_PAL_STATUS_SUCCESS != WDTS_openTransport(&gWDICb))
     {
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
@@ -1465,30 +1328,23 @@ WDI_Init
     }
   }
 
-  /*The WDI is initialized - set state to init */
+  
   gWDICb.uGlobalState = WDI_INIT_ST;
 
-  /*Send the context as a ptr to the global WDI Control Block*/
+  
   *ppWDIGlobalCtx = &gWDICb;
 
-  /*Fill in the device capabilities*/
+  
   pWdiDevCapability->bFrameXtlSupported = eWLAN_PAL_FALSE;
   pWdiDevCapability->ucMaxSTASupported  = gWDICb.ucMaxStations;
   pWdiDevCapability->ucMaxBSSSupported  = gWDICb.ucMaxBssids;
   return WDI_STATUS_SUCCESS;
 
-  /* ERROR handlers
-     Undo everything that completed successfully */
 
  fail_wdts_open:
   {
      wpt_status             eventStatus;
 
-     /* Closing WCTS in this scenario is tricky since it has to close
-        the SMD channel and then we get notified asynchronously when
-        the channel has been closed. So we take some of the logic from
-        the "normal" close procedure in WDI_Close()
-     */
 
      eventStatus = wpalEventReset(&gWDICb.wctsActionEvent);
      if ( eWLAN_PAL_STATUS_SUCCESS != eventStatus )
@@ -1499,10 +1355,6 @@ WDI_Init
 
      WCTS_CloseTransport(gWDICb.wctsHandle);
 
-     /* Wait for WCTS to close the control transport.  If we were able
-        to reset the event flag, then we'll wait for the event,
-        otherwise we'll wait for a maximum amount of time required for
-        the channel to be closed */
      if ( eWLAN_PAL_STATUS_SUCCESS == eventStatus )
      {
         eventStatus = wpalEventWait(&gWDICb.wctsActionEvent,
@@ -1527,7 +1379,7 @@ WDI_Init
  fail_dp_util_init:
   gWDICb.magic = 0;
  fail_bss_queue:
-  /* entries 0 thru i-1 were successfully initialized */
+  
   while (0 < i)
   {
      i--;
@@ -1551,34 +1403,8 @@ WDI_Init
 
   return WDI_STATUS_E_FAILURE; 
 
-}/*WDI_Init*/;
+};
 
-/**
- @brief WDI_Start will be called when the upper MAC is ready to
-        commence operation with the WLAN Device. Upon the call
-        of this API the WLAN DAL will pack and send a HAL Start
-        message to the lower RIVA sub-system if the SMD channel
-        has been fully opened and the RIVA subsystem is up.
-
-         If the RIVA sub-system is not yet up and running DAL
-         will queue the request for Open and will wait for the
-         SMD notification before attempting to send down the
-         message to HAL.
-
- WDI_Init must have been called.
-
- @param wdiStartParams: the start parameters as specified by
-                      the Device Interface
-
-        wdiStartRspCb: callback for passing back the response of
-        the start operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_Start
 (
@@ -1588,11 +1414,8 @@ WDI_Start
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -1601,9 +1424,6 @@ WDI_Start
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_START_REQ;
   wdiEventData.pEventData      = pwdiStartParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiStartParams);
@@ -1612,33 +1432,8 @@ WDI_Start
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_Start*/
+}
 
-/**
- @brief WDI_Stop will be called when the upper MAC is ready to
-        stop any operation with the WLAN Device. Upon the call
-        of this API the WLAN DAL will pack and send a HAL Stop
-        message to the lower RIVA sub-system if the DAL Core is
-        in started state.
-
-         In state BUSY this request will be queued.
-
-         Request will not be accepted in any other state.
-
- WDI_Start must have been called.
-
- @param wdiStopParams: the stop parameters as specified by
-                      the Device Interface
-
-        wdiStopRspCb: callback for passing back the response of
-        the stop operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_Stop
 (
@@ -1649,11 +1444,8 @@ WDI_Stop
 {
   WDI_EventInfoType      wdiEventData;
   WDI_ControlBlockType*  pWDICtx = &gWDICb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -1662,24 +1454,21 @@ WDI_Stop
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*Access to the global state must be locked before cleaning */
+  
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*Clear all pending request*/
+  
   WDI_ClearPendingRequests(pWDICtx);
 
-  /*We have completed cleaning unlock now*/
+  
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /* Free the global variables */
+  
   wpalMemoryFree(gpHostWlanFeatCaps);
   wpalMemoryFree(gpFwWlanFeatCaps);
   gpHostWlanFeatCaps = NULL;
   gpFwWlanFeatCaps = NULL;
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_STOP_REQ;
   wdiEventData.pEventData      = pwdiStopParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiStopParams);
@@ -1688,24 +1477,10 @@ WDI_Stop
 
   return WDI_PostMainEvent(&gWDICb, WDI_STOP_EVENT, &wdiEventData);
 
-}/*WDI_Stop*/
+}
 
 
 
-/**
- @brief WDI_Close will be called when the upper MAC no longer
-        needs to interact with DAL. DAL will free its control
-        block.
-
-        It is only accepted in state STOPPED.
-
- WDI_Stop must have been called.
-
- @param none
-
- @see WDI_Stop
- @return Result of the function call
-*/
 WDI_Status
 WDI_Close
 (
@@ -1716,11 +1491,8 @@ WDI_Close
   WDI_EventInfoType      wdiEventData;
   wpt_status             wptStatus;
   wpt_status             eventStatus;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -1729,20 +1501,14 @@ WDI_Close
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*Reset WCTS action event prior to posting the WDI_CLOSE_REQ
-   (the control transport will be closed by the FSM and we'll want
-   to wait until that completes)*/
   eventStatus = wpalEventReset(&gWDICb.wctsActionEvent);
   if ( eWLAN_PAL_STATUS_SUCCESS != eventStatus )
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
                 "%s: Failed to reset WCTS action event", __func__);
-     /* fall through and try to finish closing via the FSM */
+     
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_CLOSE_REQ;
   wdiEventData.pEventData      = NULL;
   wdiEventData.uEventDataSize  = 0;
@@ -1753,8 +1519,6 @@ WDI_Close
 
   wptStatus = WDI_PostMainEvent(&gWDICb, WDI_CLOSE_EVENT, &wdiEventData);
 
-  /*Wait for WCTS to close the control transport
-    (but only if we were able to reset the event flag*/
   if ( eWLAN_PAL_STATUS_SUCCESS == eventStatus )
   {
      eventStatus = wpalEventWait(&gWDICb.wctsActionEvent,
@@ -1766,7 +1530,7 @@ WDI_Close
      }
   }
 
-  /* Destroy the WCTS action event */
+  
   wptStatus = wpalEventDelete(&gWDICb.wctsActionEvent);
   if ( eWLAN_PAL_STATUS_SUCCESS !=  wptStatus )
   {
@@ -1775,7 +1539,7 @@ WDI_Close
      WDI_ASSERT(0);
   }
 
-   /* Destroy the Set Power State event */
+   
    wptStatus = wpalEventDelete(&gWDICb.setPowerStateEvent);
    if ( eWLAN_PAL_STATUS_SUCCESS !=  wptStatus )
    {
@@ -1785,9 +1549,6 @@ WDI_Close
       WDI_ASSERT(0);
    }
 
-  /*------------------------------------------------------------------------
-    Closes the Data Path Utility Module
-   ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_DP_UtilsExit(&gWDICb))
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -1796,25 +1557,25 @@ WDI_Close
     WDI_ASSERT(0);
   }
 
-  /*destroy the BSS sessions pending Queue */
+  
   for ( i = 0; i < WDI_MAX_BSS_SESSIONS; i++ )
   {
     wpal_list_destroy(&(gWDICb.aBSSSessions[i].wptPendingQueue));
   }
 
-  /* destroy the WDI Pending Assoc Id Request Queue*/
+  
   wpal_list_destroy(&(gWDICb.wptPendingAssocSessionIdQueue));
 
-  /* destroy the WDI Pending Request Queue*/
+  
   wpal_list_destroy(&(gWDICb.wptPendingQueue));
 
-  /*destroy the response timer */
+  
   wptStatus = wpalTimerDelete( &gWDICb.wptResponseTimer);
 
-  /*destroy the SSR timer */
+  
   wptStatus = wpalTimerDelete( &gWDICb.ssrTimer);
 
-  /*invalidate the main synchro mutex */
+  
   wptStatus = wpalMutexDelete(&gWDICb.wptMutex);
   if ( eWLAN_PAL_STATUS_SUCCESS !=  wptStatus )
   {
@@ -1823,31 +1584,12 @@ WDI_Close
      WDI_ASSERT(0);
   }
 
-  /*Clear control block.  note that this will clear the "magic"
-    which will inhibit all asynchronous callbacks*/
   WDI_CleanCB(&gWDICb);
 
   return wptStatus;
 
-}/*WDI_Close*/
+}
 
-/**
- @brief  WDI_Shutdown will be called during 'SSR shutdown' operation.
-         This will do most of the WDI stop & close
-         operations without doing any handshake with Riva
-
-         This will also make sure that the control transport
-         will NOT be closed.
-
-         This request will not be queued.
-
-
- WDI_Start must have been called.
-
- @param  closeTransport:  Close control channel if this is set
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_Shutdown
 (
@@ -1857,11 +1599,8 @@ WDI_Shutdown
    WDI_EventInfoType      wdiEventData;
    wpt_status             wptStatus;
    int                    i = 0;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-     ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -1870,22 +1609,17 @@ WDI_Shutdown
       return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-     ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_SHUTDOWN_REQ;
    wdiEventData.pEventData      = NULL;
    wdiEventData.uEventDataSize  = 0;
 
-   /* Shutdown will not be queued, if the state is busy timer will be
-    * stopped & this message will be processed.*/
    wptStatus = WDI_PostMainEvent(&gWDICb, WDI_SHUTDOWN_EVENT, &wdiEventData);
    if ( eWLAN_PAL_STATUS_SUCCESS != wptStatus )
    {
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
             "%s: Failed to process shutdown event", __func__);
    }
-   /* Destroy the Set Power State event */
+   
    wptStatus = wpalEventDelete(&gWDICb.setPowerStateEvent);
    if ( eWLAN_PAL_STATUS_SUCCESS !=  wptStatus )
    {
@@ -1894,9 +1628,6 @@ WDI_Shutdown
 
       WDI_ASSERT(0);
    }
-   /*------------------------------------------------------------------------
-     Closes the Data Path Utility Module
-     ------------------------------------------------------------------------*/
    if ( WDI_STATUS_SUCCESS != WDI_DP_UtilsExit(&gWDICb))
    {
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -1906,31 +1637,29 @@ WDI_Shutdown
    }
    if ( closeTransport )
    {
-      /* Close control transport, called from module unload */
+      
       WCTS_CloseTransport(gWDICb.wctsHandle);
    }
    else
    {
-      /* Riva is crashed then SMD is already closed so cleaning all 
-         the pending messages in the transport queue  */
       WCTS_ClearPendingQueue(gWDICb.wctsHandle);
    }
-   /*destroy the BSS sessions pending Queue */
+   
    for ( i = 0; i < WDI_MAX_BSS_SESSIONS; i++ )
    {
       wpal_list_destroy(&(gWDICb.aBSSSessions[i].wptPendingQueue));
    }
 
-   /* destroy the WDI Pending Assoc Id Request Queue*/
+   
    wpal_list_destroy(&(gWDICb.wptPendingAssocSessionIdQueue));
-   /* destroy the WDI Pending Request Queue*/
+   
    wpal_list_destroy(&(gWDICb.wptPendingQueue));
-   /*destroy the response timer */
+   
    wptStatus = wpalTimerDelete( &gWDICb.wptResponseTimer);
-   /*destroy the SSR timer */
+   
    wptStatus = wpalTimerDelete( &gWDICb.ssrTimer);
 
-   /*invalidate the main synchro mutex */
+   
    wptStatus = wpalMutexDelete(&gWDICb.wptMutex);
    if ( eWLAN_PAL_STATUS_SUCCESS !=  wptStatus )
    {
@@ -1938,49 +1667,18 @@ WDI_Shutdown
             "%s: Failed to delete mutex %d",  __func__, wptStatus);
       WDI_ASSERT(0);
    }
-   /* Free the global variables */
+   
    wpalMemoryFree(gpHostWlanFeatCaps);
    wpalMemoryFree(gpFwWlanFeatCaps);
    gpHostWlanFeatCaps = NULL;
    gpFwWlanFeatCaps = NULL;
-   /*Clear control block.  note that this will clear the "magic"
-     which will inhibit all asynchronous callbacks*/
    WDI_CleanCB(&gWDICb);
    return wptStatus;
 
-}/*WDI_Shutdown*/
+}
 
 
-/*========================================================================
 
-                             SCAN APIs
-
-==========================================================================*/
-
-/**
- @brief WDI_InitScanReq will be called when the upper MAC wants
-        the WLAN Device to get ready for a scan procedure. Upon
-        the call of this API the WLAN DAL will pack and send a
-        HAL Init Scan request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_Start must have been called.
-
- @param wdiInitScanParams: the init scan parameters as specified
-                      by the Device Interface
-
-        wdiInitScanRspCb: callback for passing back the response
-        of the init scan operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_InitScanReq
 (
@@ -1990,11 +1688,8 @@ WDI_InitScanReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2003,9 +1698,6 @@ WDI_InitScanReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_INIT_SCAN_REQ;
   wdiEventData.pEventData      = pwdiInitScanParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiInitScanParams);
@@ -2014,33 +1706,8 @@ WDI_InitScanReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_InitScanReq*/
+}
 
-/**
- @brief WDI_StartScanReq will be called when the upper MAC
-        wishes to change the Scan channel on the WLAN Device.
-        Upon the call of this API the WLAN DAL will pack and
-        send a HAL Start Scan request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_InitScanReq must have been called.
-
- @param wdiStartScanParams: the start scan parameters as
-                      specified by the Device Interface
-
-        wdiStartScanRspCb: callback for passing back the
-        response of the start scan operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_InitScanReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_StartScanReq
 (
@@ -2050,11 +1717,8 @@ WDI_StartScanReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2063,9 +1727,6 @@ WDI_StartScanReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_START_SCAN_REQ;
   wdiEventData.pEventData      = pwdiStartScanParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiStartScanParams);
@@ -2074,34 +1735,9 @@ WDI_StartScanReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_StartScanReq*/
+}
 
 
-/**
- @brief WDI_EndScanReq will be called when the upper MAC is
-        wants to end scanning for a particular channel that it
-        had set before by calling Scan Start on the WLAN Device.
-        Upon the call of this API the WLAN DAL will pack and
-        send a HAL End Scan request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_StartScanReq must have been called.
-
- @param wdiEndScanParams: the end scan parameters as specified
-                      by the Device Interface
-
-        wdiEndScanRspCb: callback for passing back the response
-        of the end scan operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_StartScanReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_EndScanReq
 (
@@ -2111,11 +1747,8 @@ WDI_EndScanReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2124,9 +1757,6 @@ WDI_EndScanReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_END_SCAN_REQ;
   wdiEventData.pEventData      = pwdiEndScanParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiEndScanParams);
@@ -2135,34 +1765,9 @@ WDI_EndScanReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_EndScanReq*/
+}
 
 
-/**
- @brief WDI_FinishScanReq will be called when the upper MAC has
-        completed the scan process on the WLAN Device. Upon the
-        call of this API the WLAN DAL will pack and send a HAL
-        Finish Scan Request request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_InitScanReq must have been called.
-
- @param wdiFinishScanParams: the finish scan  parameters as
-                      specified by the Device Interface
-
-        wdiFinishScanRspCb: callback for passing back the
-        response of the finish scan operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_InitScanReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_FinishScanReq
 (
@@ -2172,11 +1777,8 @@ WDI_FinishScanReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2185,9 +1787,6 @@ WDI_FinishScanReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_FINISH_SCAN_REQ;
   wdiEventData.pEventData      = pwdiFinishScanParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiFinishScanParams);
@@ -2196,38 +1795,9 @@ WDI_FinishScanReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_FinishScanReq*/
+}
 
-/*========================================================================
 
-                          ASSOCIATION APIs
-
-==========================================================================*/
-
-/**
- @brief WDI_JoinReq will be called when the upper MAC is ready
-        to start an association procedure to a BSS. Upon the
-        call of this API the WLAN DAL will pack and send a HAL
-        Join request message to the lower RIVA sub-system if
-        DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_Start must have been called.
-
- @param wdiJoinParams: the join parameters as specified by
-                      the Device Interface
-
-        wdiJoinRspCb: callback for passing back the response of
-        the join operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_JoinReq
 (
@@ -2237,11 +1807,8 @@ WDI_JoinReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2250,9 +1817,6 @@ WDI_JoinReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_JOIN_REQ;
   wdiEventData.pEventData      = pwdiJoinParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiJoinParams);
@@ -2261,34 +1825,8 @@ WDI_JoinReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_JoinReq*/
+}
 
-/**
- @brief WDI_ConfigBSSReq will be called when the upper MAC
-        wishes to configure the newly acquired or in process of
-        being acquired BSS to the HW . Upon the call of this API
-        the WLAN DAL will pack and send a HAL Config BSS request
-        message to the lower RIVA sub-system if DAL is in state
-        STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_JoinReq must have been called.
-
- @param wdiConfigBSSParams: the config BSS parameters as
-                      specified by the Device Interface
-
-        wdiConfigBSSRspCb: callback for passing back the
-        response of the config BSS operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_JoinReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_ConfigBSSReq
 (
@@ -2298,11 +1836,8 @@ WDI_ConfigBSSReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2311,9 +1846,6 @@ WDI_ConfigBSSReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_CONFIG_BSS_REQ;
   wdiEventData.pEventData      = pwdiConfigBSSParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiConfigBSSParams);
@@ -2322,32 +1854,8 @@ WDI_ConfigBSSReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_ConfigBSSReq*/
+}
 
-/**
- @brief WDI_DelBSSReq will be called when the upper MAC is
-        disassociating from the BSS and wishes to notify HW.
-        Upon the call of this API the WLAN DAL will pack and
-        send a HAL Del BSS request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_ConfigBSSReq or WDI_PostAssocReq must have been called.
-
- @param wdiDelBSSParams: the del BSS parameters as specified by
-                      the Device Interface
-
-        wdiDelBSSRspCb: callback for passing back the response
-        of the del bss operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_ConfigBSSReq, WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_DelBSSReq
 (
@@ -2357,11 +1865,8 @@ WDI_DelBSSReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2370,9 +1875,6 @@ WDI_DelBSSReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_DEL_BSS_REQ;
   wdiEventData.pEventData      = pwdiDelBSSParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiDelBSSParams);
@@ -2381,33 +1883,8 @@ WDI_DelBSSReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_DelBSSReq*/
+}
 
-/**
- @brief WDI_PostAssocReq will be called when the upper MAC has
-        associated to a BSS and wishes to configure HW for
-        associated state. Upon the call of this API the WLAN DAL
-        will pack and send a HAL Post Assoc request message to
-        the lower RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_JoinReq must have been called.
-
- @param wdiPostAssocReqParams: the assoc parameters as specified
-                      by the Device Interface
-
-        wdiPostAssocRspCb: callback for passing back the
-        response of the post assoc operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_JoinReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_PostAssocReq
 (
@@ -2417,11 +1894,8 @@ WDI_PostAssocReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2430,9 +1904,6 @@ WDI_PostAssocReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_POST_ASSOC_REQ;
   wdiEventData.pEventData      = pwdiPostAssocReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiPostAssocReqParams);
@@ -2441,33 +1912,8 @@ WDI_PostAssocReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_PostAssocReq*/
+}
 
-/**
- @brief WDI_DelSTAReq will be called when the upper MAC when an
-        association with another STA has ended and the station
-        must be deleted from HW. Upon the call of this API the
-        WLAN DAL will pack and send a HAL Del STA request
-        message to the lower RIVA sub-system if DAL is in state
-        STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiDelSTAParams: the Del STA parameters as specified by
-                      the Device Interface
-
-        wdiDelSTARspCb: callback for passing back the response
-        of the del STA operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_DelSTAReq
 (
@@ -2477,11 +1923,8 @@ WDI_DelSTAReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2490,9 +1933,6 @@ WDI_DelSTAReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_DEL_STA_REQ;
   wdiEventData.pEventData      = pwdiDelSTAParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiDelSTAParams);
@@ -2501,39 +1941,9 @@ WDI_DelSTAReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_DelSTAReq*/
+}
 
-/*========================================================================
 
-                             SECURITY APIs
-
-==========================================================================*/
-
-/**
- @brief WDI_SetBSSKeyReq will be called when the upper MAC wants to
-        install a BSS encryption key on the HW. Upon the call of this
-        API the WLAN DAL will pack and send a Set BSS Key request
-        message to the lower RIVA sub-system if DAL is in state
-        STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiSetBSSKeyParams: the BSS Key set parameters as
-                      specified by the Device Interface
-
-        wdiSetBSSKeyRspCb: callback for passing back the
-        response of the set BSS Key operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetBSSKeyReq
 (
@@ -2543,11 +1953,8 @@ WDI_SetBSSKeyReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2556,9 +1963,6 @@ WDI_SetBSSKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_SET_BSS_KEY_REQ;
   wdiEventData.pEventData      = pwdiSetBSSKeyParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiSetBSSKeyParams);
@@ -2567,33 +1971,8 @@ WDI_SetBSSKeyReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_SetBSSKeyReq*/
+}
 
-/**
- @brief WDI_RemoveBSSKeyReq will be called when the upper MAC wants to
-        uninstall a BSS key from HW. Upon the call of this API the
-        WLAN DAL will pack and send a HAL Remove BSS Key request
-        message to the lower RIVA sub-system if DAL is in state
-        STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_SetBSSKeyReq must have been called.
-
- @param wdiRemoveBSSKeyParams: the remove BSS key parameters as
-                      specified by the Device Interface
-
-        wdiRemoveBSSKeyRspCb: callback for passing back the
-        response of the remove BSS key operation received from
-        the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_SetBSSKeyReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_RemoveBSSKeyReq
 (
@@ -2603,11 +1982,8 @@ WDI_RemoveBSSKeyReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2616,9 +1992,6 @@ WDI_RemoveBSSKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_RMV_BSS_KEY_REQ;
   wdiEventData.pEventData      = pwdiRemoveBSSKeyParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiRemoveBSSKeyParams);
@@ -2627,34 +2000,9 @@ WDI_RemoveBSSKeyReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_RemoveBSSKeyReq*/
+}
 
 
-/**
- @brief WDI_SetSTAKeyReq will be called when the upper MAC is
-        ready to install a STA(ast) encryption key in HW. Upon
-        the call of this API the WLAN DAL will pack and send a
-        HAL Set STA Key request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiSetSTAKeyParams: the set STA key parameters as
-                      specified by the Device Interface
-
-        wdiSetSTAKeyRspCb: callback for passing back the
-        response of the set STA key operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetSTAKeyReq
 (
@@ -2664,11 +2012,8 @@ WDI_SetSTAKeyReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2677,9 +2022,6 @@ WDI_SetSTAKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_SET_STA_KEY_REQ;
   wdiEventData.pEventData      = pwdiSetSTAKeyParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiSetSTAKeyParams);
@@ -2688,34 +2030,9 @@ WDI_SetSTAKeyReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_SetSTAKeyReq*/
+}
 
 
-/**
- @brief WDI_RemoveSTAKeyReq will be called when the upper MAC
-        wants to uninstall a previously set STA key in HW. Upon
-        the call of this API the WLAN DAL will pack and send a
-        HAL Remove STA Key request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_SetSTAKeyReq must have been called.
-
- @param wdiRemoveSTAKeyParams: the remove STA key parameters as
-                      specified by the Device Interface
-
-        wdiRemoveSTAKeyRspCb: callback for passing back the
-        response of the remove STA key operation received from
-        the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_SetSTAKeyReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_RemoveSTAKeyReq
 (
@@ -2725,11 +2042,8 @@ WDI_RemoveSTAKeyReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2738,9 +2052,6 @@ WDI_RemoveSTAKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_RMV_STA_KEY_REQ;
   wdiEventData.pEventData      = pwdiRemoveSTAKeyParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiRemoveSTAKeyParams);
@@ -2749,34 +2060,9 @@ WDI_RemoveSTAKeyReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_RemoveSTAKeyReq*/
+}
 
 
-/**
- @brief WDI_SetSTABcastKeyReq will be called when the upper MAC
-        wants to install a STA Bcast encryption key on the HW.
-        Upon the call of this API the WLAN DAL will pack and
-        send a HAL Start request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param pwdiSetSTABcastKeyParams: the BSS Key set parameters as
-                      specified by the Device Interface
-
-        wdiSetSTABcastKeyRspCb: callback for passing back the
-        response of the set BSS Key operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetSTABcastKeyReq
 (
@@ -2787,11 +2073,8 @@ WDI_SetSTABcastKeyReq
 
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2800,9 +2083,6 @@ WDI_SetSTABcastKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_SET_STA_BCAST_KEY_REQ;
   wdiEventData.pEventData      = pwdiSetSTABcastKeyParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiSetSTABcastKeyParams);
@@ -2811,34 +2091,8 @@ WDI_SetSTABcastKeyReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_SetSTABcastKeyReq*/
+}
 
-/**
- @brief WDI_RemoveSTABcastKeyReq will be called when the upper
-        MAC wants to uninstall a STA Bcast key from HW. Upon the
-        call of this API the WLAN DAL will pack and send a HAL
-        Remove STA Bcast Key request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_SetSTABcastKeyReq must have been called.
-
- @param pwdiRemoveSTABcastKeyParams: the remove BSS key
-                      parameters as specified by the Device
-                      Interface
-
-        wdiRemoveSTABcastKeyRspCb: callback for passing back the
-        response of the remove STA Bcast key operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_SetSTABcastKeyReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_RemoveSTABcastKeyReq
 (
@@ -2848,11 +2102,8 @@ WDI_RemoveSTABcastKeyReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2861,9 +2112,6 @@ WDI_RemoveSTABcastKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_RMV_STA_BCAST_KEY_REQ;
   wdiEventData.pEventData      = pwdiRemoveSTABcastKeyParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiRemoveSTABcastKeyParams);
@@ -2872,34 +2120,8 @@ WDI_RemoveSTABcastKeyReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_RemoveSTABcastKeyReq*/
+}
 
-/**
- @brief WDI_SetMaxTxPowerReq will be called when the upper
-        MAC wants to set Max Tx Power to HW. Upon the
-        call of this API the WLAN DAL will pack and send a HAL
-        Remove STA Bcast Key request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_SetSTABcastKeyReq must have been called.
-
- @param pwdiRemoveSTABcastKeyParams: the remove BSS key
-                      parameters as specified by the Device
-                      Interface
-
-        wdiRemoveSTABcastKeyRspCb: callback for passing back the
-        response of the remove STA Bcast key operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_SetMaxTxPowerReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetMaxTxPowerReq
 (
@@ -2909,11 +2131,8 @@ WDI_SetMaxTxPowerReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2922,9 +2141,6 @@ WDI_SetMaxTxPowerReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_SET_MAX_TX_POWER_REQ;
   wdiEventData.pEventData      = pwdiSetMaxTxPowerParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiSetMaxTxPowerParams);
@@ -2934,21 +2150,6 @@ WDI_SetMaxTxPowerReq
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-/**
- @brief WDI_SetMaxTxPowerPerBandReq will be called when the upper
-        MAC wants to set Max Tx Power to HW for specific band.
-
- @param pwdiSetMaxTxPowerPerBandParams: Tx Power Information
-
-        wdiReqStatusCb: callback for passing back the
-        response msg from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_SetMaxTxPowerPerBandReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetMaxTxPowerPerBandReq
 (
@@ -2958,11 +2159,8 @@ WDI_SetMaxTxPowerPerBandReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -2971,9 +2169,6 @@ WDI_SetMaxTxPowerPerBandReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_SET_MAX_TX_POWER_PER_BAND_REQ;
   wdiEventData.pEventData      = pwdiSetMaxTxPowerPerBandParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiSetMaxTxPowerPerBandParams);
@@ -2983,23 +2178,6 @@ WDI_SetMaxTxPowerPerBandReq
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-/**
- @brief WDI_SetTxPowerReq will be called when the upper
-        MAC wants to set Tx Power to HW.
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param pwdiSetTxPowerParams: set TS Power parameters
-           BSSID and target TX Power with dbm included
-
-        wdiReqStatusCb: callback for passing back the response
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetTxPowerReq
 (
@@ -3009,11 +2187,8 @@ WDI_SetTxPowerReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3022,9 +2197,6 @@ WDI_SetTxPowerReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_SET_TX_POWER_REQ;
   wdiEventData.pEventData      = pwdiSetTxPowerParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiSetTxPowerParams);
@@ -3044,10 +2216,7 @@ WDI_TSMStatsReq
 )
 {
   WDI_EventInfoType wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  /*------------------------------------------------------------------------
-    Sanity Check 
-  ------------------------------------------------------------------------*/
+  
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3056,9 +2225,6 @@ WDI_TSMStatsReq
     return WDI_STATUS_E_NOT_ALLOWED; 
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_TSM_STATS_REQ;
   wdiEventData.pEventData      = pwdiTsmReqParams; 
   wdiEventData.uEventDataSize  = sizeof(*pwdiTsmReqParams); 
@@ -3070,38 +2236,7 @@ WDI_TSMStatsReq
 }
 #endif
 
-/*======================================================================== 
- 
-                            QoS and BA APIs
 
-==========================================================================*/
-
-/**
- @brief WDI_AddTSReq will be called when the upper MAC to inform
-        the device of a successful add TSpec negotiation. HW
-        needs to receive the TSpec Info from the UMAC in order
-        to configure properly the QoS data traffic. Upon the
-        call of this API the WLAN DAL will pack and send a HAL
-        Add TS request message to the lower RIVA sub-system if
-        DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiAddTsReqParams: the add TS parameters as specified by
-                      the Device Interface
-
-        wdiAddTsRspCb: callback for passing back the response of
-        the add TS operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_AddTSReq
 (
@@ -3111,11 +2246,8 @@ WDI_AddTSReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3124,9 +2256,6 @@ WDI_AddTSReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_ADD_TS_REQ;
   wdiEventData.pEventData      = pwdiAddTsReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiAddTsReqParams);
@@ -3135,35 +2264,10 @@ WDI_AddTSReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_AddTSReq*/
+}
 
 
 
-/**
- @brief WDI_DelTSReq will be called when the upper MAC has ended
-        admission on a specific AC. This is to inform HW that
-        QoS traffic parameters must be rest. Upon the call of
-        this API the WLAN DAL will pack and send a HAL Del TS
-        request message to the lower RIVA sub-system if DAL is
-        in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_AddTSReq must have been called.
-
- @param wdiDelTsReqParams: the del TS parameters as specified by
-                      the Device Interface
-
-        wdiDelTsRspCb: callback for passing back the response of
-        the del TS operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_AddTSReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_DelTSReq
 (
@@ -3173,11 +2277,8 @@ WDI_DelTSReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3186,9 +2287,6 @@ WDI_DelTSReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_DEL_TS_REQ;
   wdiEventData.pEventData      = pwdiDelTsReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiDelTsReqParams);
@@ -3197,35 +2295,10 @@ WDI_DelTSReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_DelTSReq*/
+}
 
 
 
-/**
- @brief WDI_UpdateEDCAParams will be called when the upper MAC
-        wishes to update the EDCA parameters used by HW for QoS
-        data traffic. Upon the call of this API the WLAN DAL
-        will pack and send a HAL Update EDCA Params request
-        message to the lower RIVA sub-system if DAL is in state
-        STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiUpdateEDCAParams: the start parameters as specified
-                      by the Device Interface
-
-        wdiUpdateEDCAParamsRspCb: callback for passing back the
-        response of the start operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_UpdateEDCAParams
 (
@@ -3235,11 +2308,8 @@ WDI_UpdateEDCAParams
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3248,9 +2318,6 @@ WDI_UpdateEDCAParams
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_UPD_EDCA_PRMS_REQ;
   wdiEventData.pEventData      = pwdiUpdateEDCAParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiUpdateEDCAParams);
@@ -3259,34 +2326,9 @@ WDI_UpdateEDCAParams
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_UpdateEDCAParams*/
+}
 
 
-/**
- @brief WDI_AddBASessionReq will be called when the upper MAC has setup
-        successfully a BA session and needs to notify the HW for
-        the appropriate settings to take place. Upon the call of
-        this API the WLAN DAL will pack and send a HAL Add BA
-        request message to the lower RIVA sub-system if DAL is
-        in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiAddBAReqParams: the add BA parameters as specified by
-                      the Device Interface
-
-        wdiAddBARspCb: callback for passing back the response of
-        the add BA operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_AddBASessionReq
 (
@@ -3296,11 +2338,8 @@ WDI_AddBASessionReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3309,9 +2348,6 @@ WDI_AddBASessionReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_ADD_BA_SESSION_REQ;
   wdiEventData.pEventData      = pwdiAddBASessionReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiAddBASessionReqParams);
@@ -3320,32 +2356,8 @@ WDI_AddBASessionReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_AddBASessionReq*/
+}
 
-/**
- @brief WDI_DelBAReq will be called when the upper MAC wants to
-        inform HW that it has deleted a previously created BA
-        session. Upon the call of this API the WLAN DAL will
-        pack and send a HAL Del BA request message to the lower
-        RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_AddBAReq must have been called.
-
- @param wdiDelBAReqParams: the del BA parameters as specified by
-                      the Device Interface
-
-        wdiDelBARspCb: callback for passing back the response of
-        the del BA operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_AddBAReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_DelBAReq
 (
@@ -3355,11 +2367,8 @@ WDI_DelBAReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3368,9 +2377,6 @@ WDI_DelBAReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_DEL_BA_REQ;
   wdiEventData.pEventData      = pwdiDelBAReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiDelBAReqParams);
@@ -3379,39 +2385,9 @@ WDI_DelBAReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_DelBAReq*/
+}
 
-/*========================================================================
 
-                            Power Save APIs
-
-==========================================================================*/
-
-/**
- @brief WDI_SetPwrSaveCfgReq will be called when the upper MAC
-        wants to set the power save related configurations of
-        the WLAN Device. Upon the call of this API the WLAN DAL
-        will pack and send a HAL Update CFG request message to
-        the lower RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_Start must have been called.
-
- @param pwdiPowerSaveCfg: the power save cfg parameters as
-                      specified by the Device Interface
-
-        wdiSetPwrSaveCfgCb: callback for passing back the
-        response of the set power save cfg operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetPwrSaveCfgReq
 (
@@ -3421,11 +2397,8 @@ WDI_SetPwrSaveCfgReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3434,9 +2407,6 @@ WDI_SetPwrSaveCfgReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_UPDATE_CFG_REQ;
   wdiEventData.pEventData      = pwdiPowerSaveCfg;
   wdiEventData.uEventDataSize  = sizeof(*pwdiPowerSaveCfg);
@@ -3445,29 +2415,8 @@ WDI_SetPwrSaveCfgReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_SetPwrSaveCfgReq*/
+}
 
-/**
- @brief WDI_EnterImpsReq will be called when the upper MAC to
-        request the device to get into IMPS power state. Upon
-        the call of this API the WLAN DAL will send a HAL Enter
-        IMPS request message to the lower RIVA sub-system if DAL
-        is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param wdiEnterImpsRspCb: callback for passing back the
-        response of the Enter IMPS operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_EnterImpsReq
 (
@@ -3477,11 +2426,8 @@ WDI_EnterImpsReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3490,9 +2436,6 @@ WDI_EnterImpsReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_ENTER_IMPS_REQ;
   wdiEventData.pEventData      = pwdiEnterImpsReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiEnterImpsReqParams);
@@ -3501,29 +2444,8 @@ WDI_EnterImpsReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_EnterImpsReq*/
+}
 
-/**
- @brief WDI_ExitImpsReq will be called when the upper MAC to
-        request the device to get out of IMPS power state. Upon
-        the call of this API the WLAN DAL will send a HAL Exit
-        IMPS request message to the lower RIVA sub-system if DAL
-        is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
-
- @param wdiExitImpsRspCb: callback for passing back the response
-        of the Exit IMPS operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_ExitImpsReq
 (
@@ -3532,11 +2454,8 @@ WDI_ExitImpsReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3545,9 +2464,6 @@ WDI_ExitImpsReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_EXIT_IMPS_REQ;
   wdiEventData.pEventData      = NULL;
   wdiEventData.uEventDataSize  = 0;
@@ -3556,33 +2472,8 @@ WDI_ExitImpsReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_ExitImpsReq*/
+}
 
-/**
- @brief WDI_EnterBmpsReq will be called when the upper MAC to
-        request the device to get into BMPS power state. Upon
-        the call of this API the WLAN DAL will pack and send a
-        HAL Enter BMPS request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param pwdiEnterBmpsReqParams: the Enter BMPS parameters as
-                      specified by the Device Interface
-
-        wdiEnterBmpsRspCb: callback for passing back the
-        response of the Enter BMPS operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_EnterBmpsReq
 (
@@ -3592,11 +2483,8 @@ WDI_EnterBmpsReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3605,9 +2493,6 @@ WDI_EnterBmpsReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_ENTER_BMPS_REQ;
   wdiEventData.pEventData      = pwdiEnterBmpsReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiEnterBmpsReqParams);
@@ -3616,32 +2501,8 @@ WDI_EnterBmpsReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_EnterBmpsReq*/
+}
 
-/**
- @brief WDI_ExitBmpsReq will be called when the upper MAC to
-        request the device to get out of BMPS power state. Upon
-        the call of this API the WLAN DAL will pack and send a
-        HAL Exit BMPS request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param pwdiExitBmpsReqParams: the Exit BMPS parameters as
-                      specified by the Device Interface
-
-        wdiExitBmpsRspCb: callback for passing back the response
-        of the Exit BMPS operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_ExitBmpsReq
 (
@@ -3651,11 +2512,8 @@ WDI_ExitBmpsReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3664,9 +2522,6 @@ WDI_ExitBmpsReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_EXIT_BMPS_REQ;
   wdiEventData.pEventData      = pwdiExitBmpsReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiExitBmpsReqParams);
@@ -3675,34 +2530,8 @@ WDI_ExitBmpsReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_ExitBmpsReq*/
+}
 
-/**
- @brief WDI_EnterUapsdReq will be called when the upper MAC to
-        request the device to get into UAPSD power state. Upon
-        the call of this API the WLAN DAL will pack and send a
-        HAL Enter UAPSD request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
- WDI_SetUapsdAcParamsReq must have been called.
-
- @param pwdiEnterUapsdReqParams: the Enter UAPSD parameters as
-                      specified by the Device Interface
-
-        wdiEnterUapsdRspCb: callback for passing back the
-        response of the Enter UAPSD operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq, WDI_SetUapsdAcParamsReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_EnterUapsdReq
 (
@@ -3712,11 +2541,8 @@ WDI_EnterUapsdReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3725,9 +2551,6 @@ WDI_EnterUapsdReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_ENTER_UAPSD_REQ;
   wdiEventData.pEventData      = pwdiEnterUapsdReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiEnterUapsdReqParams);
@@ -3736,30 +2559,8 @@ WDI_EnterUapsdReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_EnterUapsdReq*/
+}
 
-/**
- @brief WDI_ExitUapsdReq will be called when the upper MAC to
-        request the device to get out of UAPSD power state. Upon
-        the call of this API the WLAN DAL will send a HAL Exit
-        UAPSD request message to the lower RIVA sub-system if
-        DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiExitUapsdRspCb: callback for passing back the
-        response of the Exit UAPSD operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_ExitUapsdReq
 (
@@ -3769,11 +2570,8 @@ WDI_ExitUapsdReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3782,9 +2580,6 @@ WDI_ExitUapsdReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_EXIT_UAPSD_REQ;
   wdiEventData.pEventData      = pwdiExitUapsdReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiExitUapsdReqParams);
@@ -3793,34 +2588,8 @@ WDI_ExitUapsdReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_ExitUapsdReq*/
+}
 
-/**
- @brief WDI_UpdateUapsdParamsReq will be called when the upper
-        MAC wants to set the UAPSD related configurations
-        of an associated STA (while acting as an AP) to the WLAN
-        Device. Upon the call of this API the WLAN DAL will pack
-        and send a HAL Update UAPSD params request message to
-        the lower RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_ConfigBSSReq must have been called.
-
- @param pwdiUpdateUapsdReqParams: the UAPSD parameters
-                      as specified by the Device Interface
-
-        wdiUpdateUapsdParamsCb: callback for passing back the
-        response of the update UAPSD params operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_ConfigBSSReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_UpdateUapsdParamsReq
 (
@@ -3830,11 +2599,8 @@ WDI_UpdateUapsdParamsReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3843,9 +2609,6 @@ WDI_UpdateUapsdParamsReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_UPDATE_UAPSD_PARAM_REQ;
   wdiEventData.pEventData      = pwdiUpdateUapsdReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiUpdateUapsdReqParams);
@@ -3854,34 +2617,8 @@ WDI_UpdateUapsdParamsReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_UpdateUapsdParamsReq*/
+}
 
-/**
- @brief WDI_SetUapsdAcParamsReq will be called when the upper
-        MAC wants to set the UAPSD related configurations before
-        requesting for enter UAPSD power state to the WLAN
-        Device. Upon the call of this API the WLAN DAL will pack
-        and send a HAL Set UAPSD params request message to
-        the lower RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param pwdiUapsdInfo: the UAPSD parameters as specified by
-                      the Device Interface
-
-        wdiSetUapsdAcParamsCb: callback for passing back the
-        response of the set UAPSD params operation received from
-        the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetUapsdAcParamsReq
 (
@@ -3891,11 +2628,8 @@ WDI_SetUapsdAcParamsReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3904,9 +2638,6 @@ WDI_SetUapsdAcParamsReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_SET_UAPSD_PARAM_REQ;
   wdiEventData.pEventData      = pwdiUapsdInfo;
   wdiEventData.uEventDataSize  = sizeof(*pwdiUapsdInfo);
@@ -3915,32 +2646,8 @@ WDI_SetUapsdAcParamsReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_SetUapsdAcParamsReq*/
+}
 
-/**
- @brief WDI_ConfigureRxpFilterReq will be called when the upper
-        MAC wants to set/reset the RXP filters for received pkts
-        (MC, BC etc.). Upon the call of this API the WLAN DAL will pack
-        and send a HAL configure RXP filter request message to
-        the lower RIVA sub-system.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param pwdiConfigureRxpFilterReqParams: the RXP
-                      filter as specified by the Device
-                      Interface
-
-        wdiConfigureRxpFilterCb: callback for passing back the
-        response of the configure RXP filter operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_ConfigureRxpFilterReq
 (
@@ -3950,11 +2657,8 @@ WDI_ConfigureRxpFilterReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -3963,9 +2667,6 @@ WDI_ConfigureRxpFilterReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_CONFIGURE_RXP_FILTER_REQ;
    wdiEventData.pEventData      = pwdiConfigureRxpFilterReqParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiConfigureRxpFilterReqParams);
@@ -3973,32 +2674,8 @@ WDI_ConfigureRxpFilterReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_ConfigureRxpFilterReq*/
+}
 
-/**
- @brief WDI_SetBeaconFilterReq will be called when the upper MAC
-        wants to set the beacon filters while in power save.
-        Upon the call of this API the WLAN DAL will pack and
-        send a Beacon filter request message to the
-        lower RIVA sub-system.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param pwdiBeaconFilterReqParams: the beacon
-                      filter as specified by the Device
-                      Interface
-
-        wdiBeaconFilterCb: callback for passing back the
-        response of the set beacon filter operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetBeaconFilterReq
 (
@@ -4008,11 +2685,8 @@ WDI_SetBeaconFilterReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4021,9 +2695,6 @@ WDI_SetBeaconFilterReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_SET_BEACON_FILTER_REQ;
    wdiEventData.pEventData      = pwdiBeaconFilterReqParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiBeaconFilterReqParams);
@@ -4031,32 +2702,8 @@ WDI_SetBeaconFilterReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_SetBeaconFilterReq*/
+}
 
-/**
- @brief WDI_RemBeaconFilterReq will be called when the upper MAC
-        wants to remove the beacon filter for particular IE
-        while in power save. Upon the call of this API the WLAN
-        DAL will pack and send a remove Beacon filter request
-        message to the lower RIVA sub-system.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param pwdiBeaconFilterReqParams: the beacon
-                      filter as specified by the Device
-                      Interface
-
-        wdiBeaconFilterCb: callback for passing back the
-        response of the remove beacon filter operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_RemBeaconFilterReq
 (
@@ -4066,11 +2713,8 @@ WDI_RemBeaconFilterReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4079,9 +2723,6 @@ WDI_RemBeaconFilterReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_REM_BEACON_FILTER_REQ;
    wdiEventData.pEventData      = pwdiBeaconFilterReqParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiBeaconFilterReqParams);
@@ -4089,34 +2730,8 @@ WDI_RemBeaconFilterReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_RemBeaconFilterReq*/
+}
 
-/**
- @brief WDI_SetRSSIThresholdsReq will be called when the upper
-        MAC wants to set the RSSI thresholds related
-        configurations while in power save. Upon the call of
-        this API the WLAN DAL will pack and send a HAL Set RSSI
-        thresholds request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param pwdiUapsdInfo: the UAPSD parameters as specified by
-                      the Device Interface
-
-        wdiSetUapsdAcParamsCb: callback for passing back the
-        response of the set UAPSD params operation received from
-        the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetRSSIThresholdsReq
 (
@@ -4126,11 +2741,8 @@ WDI_SetRSSIThresholdsReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4139,9 +2751,6 @@ WDI_SetRSSIThresholdsReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_SET_RSSI_THRESHOLDS_REQ;
    wdiEventData.pEventData      = pwdiRSSIThresholdsParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiRSSIThresholdsParams);
@@ -4149,34 +2758,8 @@ WDI_SetRSSIThresholdsReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/* WDI_SetRSSIThresholdsReq*/
+}
 
-/**
- @brief WDI_HostOffloadReq will be called when the upper MAC
-        wants to set the filter to minimize unnecessary host
-        wakeup due to broadcast traffic while in power save.
-        Upon the call of this API the WLAN DAL will pack and
-        send a HAL host offload request message to the
-        lower RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param pwdiHostOffloadParams: the host offload as specified
-                      by the Device Interface
-
-        wdiHostOffloadCb: callback for passing back the response
-        of the host offload operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_HostOffloadReq
 (
@@ -4186,11 +2769,8 @@ WDI_HostOffloadReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4199,9 +2779,6 @@ WDI_HostOffloadReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_HOST_OFFLOAD_REQ;
    wdiEventData.pEventData      = pwdiHostOffloadParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiHostOffloadParams);
@@ -4209,34 +2786,8 @@ WDI_HostOffloadReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_HostOffloadReq*/
+}
 
-/**
- @brief WDI_KeepAliveReq will be called when the upper MAC
-        wants to set the filter to send NULL or unsolicited ARP responses
-        and minimize unnecessary host wakeups due to while in power save.
-        Upon the call of this API the WLAN DAL will pack and
-        send a HAL Keep Alive request message to the
-        lower RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param pwdiKeepAliveParams: the Keep Alive as specified
-                      by the Device Interface
-
-        wdiKeepAliveCb: callback for passing back the response
-        of the Keep Alive operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_KeepAliveReq
 (
@@ -4246,11 +2797,8 @@ WDI_KeepAliveReq
 )
 {
     WDI_EventInfoType      wdiEventData;
-    /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+    
 
-    /*------------------------------------------------------------------------
-     Sanity Check
-    ------------------------------------------------------------------------*/
     if ( eWLAN_PAL_FALSE == gWDIInitialized )
     {
          WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4260,9 +2808,6 @@ WDI_KeepAliveReq
      return WDI_STATUS_E_NOT_ALLOWED;
     }
 
-    /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-    ------------------------------------------------------------------------*/
     wdiEventData.wdiRequest      = WDI_KEEP_ALIVE_REQ;
     wdiEventData.pEventData      = pwdiKeepAliveParams;
     wdiEventData.uEventDataSize  = sizeof(*pwdiKeepAliveParams);
@@ -4270,34 +2815,8 @@ WDI_KeepAliveReq
     wdiEventData.pUserData       = pUserData;
 
     return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_KeepAliveReq*/
+}
 
-/**
- @brief WDI_WowlAddBcPtrnReq will be called when the upper MAC
-        wants to set the Wowl Bcast ptrn to minimize unnecessary
-        host wakeup due to broadcast traffic while in power
-        save. Upon the call of this API the WLAN DAL will pack
-        and send a HAL Wowl Bcast ptrn request message to the
-        lower RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param pwdiWowlAddBcPtrnParams: the Wowl bcast ptrn as
-                      specified by the Device Interface
-
-        wdiWowlAddBcPtrnCb: callback for passing back the
-        response of the add Wowl bcast ptrn operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_WowlAddBcPtrnReq
 (
@@ -4307,11 +2826,8 @@ WDI_WowlAddBcPtrnReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4320,9 +2836,6 @@ WDI_WowlAddBcPtrnReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_WOWL_ADD_BC_PTRN_REQ;
    wdiEventData.pEventData      = pwdiWowlAddBcPtrnParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiWowlAddBcPtrnParams);
@@ -4330,33 +2843,8 @@ WDI_WowlAddBcPtrnReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_WowlAddBcPtrnReq*/
+}
 
-/**
- @brief WDI_WowlDelBcPtrnReq will be called when the upper MAC
-        wants to clear the Wowl Bcast ptrn. Upon the call of
-        this API the WLAN DAL will pack and send a HAL delete
-        Wowl Bcast ptrn request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_WowlAddBcPtrnReq must have been called.
-
- @param pwdiWowlDelBcPtrnParams: the Wowl bcast ptrn as
-                      specified by the Device Interface
-
-        wdiWowlDelBcPtrnCb: callback for passing back the
-        response of the del Wowl bcast ptrn operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_WowlAddBcPtrnReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_WowlDelBcPtrnReq
 (
@@ -4366,11 +2854,8 @@ WDI_WowlDelBcPtrnReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4379,9 +2864,6 @@ WDI_WowlDelBcPtrnReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_WOWL_DEL_BC_PTRN_REQ;
    wdiEventData.pEventData      = pwdiWowlDelBcPtrnParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiWowlDelBcPtrnParams);
@@ -4389,34 +2871,8 @@ WDI_WowlDelBcPtrnReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_WowlDelBcPtrnReq*/
+}
 
-/**
- @brief WDI_WowlEnterReq will be called when the upper MAC
-        wants to enter the Wowl state to minimize unnecessary
-        host wakeup while in power save. Upon the call of this
-        API the WLAN DAL will pack and send a HAL Wowl enter
-        request message to the lower RIVA sub-system if DAL is
-        in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param pwdiWowlEnterReqParams: the Wowl enter info as
-                      specified by the Device Interface
-
-        wdiWowlEnterReqCb: callback for passing back the
-        response of the enter Wowl operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_WowlEnterReq
 (
@@ -4426,11 +2882,8 @@ WDI_WowlEnterReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4439,9 +2892,6 @@ WDI_WowlEnterReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_WOWL_ENTER_REQ;
    wdiEventData.pEventData      = pwdiWowlEnterParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiWowlEnterParams);
@@ -4449,32 +2899,8 @@ WDI_WowlEnterReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_WowlEnterReq*/
+}
 
-/**
- @brief WDI_WowlExitReq will be called when the upper MAC
-        wants to exit the Wowl state. Upon the call of this API
-        the WLAN DAL will pack and send a HAL Wowl exit request
-        message to the lower RIVA sub-system if DAL is in state
-        STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_WowlEnterReq must have been called.
-
- @param pwdiWowlExitReqParams: the Wowl exit info as
-                      specified by the Device Interface
-
-        wdiWowlExitReqCb: callback for passing back the response
-        of the exit Wowl operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_WowlEnterReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_WowlExitReq
 (
@@ -4484,11 +2910,8 @@ WDI_WowlExitReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4497,9 +2920,6 @@ WDI_WowlExitReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_WOWL_EXIT_REQ;
    wdiEventData.pEventData      = pwdiWowlExitParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiWowlExitParams);
@@ -4507,33 +2927,8 @@ WDI_WowlExitReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_WowlExitReq*/
+}
 
-/**
- @brief WDI_ConfigureAppsCpuWakeupStateReq will be called when
-        the upper MAC wants to dynamically adjusts the listen
-        interval based on the WLAN/MSM activity. Upon the call
-        of this API the WLAN DAL will pack and send a HAL
-        configure Apps Cpu Wakeup State request message to the
-        lower RIVA sub-system.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param pwdiConfigureAppsCpuWakeupStateReqParams: the
-                      Apps Cpu Wakeup State as specified by the
-                      Device Interface
-
-        wdiConfigureAppsCpuWakeupStateCb: callback for passing
-        back the response of the configure Apps Cpu Wakeup State
-        operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_ConfigureAppsCpuWakeupStateReq
 (
@@ -4543,11 +2938,8 @@ WDI_ConfigureAppsCpuWakeupStateReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4556,9 +2948,6 @@ WDI_ConfigureAppsCpuWakeupStateReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_CONFIGURE_APPS_CPU_WAKEUP_STATE_REQ;
    wdiEventData.pEventData      = pwdiConfigureAppsCpuWakeupStateReqParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiConfigureAppsCpuWakeupStateReqParams);
@@ -4566,31 +2955,7 @@ WDI_ConfigureAppsCpuWakeupStateReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_ConfigureAppsCpuWakeupStateReq*/
-/**
- @brief WDI_FlushAcReq will be called when the upper MAC wants
-        to to perform a flush operation on a given AC. Upon the
-        call of this API the WLAN DAL will pack and send a HAL
-        Flush AC request message to the lower RIVA sub-system if
-        DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_AddBAReq must have been called.
-
- @param pwdiFlushAcReqParams: the Flush AC parameters as
-                      specified by the Device Interface
-
-        wdiFlushAcRspCb: callback for passing back the response
-        of the Flush AC operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_AddBAReq
- @return Result of the function call
-*/
+}
 WDI_Status
 WDI_FlushAcReq
 (
@@ -4600,11 +2965,8 @@ WDI_FlushAcReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4613,9 +2975,6 @@ WDI_FlushAcReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_FLUSH_AC_REQ;
    wdiEventData.pEventData      = pwdiFlushAcReqParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiFlushAcReqParams);
@@ -4624,32 +2983,8 @@ WDI_FlushAcReq
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_FlushAcReq*/
+}
 
-/**
- @brief WDI_BtAmpEventReq will be called when the upper MAC
-        wants to notify the lower mac on a BT AMP event. This is
-        to inform BTC-SLM that some BT AMP event occurred. Upon
-        the call of this API the WLAN DAL will pack and send a
-        HAL BT AMP event request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param wdiBtAmpEventReqParams: the BT AMP event parameters as
-                      specified by the Device Interface
-
-        wdiBtAmpEventRspCb: callback for passing back the
-        response of the BT AMP event operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_BtAmpEventReq
 (
@@ -4659,11 +2994,8 @@ WDI_BtAmpEventReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4672,9 +3004,6 @@ WDI_BtAmpEventReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_BTAMP_EVENT_REQ;
    wdiEventData.pEventData      = pwdiBtAmpEventReqParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiBtAmpEventReqParams);
@@ -4683,33 +3012,9 @@ WDI_BtAmpEventReq
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_BtAmpEventReq*/
+}
 
 #ifdef FEATURE_OEM_DATA_SUPPORT
-/**
- @brief WDI_Start Oem Data Req will be called when the upper MAC 
-        wants to notify the lower mac on a oem data Req event.Upon
-        the call of this API the WLAN DAL will pack and send a
-        HAL OEM Data Req event request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
-  
- @param pwdiOemDataReqParams: the Oem Data Req as 
-        specified by the Device Interface
-
-        wdiStartOemDataRspCb: callback for passing back the
-        response of the Oem Data Req received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_StartOemDataReq
 (
@@ -4719,11 +3024,8 @@ WDI_StartOemDataReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4732,9 +3034,6 @@ WDI_StartOemDataReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_START_OEM_DATA_REQ;
    wdiEventData.pEventData      = pwdiOemDataReqParams; 
    wdiEventData.uEventDataSize  = sizeof(*pwdiOemDataReqParams); 
@@ -4749,35 +3048,6 @@ WDI_StartOemDataReq
 #endif
 
 
-/*========================================================================
-
-                             CONTROL APIs
-
-==========================================================================*/
-/**
- @brief WDI_SwitchChReq will be called when the upper MAC wants
-        the WLAN HW to change the current channel of operation.
-        Upon the call of this API the WLAN DAL will pack and
-        send a HAL Start request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_Start must have been called.
-
- @param wdiSwitchChReqParams: the switch ch parameters as
-                      specified by the Device Interface
-
-        wdiSwitchChRspCb: callback for passing back the response
-        of the switch ch operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_SwitchChReq
 (
@@ -4787,11 +3057,8 @@ WDI_SwitchChReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4800,9 +3067,6 @@ WDI_SwitchChReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_CH_SWITCH_REQ;
   wdiEventData.pEventData      = pwdiSwitchChReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiSwitchChReqParams);
@@ -4811,34 +3075,39 @@ WDI_SwitchChReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_SwitchChReq*/
+}
+
+WDI_Status
+WDI_SwitchChReq_V1
+(
+  WDI_SwitchChReqParamsType_V1* pwdiSwitchChReqParams,
+  WDI_SwitchChRspCb_V1          wdiSwitchChRspCb,
+  void*                      pUserData
+)
+{
+  WDI_EventInfoType      wdiEventData;
+  
+   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
+              "WDI API call WDI_SwitchChReq_V1");
+  if ( eWLAN_PAL_FALSE == gWDIInitialized )
+  {
+    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+              "WDI API call before module is initialized - Fail request");
+
+    return WDI_STATUS_E_NOT_ALLOWED;
+  }
+
+  wdiEventData.wdiRequest      = WDI_CH_SWITCH_REQ_V1;
+  wdiEventData.pEventData      = pwdiSwitchChReqParams;
+  wdiEventData.uEventDataSize  = sizeof(*pwdiSwitchChReqParams);
+  wdiEventData.pCBfnc          = wdiSwitchChRspCb;
+  wdiEventData.pUserData       = pUserData;
+
+  return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
+
+}
 
 
-/**
- @brief WDI_ConfigSTAReq will be called when the upper MAC
-        wishes to add or update a STA in HW. Upon the call of
-        this API the WLAN DAL will pack and send a HAL Start
-        message request message to the lower RIVA sub-system if
-        DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_Start must have been called.
-
- @param wdiConfigSTAReqParams: the config STA parameters as
-                      specified by the Device Interface
-
-        wdiConfigSTARspCb: callback for passing back the
-        response of the config STA operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_ConfigSTAReq
 (
@@ -4848,11 +3117,8 @@ WDI_ConfigSTAReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4861,9 +3127,6 @@ WDI_ConfigSTAReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_CONFIG_STA_REQ;
   wdiEventData.pEventData      = pwdiConfigSTAReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiConfigSTAReqParams);
@@ -4872,29 +3135,8 @@ WDI_ConfigSTAReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_ConfigSTAReq*/
+}
 
- /**
- @brief WDI_UpdateChannelReq will be called when the upper MAC
-        wants to update the channel list on change in country code.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_UpdateChannelReq must have been called.
-
- @param wdiUpdateChannelReqParams: the updated channel parameters
-                      as specified by the Device Interface
-
-        wdiUpdateChannelRspCb: callback for passing back the
-        response of the update channel operation received from
-        the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_UpdateChannelReq
 (
@@ -4904,11 +3146,8 @@ WDI_UpdateChannelReq
 )
 {
   WDI_EventInfoType      wdiEventData = {{0}};
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4917,9 +3156,6 @@ WDI_UpdateChannelReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_UPDATE_CHAN_REQ;
   wdiEventData.pEventData      = pwdiUpdateChannelReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiUpdateChannelReqParams);
@@ -4928,34 +3164,8 @@ WDI_UpdateChannelReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_UpdateChannelReq*/
+}
 
-
-/**
- @brief WDI_SetLinkStateReq will be called when the upper MAC
-        wants to change the state of an ongoing link. Upon the
-        call of this API the WLAN DAL will pack and send a HAL
-        Start message request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_JoinStartReq must have been called.
-
- @param wdiSetLinkStateReqParams: the set link state parameters
-                      as specified by the Device Interface
-
-        wdiSetLinkStateRspCb: callback for passing back the
-        response of the set link state operation received from
-        the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_JoinStartReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetLinkStateReq
 (
@@ -4965,11 +3175,8 @@ WDI_SetLinkStateReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -4978,9 +3185,6 @@ WDI_SetLinkStateReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_SET_LINK_ST_REQ;
   wdiEventData.pEventData      = pwdiSetLinkStateReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiSetLinkStateReqParams);
@@ -4989,33 +3193,9 @@ WDI_SetLinkStateReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_SetLinkStateReq*/
+}
 
 
-/**
- @brief WDI_GetStatsReq will be called when the upper MAC wants
-        to get statistics (MIB counters) from the device. Upon
-        the call of this API the WLAN DAL will pack and send a
-        HAL Start request message to the lower RIVA sub-system
-        if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_Start must have been called.
-
- @param wdiGetStatsReqParams: the stats parameters to get as
-                      specified by the Device Interface
-
-        wdiGetStatsRspCb: callback for passing back the response
-        of the get stats operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_GetStatsReq
 (
@@ -5025,11 +3205,8 @@ WDI_GetStatsReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5038,9 +3215,6 @@ WDI_GetStatsReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_GET_STATS_REQ;
   wdiEventData.pEventData      = pwdiGetStatsReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiGetStatsReqParams);
@@ -5049,33 +3223,9 @@ WDI_GetStatsReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_GetStatsReq*/
+}
 
 #if defined WLAN_FEATURE_VOWIFI_11R || defined FEATURE_WLAN_CCX || defined(FEATURE_WLAN_LFR)
-/**
- @brief WDI_GetRoamRssiReq will be called when the upper MAC wants
-        to get roam rssi from the device. Upon
-        the call of this API the WLAN DAL will pack and send a
-        HAL Start request message to the lower RIVA sub-system
-        if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_Start must have been called.
-
- @param wdiGetRoamRssiReqParams: the stats parameters to get as
-                      specified by the Device Interface
-
-        wdiGetRoamRssiRspCb: callback for passing back the response
-        of the get stats operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_GetRoamRssiReq
 (
@@ -5085,11 +3235,8 @@ WDI_GetRoamRssiReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5097,9 +3244,6 @@ WDI_GetRoamRssiReq
 
     return WDI_STATUS_E_NOT_ALLOWED;
   }
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_GET_ROAM_RSSI_REQ;
   wdiEventData.pEventData      = pwdiGetRoamRssiReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiGetRoamRssiReqParams);
@@ -5108,35 +3252,10 @@ WDI_GetRoamRssiReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_GetRoamRssiReq*/
+}
 #endif
 
 
-/**
- @brief WDI_UpdateCfgReq will be called when the upper MAC when
-        it wishes to change the configuration of the WLAN
-        Device. Upon the call of this API the WLAN DAL will pack
-        and send a HAL Update CFG request message to the lower
-        RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_Start must have been called.
-
- @param wdiUpdateCfgReqParams: the update cfg parameters as
-                      specified by the Device Interface
-
-        wdiUpdateCfgsRspCb: callback for passing back the
-        response of the update cfg operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_Start
- @return Result of the function call
-*/
 WDI_Status
 WDI_UpdateCfgReq
 (
@@ -5146,11 +3265,8 @@ WDI_UpdateCfgReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5159,9 +3275,6 @@ WDI_UpdateCfgReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_UPDATE_CFG_REQ;
   wdiEventData.pEventData      = pwdiUpdateCfgReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiUpdateCfgReqParams);
@@ -5170,35 +3283,10 @@ WDI_UpdateCfgReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_UpdateCfgReq*/
+}
 
 
 
-/**
- @brief WDI_AddBAReq will be called when the upper MAC has setup
-        successfully a BA session and needs to notify the HW for
-        the appropriate settings to take place. Upon the call of
-        this API the WLAN DAL will pack and send a HAL Add BA
-        request message to the lower RIVA sub-system if DAL is
-        in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiAddBAReqParams: the add BA parameters as specified by
-                      the Device Interface
-
-        wdiAddBARspCb: callback for passing back the response of
-        the add BA operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_AddBAReq
 (
@@ -5208,11 +3296,8 @@ WDI_AddBAReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5221,9 +3306,6 @@ WDI_AddBAReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_ADD_BA_REQ;
   wdiEventData.pEventData      = pwdiAddBAReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiAddBAReqParams);
@@ -5232,34 +3314,9 @@ WDI_AddBAReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_AddBAReq*/
+}
 
 
-/**
- @brief WDI_TriggerBAReq will be called when the upper MAC has setup
-        successfully a BA session and needs to notify the HW for
-        the appropriate settings to take place. Upon the call of
-        this API the WLAN DAL will pack and send a HAL Add BA
-        request message to the lower RIVA sub-system if DAL is
-        in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiAddBAReqParams: the add BA parameters as specified by
-                      the Device Interface
-
-        wdiAddBARspCb: callback for passing back the response of
-        the add BA operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_TriggerBAReq
 (
@@ -5269,11 +3326,8 @@ WDI_TriggerBAReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5282,9 +3336,6 @@ WDI_TriggerBAReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_TRIGGER_BA_REQ;
   wdiEventData.pEventData      = pwdiTriggerBAReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiTriggerBAReqParams);
@@ -5293,32 +3344,8 @@ WDI_TriggerBAReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_AddBAReq*/
+}
 
-/**
- @brief WDI_UpdateBeaconParamsReq will be called when the upper MAC
-        wishes to update any of the Beacon parameters used by HW.
-        Upon the call of this API the WLAN DAL will pack and send a HAL Update Beacon Params request
-        message to the lower RIVA sub-system if DAL is in state
-        STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiUpdateBeaconParams: the Beacon parameters as specified
-                      by the Device Interface
-
-        wdiUpdateBeaconParamsRspCb: callback for passing back the
-        response of the start operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_UpdateBeaconParamsReq
 (
@@ -5328,11 +3355,8 @@ WDI_UpdateBeaconParamsReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5341,9 +3365,6 @@ WDI_UpdateBeaconParamsReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_UPD_BCON_PRMS_REQ;
   wdiEventData.pEventData      = pwdiUpdateBeaconParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiUpdateBeaconParams);
@@ -5352,32 +3373,8 @@ WDI_UpdateBeaconParamsReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_UpdateBeaconParamsReq*/
+}
 
-/**
- @brief WDI_SendBeaconParamsReq will be called when the upper MAC
-        wishes to update  the Beacon template used by HW.
-        Upon the call of this API the WLAN DAL will pack and send a HAL Update Beacon template request
-        message to the lower RIVA sub-system if DAL is in state
-        STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiSendBeaconParams: the Beacon parameters as specified
-                      by the Device Interface
-
-        wdiSendBeaconParamsRspCb: callback for passing back the
-        response of the start operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_SendBeaconParamsReq
 (
@@ -5387,11 +3384,8 @@ WDI_SendBeaconParamsReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5400,9 +3394,6 @@ WDI_SendBeaconParamsReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_SND_BCON_REQ;
   wdiEventData.pEventData      = pwdiSendBeaconParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiSendBeaconParams);
@@ -5411,33 +3402,8 @@ WDI_SendBeaconParamsReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_SendBeaconParamsReq*/
+}
 
-/**
- @brief WDI_UpdateProbeRspTemplateReq will be called when the
-        upper MAC wants to update the probe response template to
-        be transmitted as Soft AP
-         Upon the call of this API the WLAN DAL will
-        pack and send the probe rsp template  message to the
-        lower RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param pwdiUpdateProbeRspParams: the Update Beacon parameters as
-                      specified by the Device Interface
-
-        wdiSendBeaconParamsRspCb: callback for passing back the
-        response of the Send Beacon Params operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_AddBAReq
- @return Result of the function call
-*/
 
 WDI_Status
 WDI_UpdateProbeRspTemplateReq
@@ -5448,11 +3414,8 @@ WDI_UpdateProbeRspTemplateReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5461,9 +3424,6 @@ WDI_UpdateProbeRspTemplateReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_UPD_PROBE_RSP_TEMPLATE_REQ;
   wdiEventData.pEventData      = pwdiUpdateProbeRspParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiUpdateProbeRspParams);
@@ -5472,25 +3432,8 @@ WDI_UpdateProbeRspTemplateReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_UpdateProbeRspTemplateReq*/
+}
 
-/**
- @brief WDI_NvDownloadReq will be called by the UMAC to download the NV blob
-        to the NV memory.
-
-
- @param wdiNvDownloadReqParams: the NV Download parameters as specified by
-                      the Device Interface
-
-        wdiNvDownloadRspCb: callback for passing back the response of
-        the NV Download operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_NvDownloadReq
 (
@@ -5501,9 +3444,6 @@ WDI_NvDownloadReq
 {
   WDI_EventInfoType      wdiEventData;
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5512,9 +3452,6 @@ WDI_NvDownloadReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_NV_DOWNLOAD_REQ;
   wdiEventData.pEventData      = (void *)pwdiNvDownloadReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiNvDownloadReqParams);
@@ -5523,32 +3460,8 @@ WDI_NvDownloadReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_START_EVENT, &wdiEventData);
 
-}/*WDI_NVDownloadReq*/
+}
 
-/**
- @brief WDI_SetP2PGONOAReq will be called when the
-        upper MAC wants to send Notice of Absence
-         Upon the call of this API the WLAN DAL will
-        pack and send the probe rsp template  message to the
-        lower RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param pwdiUpdateProbeRspParams: the Update Beacon parameters as
-                      specified by the Device Interface
-
-        wdiSendBeaconParamsRspCb: callback for passing back the
-        response of the Send Beacon Params operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_AddBAReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetP2PGONOAReq
 (
@@ -5558,11 +3471,8 @@ WDI_SetP2PGONOAReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5571,9 +3481,6 @@ WDI_SetP2PGONOAReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_P2P_GO_NOTICE_OF_ABSENCE_REQ;
   wdiEventData.pEventData      = pwdiP2PGONOAReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiP2PGONOAReqParams);
@@ -5582,33 +3489,9 @@ WDI_SetP2PGONOAReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_SetP2PGONOAReq*/
+}
 
 #ifdef FEATURE_WLAN_TDLS
-/**
- @brief WDI_SetTDLSLinkEstablishReq will be called when the
-        upper MAC wants to send TDLS Link Establish Request Parameters
-         Upon the call of this API the WLAN DAL will
-        pack and send the TDLS Link Establish Request  message to the
-        lower RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param pwdiTDLSLinkEstablishReqParams: TDLS Peer Parameters
-        for Link Establishment (Used for PUAPSD , TDLS Off Channel ...)
-
-        wdiTDLSLinkEstablishReqRspCb: callback for passing back the
-        response of the TDLS Link Establish request received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetTDLSLinkEstablishReq
 (
@@ -5618,11 +3501,8 @@ WDI_SetTDLSLinkEstablishReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5631,9 +3511,6 @@ WDI_SetTDLSLinkEstablishReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_TDLS_LINK_ESTABLISH_REQ;
   wdiEventData.pEventData      = pwdiTDLSLinkEstablishReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiTDLSLinkEstablishReqParams);
@@ -5642,25 +3519,9 @@ WDI_SetTDLSLinkEstablishReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_SetTDLSLinkEstablishReq*/
+}
 #endif
 
-/**
- @brief WDI_AddSTASelfReq will be called when the
-        UMAC wanted to add STA self while opening any new session
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param pwdiAddSTASelfParams: the add sta self parameters as
-                      specified by the Device Interface
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_AddSTASelfReq
 (
@@ -5670,11 +3531,8 @@ WDI_AddSTASelfReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5683,9 +3541,6 @@ WDI_AddSTASelfReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_ADD_STA_SELF_REQ;
   wdiEventData.pEventData      = pwdiAddSTASelfReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiAddSTASelfReqParams);
@@ -5694,36 +3549,10 @@ WDI_AddSTASelfReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_AddSTASelfReq*/
+}
 
 
 #ifdef WLAN_FEATURE_VOWIFI_11R
-/**
- @brief WDI_AggrAddTSReq will be called when the upper MAC to inform
-        the device of a successful add TSpec negotiation. HW
-        needs to receive the TSpec Info from the UMAC in order
-        to configure properly the QoS data traffic. Upon the
-        call of this API the WLAN DAL will pack and send a HAL
-        Add TS request message to the lower RIVA sub-system if
-        DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- WDI_PostAssocReq must have been called.
-
- @param wdiAddTsReqParams: the add TS parameters as specified by
-                      the Device Interface
-
-        wdiAddTsRspCb: callback for passing back the response of
-        the add TS operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_AggrAddTSReq
 (
@@ -5733,11 +3562,8 @@ WDI_AggrAddTSReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5746,9 +3572,6 @@ WDI_AggrAddTSReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_AGGR_ADD_TS_REQ;
   wdiEventData.pEventData      = pwdiAggrAddTsReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiAggrAddTsReqParams);
@@ -5757,21 +3580,10 @@ WDI_AggrAddTSReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_AggrAddTSReq*/
+}
 
-#endif /* WLAN_FEATURE_VOWIFI_11R */
+#endif 
 
-/**
- @brief WDI_FTMCommandReq
-        Post FTM Command Event
-
- @param  ftmCommandReq:   FTM Command Body
- @param  ftmCommandRspCb: FTM Response from HAL CB
- @param  pUserData:       Client Data
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_FTMCommandReq
 (
@@ -5781,11 +3593,8 @@ WDI_FTMCommandReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5794,9 +3603,6 @@ WDI_FTMCommandReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest     = WDI_FTM_CMD_REQ;
   wdiEventData.pEventData     = (void *)ftmCommandReq;
   wdiEventData.uEventDataSize = ftmCommandReq->bodyLength + sizeof(wpt_uint32);
@@ -5805,25 +3611,6 @@ WDI_FTMCommandReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
-/**
- @brief WDI_HostResumeReq will be called
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param pwdiResumeReqParams:  as specified by
-                      the Device Interface
-
-        wdiResumeReqRspCb: callback for passing back the response of
-        the  Resume Req received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_HostResumeReq
 (
@@ -5833,11 +3620,8 @@ WDI_HostResumeReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5846,9 +3630,6 @@ WDI_HostResumeReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_HOST_RESUME_REQ;
   wdiEventData.pEventData      = pwdiResumeReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiResumeReqParams);
@@ -5857,27 +3638,8 @@ WDI_HostResumeReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_HostResumeReq*/
+}
 
-/**
- @brief WDI_DelSTASelfReq will be called
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
-
- @param pwdiDelStaSelfReqParams:  as specified by
-                      the Device Interface
-
-        wdiDelStaSelfRspCb: callback for passing back the response of
-        the add TS operation received from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status
 WDI_DelSTASelfReq
 (
@@ -5887,11 +3649,8 @@ WDI_DelSTASelfReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5900,9 +3659,6 @@ WDI_DelSTASelfReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_DEL_STA_SELF_REQ;
   wdiEventData.pEventData      = pwdiDelStaSelfReqParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiDelStaSelfReqParams);
@@ -5911,30 +3667,8 @@ WDI_DelSTASelfReq
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_AggrAddTSReq*/
+}
 
-/**
- @brief WDI_SetTxPerTrackingReq will be called when the upper MAC
-        wants to set the Tx Per Tracking configurations.
-        Upon the call of this API the WLAN DAL will pack
-        and send a HAL Set Tx Per Tracking request message to the
-        lower RIVA sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state.
-
- @param pwdiSetTxPerTrackingReqParams: the Set Tx PER Tracking configurations as
-                      specified by the Device Interface
-
-        pwdiSetTxPerTrackingRspCb: callback for passing back the
-        response of the set Tx PER Tracking configurations operation received
-        from the device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetTxPerTrackingReq
 (
@@ -5944,11 +3678,8 @@ WDI_SetTxPerTrackingReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -5957,9 +3688,6 @@ WDI_SetTxPerTrackingReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_SET_TX_PER_TRACKING_REQ;
    wdiEventData.pEventData      = pwdiSetTxPerTrackingReqParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiSetTxPerTrackingReqParams);
@@ -5968,22 +3696,8 @@ WDI_SetTxPerTrackingReq
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_SetTxPerTrackingReq*/
+}
 
-/**
- @brief WDI_SetTmLevelReq
-        If HW Thermal condition changed, driver should react based on new 
-        HW thermal condition.
-
- @param pwdiSetTmLevelReq: New thermal condition information
-  
-        pwdiSetTmLevelRspCb: callback
-  
-        usrData: user data will be passed back with the
-        callback 
-  
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetTmLevelReq
 (
@@ -5993,11 +3707,8 @@ WDI_SetTmLevelReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check 
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -6006,9 +3717,6 @@ WDI_SetTmLevelReq
      return WDI_STATUS_E_NOT_ALLOWED; 
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_SET_TM_LEVEL_REQ;
    wdiEventData.pEventData      = pwdiSetTmLevelReq; 
    wdiEventData.uEventDataSize  = sizeof(*pwdiSetTmLevelReq);
@@ -6018,18 +3726,6 @@ WDI_SetTmLevelReq
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-/**
- @brief WDI_HostSuspendInd 
-  
-        Suspend Indication from the upper layer will be sent
-        down to HAL
-
- @param WDI_SuspendResumeIndParamsType
-
- @see
-
- @return Status of the request
-*/
 WDI_Status
 WDI_HostSuspendInd
 (
@@ -6038,11 +3734,8 @@ WDI_HostSuspendInd
 {
 
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -6051,9 +3744,6 @@ WDI_HostSuspendInd
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_HOST_SUSPEND_IND;
   wdiEventData.pEventData      = pwdiSuspendIndParams;
   wdiEventData.uEventDataSize  = sizeof(*pwdiSuspendIndParams);
@@ -6062,19 +3752,8 @@ WDI_HostSuspendInd
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_HostSuspendInd*/
+}
 
-/**
- @brief WDI_TrafficStatsInd
-       Traffic Stats from the upper layer will be sent
-        down to HAL
-
- @param WDI_TrafficStatsIndType
-
- @see
-
- @return Status of the request
-*/
 WDI_Status
 WDI_TrafficStatsInd
 (
@@ -6083,11 +3762,8 @@ WDI_TrafficStatsInd
 {
 
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -6096,9 +3772,6 @@ WDI_TrafficStatsInd
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_TRAFFIC_STATS_IND;
   wdiEventData.pEventData      = pWdiTrafficStatsIndParams;
   wdiEventData.uEventDataSize  = sizeof(*pWdiTrafficStatsIndParams);
@@ -6107,19 +3780,9 @@ WDI_TrafficStatsInd
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_TrafficStatsInd*/
+}
 
 #ifdef WLAN_FEATURE_11W
-/**
- @brief WDI_ExcludeUnencryptedInd
-       Register with HAL to receive/drop unencrypted frames
-
- @param WDI_ExcludeUnencryptIndType
-
- @see
-
- @return Status of the request
-*/
 WDI_Status
 WDI_ExcludeUnencryptedInd
 (
@@ -6128,11 +3791,8 @@ WDI_ExcludeUnencryptedInd
 {
 
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -6141,9 +3801,6 @@ WDI_ExcludeUnencryptedInd
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_EXCLUDE_UNENCRYPTED_IND;
   wdiEventData.pEventData      = pWdiExcUnencParams;
   wdiEventData.uEventDataSize  = sizeof(*pWdiExcUnencParams);
@@ -6152,18 +3809,9 @@ WDI_ExcludeUnencryptedInd
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
-}/*WDI_TrafficStatsInd*/
+}
 #endif
 
-/**
- @brief WDI_AddPeriodicTxPtrnInd: Add Periodic TX Pattern Indication to FW
-
- @param addPeriodicTxPtrnParams: Add Pattern parameters
-
- @see
-
- @return Status of the request
-*/
 WDI_Status
 WDI_AddPeriodicTxPtrnInd
 (
@@ -6172,9 +3820,6 @@ WDI_AddPeriodicTxPtrnInd
 {
   WDI_EventInfoType      wdiEventData;
 
-  /*-------------------------------------------------------------------------
-    Sanity Check
-   ------------------------------------------------------------------------*/
   if (eWLAN_PAL_FALSE == gWDIInitialized)
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -6183,9 +3828,6 @@ WDI_AddPeriodicTxPtrnInd
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*-------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_ADD_PERIODIC_TX_PATTERN_IND;
   wdiEventData.pEventData      = addPeriodicTxPtrnParams;
   wdiEventData.uEventDataSize  = sizeof(WDI_AddPeriodicTxPtrnParamsType);
@@ -6195,15 +3837,6 @@ WDI_AddPeriodicTxPtrnInd
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-/**
- @brief WDI_DelPeriodicTxPtrnInd: Delete Periodic TX Pattern Indication to FW
-
- @param delPeriodicTxPtrnParams: Delete Pattern parameters
-
- @see
-
- @return Status of the request
-*/
 WDI_Status
 WDI_DelPeriodicTxPtrnInd
 (
@@ -6212,9 +3845,6 @@ WDI_DelPeriodicTxPtrnInd
 {
   WDI_EventInfoType      wdiEventData;
 
-  /*-------------------------------------------------------------------------
-    Sanity Check
-   ------------------------------------------------------------------------*/
   if (eWLAN_PAL_FALSE == gWDIInitialized)
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -6223,9 +3853,6 @@ WDI_DelPeriodicTxPtrnInd
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*-------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_DEL_PERIODIC_TX_PATTERN_IND;
   wdiEventData.pEventData      = delPeriodicTxPtrnParams;
   wdiEventData.uEventDataSize  = sizeof(WDI_DelPeriodicTxPtrnParamsType);
@@ -6235,17 +3862,6 @@ WDI_DelPeriodicTxPtrnInd
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-/**
- @brief WDI_HALDumpCmdReq
-        Post HAL DUMP Command Event
-
- @param  halDumpCmdReqParams:   Hal Dump Command Body
- @param  halDumpCmdRspCb: HAL DUMP Response from HAL CB
- @param  pUserData:       Client Data
-
- @see
- @return Result of the function call
-*/
 WDI_Status WDI_HALDumpCmdReq
 (
   WDI_HALDumpCmdReqParamsType *halDumpCmdReqParams,
@@ -6254,11 +3870,8 @@ WDI_Status WDI_HALDumpCmdReq
 )
 {
   WDI_EventInfoType      wdiEventData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -6267,9 +3880,6 @@ WDI_Status WDI_HALDumpCmdReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest     =   WDI_HAL_DUMP_CMD_REQ;
   wdiEventData.pEventData     =   (void *)halDumpCmdReqParams;
   wdiEventData.uEventDataSize =   sizeof(WDI_HALDumpCmdReqParamsType);
@@ -6279,41 +3889,20 @@ WDI_Status WDI_HALDumpCmdReq
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-/*============================================================================
 
-            DAL Control Path Main FSM Function Implementation
-
- ============================================================================*/
-
-/**
- @brief Main FSM Start function for all states except BUSY
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         wdiEV:           event posted to the main DAL FSM
-         pEventData:      pointer to the event information
-         structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_PostMainEvent
 (
   WDI_ControlBlockType*  pWDICtx,
   WDI_MainEventType      wdiEV,
   WDI_EventInfoType*     pEventData
-
 )
 {
   WDI_Status         wdiStatus;
   WDI_MainFuncType   pfnWDIMainEvHdlr;
   WDI_MainStateType  wdiOldState;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
   if (( pWDICtx->uGlobalState >= WDI_MAX_ST ) ||
       ( wdiEV >= WDI_MAX_EVENT ))
   {
@@ -6323,31 +3912,18 @@ WDI_PostMainEvent
      return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*Access to the global state must be locked */
+  
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*Fetch event handler for state*/
+  
   pfnWDIMainEvHdlr = wdiMainFSM[pWDICtx->uGlobalState].pfnMainTbl[wdiEV];
 
   wdiOldState = pWDICtx->uGlobalState;
 
-  /*
-  --Incase of WDI event is WDI_RESPONSE_EVENT and this is called when a
-  response comes from CCPU for the request sent by host:
-  the WDI global state will be in WDI_BUSY_ST already, so do not set it to BUSY again.
-  This state will be set to WDI_STARTED_ST in WDI_MainRsp, if it is a expected response.
-  --Incase of WDI event is WDI_RESPONSE_EVENT and it is an indication from the
-  CCPU:
-  don't change the state */
   if ( WDI_RESPONSE_EVENT != wdiEV)
   {
-    /*Transition to BUSY State - the request is now being processed by the FSM,
-     if the request fails we shall transition back to the old state, if not
-     the request will manage its own state transition*/
     WDI_STATE_TRANSITION( pWDICtx, WDI_BUSY_ST);
   }
-  /* If the state function associated with the EV is NULL it means that this
-     event is not allowed in this state*/
   if ( NULL != pfnWDIMainEvHdlr )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -6363,55 +3939,25 @@ WDI_PostMainEvent
     wdiStatus = WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /* If a request handles itself well it will end up in a success or in a
-     pending
-     Success - means that the request was processed and the proper state
-     transition already occurred or will occur when the resp is received
-     - NO other state transition or dequeueing is required
-
-     Pending - means the request could not be processed at this moment in time
-     because the FSM was already busy so no state transition or dequeueing
-     is necessary anymore
-
-     Success for synchronous case means that the transition may occur and
-     processing of pending requests may continue - so it should go through
-     and restores the state and continue processing queued requests*/
   if (( WDI_STATUS_SUCCESS != wdiStatus )&&
       ( WDI_STATUS_PENDING != wdiStatus ))
   {
     if ( WDI_RESPONSE_EVENT != wdiEV)
     {
-      /*The request has failed or could not be processed - transition back to
-        the old state - check to see if anything was queued and try to execute
-        The dequeue logic should post a message to a thread and return - no
-        actual processing can occur */
       WDI_STATE_TRANSITION( pWDICtx, wdiOldState);
     }
     WDI_DequeuePendingReq(pWDICtx);
 
   }
 
-  /* we have completed processing the event */
+  
   wpalMutexRelease(&pWDICtx->wptMutex);
 
   return wdiStatus;
 
-}/*WDI_PostMainEvent*/
+}
 
 
-/*--------------------------------------------------------------------------
-  INIT State Functions
---------------------------------------------------------------------------*/
-/**
- @brief Main FSM Start function for all states except BUSY
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_MainStart
 (
@@ -6420,9 +3966,6 @@ WDI_MainStart
 )
 {
 
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -6433,9 +3976,6 @@ WDI_MainStart
 
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*--------------------------------------------------------------------
-     Check if the Control Transport has been opened
-  ----------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == pWDICtx->bCTOpened )
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -6450,21 +3990,11 @@ WDI_MainStart
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*Return Success*/
+  
   return WDI_ProcessRequest( pWDICtx, pEventData );
 
-}/*WDI_MainStart*/
+}
 
-/**
- @brief Main FSM Response function for state INIT
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_MainRspInit
 (
@@ -6472,25 +4002,12 @@ WDI_MainRspInit
   WDI_EventInfoType*     pEventData
 )
 {
-  /*------------------------------------------------------------------------
-    Not expecting a response from the device before it is started
-  ------------------------------------------------------------------------*/
   WDI_ASSERT(0);
 
-  /*Return Success*/
+  
   return WDI_STATUS_E_NOT_ALLOWED;
-}/* WDI_MainRspInit */
+}
 
-/**
- @brief Main FSM Close function for all states except BUSY
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_MainClose
 (
@@ -6499,9 +4016,6 @@ WDI_MainClose
 )
 {
 
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -6510,23 +4024,10 @@ WDI_MainClose
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*Return Success*/
+  
   return WDI_ProcessRequest( pWDICtx, pEventData );
 
-}/*WDI_MainClose*/
-/*--------------------------------------------------------------------------
-  STARTED State Functions
---------------------------------------------------------------------------*/
-/**
- @brief Main FSM Start function for state STARTED
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
+}
 WDI_Status
 WDI_MainStartStarted
 (
@@ -6535,11 +4036,8 @@ WDI_MainStartStarted
 )
 {
   WDI_StartRspCb           wdiStartRspCb = NULL;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -6548,44 +4046,29 @@ WDI_MainStartStarted
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*--------------------------------------------------------------------
-     Nothing to do transport was already started
-  ----------------------------------------------------------------------*/
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
     "Received start while transport was already started - nothing to do");
 
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*Transition back to started because the post function transitioned us to
-    busy*/
   WDI_STATE_TRANSITION( pWDICtx, WDI_STARTED_ST);
 
-  /*Check to see if any request is pending*/
+  
   WDI_DequeuePendingReq(pWDICtx);
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*Tell UMAC Success*/
+  
   wdiStartRspCb = (WDI_StartRspCb)pEventData->pCBfnc;
 
-   /*Notify UMAC*/
+   
   wdiStartRspCb( &pWDICtx->wdiCachedStartRspParams, pWDICtx->pRspCBUserData);
 
-  /*Return Success*/
+  
   return WDI_STATUS_SUCCESS;
 
-}/*WDI_MainStartStarted*/
+}
 
-/**
- @brief Main FSM Stop function for state STARTED
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_MainStopStarted
 (
@@ -6593,9 +4076,6 @@ WDI_MainStopStarted
   WDI_EventInfoType*     pEventData
 )
 {
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -6604,26 +4084,14 @@ WDI_MainStopStarted
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*State at this point is BUSY - because we enter this state before posting
-    an event to the FSM in order to prevent potential race conditions*/
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
             "Processing stop request in FSM");
 
-  /*Return Success*/
+  
   return WDI_ProcessRequest( pWDICtx, pEventData );
 
-}/*WDI_MainStopStarted*/
-/**
- @brief Main FSM Request function for state started
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
+}
 WDI_Status
 WDI_MainReqStarted
 (
@@ -6632,9 +4100,6 @@ WDI_MainReqStarted
 )
 {
 
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -6643,24 +4108,12 @@ WDI_MainReqStarted
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*State at this point is BUSY - because we enter this state before posting
-    an event to the FSM in order to prevent potential race conditions*/
 
-  /*Return Success*/
+  
   return WDI_ProcessRequest( pWDICtx, pEventData );
 
-}/*WDI_MainReqStarted*/
+}
 
-/**
- @brief Main FSM Response function for all states except INIT
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_MainRsp
 (
@@ -6671,9 +4124,6 @@ WDI_MainRsp
   WDI_Status  wdiStatus;
   wpt_boolean expectedResponse;
 
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -6684,40 +4134,30 @@ WDI_MainRsp
 
   if ( pEventData->wdiResponse ==  pWDICtx->wdiExpectedResponse )
   {
-    /* we received an expected response */
+    
     expectedResponse = eWLAN_PAL_TRUE;
 
-    /*We expect that we will transition to started after this processing*/
+    
     pWDICtx->ucExpectedStateTransition = WDI_STARTED_ST;
 
-    /* we are no longer expecting a response */
+    
      pWDICtx->wdiExpectedResponse = WDI_MAX_RESP;
   }
   else
   {
-    /* we received an indication or unexpected response */
+    
     expectedResponse = eWLAN_PAL_FALSE;
-    /* for indications no need to update state from what it is right
-       now, unless it explicitly does it in the indication handler (say
-       for device failure ind) */
     pWDICtx->ucExpectedStateTransition = pWDICtx->uGlobalState;
   }
 
-  /*Process the response and indication */
+  
   wdiStatus = WDI_ProcessResponse( pWDICtx, pEventData );
 
-  /*Lock the CB as we are about to do a state transition*/
+  
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*Transition to the expected state after the response processing
-  - this should always be started state with the following exceptions:
-  1. processing of a failed start response
-  2. device failure detected while processing response
-  3. stop response received*/
   WDI_STATE_TRANSITION( pWDICtx, pWDICtx->ucExpectedStateTransition);
 
-  /*Dequeue request that may have been queued while we were waiting for the
-    response */
   if ( expectedResponse )
   {
      WDI_DequeuePendingReq(pWDICtx);
@@ -6725,24 +4165,11 @@ WDI_MainRsp
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*Return Success - always */
+  
   return WDI_STATUS_SUCCESS;
 
-}/*WDI_MainRsp*/
+}
 
-/*--------------------------------------------------------------------------
-  STOPPED State Functions
---------------------------------------------------------------------------*/
-/**
- @brief Main FSM Stop function for state STOPPED
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_MainStopStopped
 (
@@ -6750,9 +4177,6 @@ WDI_MainStopStopped
   WDI_EventInfoType*     pEventData
 )
 {
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -6761,32 +4185,14 @@ WDI_MainStopStopped
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*We should normally not get a STOP request if we are already stopped
-    since we should normally be stopped by the UMAC.  However in some
-    error situations we put ourselves in the stopped state without the
-    UMAC knowing, so when we get a STOP request in this state we still
-    process it since we need to clean up the underlying state */
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
             "Processing stop request while stopped in FSM");
 
-  /*Return Success*/
+  
   return WDI_ProcessRequest( pWDICtx, pEventData );
 
-}/*WDI_MainStopStopped*/
+}
 
-/*--------------------------------------------------------------------------
-  BUSY State Functions
---------------------------------------------------------------------------*/
-/**
- @brief Main FSM Start function for state BUSY
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_MainStartBusy
 (
@@ -6794,9 +4200,6 @@ WDI_MainStartBusy
   WDI_EventInfoType*     pEventData
 )
 {
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -6805,29 +4208,16 @@ WDI_MainStartBusy
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*--------------------------------------------------------------------
-     Check if the Control Transport has been opened
-  ----------------------------------------------------------------------*/
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
            "WDI Busy state - queue start request");
 
-  /*Queue the start request*/
+  
   WDI_QueuePendingReq( pWDICtx, pEventData);
 
-  /*Return Success*/
+  
   return WDI_STATUS_PENDING;
-}/*WDI_MainStartBusy*/
+}
 
-/**
- @brief Main FSM Stop function for state BUSY
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_MainStopBusy
 (
@@ -6835,9 +4225,6 @@ WDI_MainStopBusy
   WDI_EventInfoType*     pEventData
 )
 {
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -6846,27 +4233,14 @@ WDI_MainStopBusy
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*--------------------------------------------------------------------
-     Check if the Control Transport has been opened
-  ----------------------------------------------------------------------*/
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
            "WDI Busy state - queue stop request");
 
   WDI_QueuePendingReq( pWDICtx, pEventData);
   return WDI_STATUS_PENDING;
 
-}/*WDI_MainStopBusy*/
+}
 
-/**
- @brief Main FSM Request function for state BUSY
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_MainReqBusy
 (
@@ -6874,9 +4248,6 @@ WDI_MainReqBusy
   WDI_EventInfoType*     pEventData
 )
 {
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -6885,9 +4256,6 @@ WDI_MainReqBusy
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*--------------------------------------------------------------------
-     Check if the Control Transport has been opened
-  ----------------------------------------------------------------------*/
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
            "WDI Busy state - queue request %d because waiting for response %d",
              pEventData->wdiRequest, pWDICtx->wdiExpectedResponse);
@@ -6895,17 +4263,7 @@ WDI_MainReqBusy
   WDI_QueuePendingReq( pWDICtx, pEventData);
   return WDI_STATUS_PENDING;
 
-}/*WDI_MainReqBusy*/
-/**
- @brief Main FSM Close function for state BUSY
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
+}
 WDI_Status
 WDI_MainCloseBusy
 (
@@ -6913,9 +4271,6 @@ WDI_MainCloseBusy
   WDI_EventInfoType*     pEventData
 )
 {
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -6924,27 +4279,14 @@ WDI_MainCloseBusy
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*--------------------------------------------------------------------
-     Check if the Control Transport has been opened
-  ----------------------------------------------------------------------*/
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
            "WDI Busy state - queue close request");
 
   WDI_QueuePendingReq( pWDICtx, pEventData);
   return WDI_STATUS_PENDING;
 
-}/*WDI_MainCloseBusy*/
+}
 
-/**
- @brief Main FSM Shutdown function for INIT & STARTED states
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_MainShutdown
 (
@@ -6952,9 +4294,6 @@ WDI_MainShutdown
   WDI_EventInfoType*     pEventData
 )
 {
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -6963,27 +4302,15 @@ WDI_MainShutdown
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*State at this point is BUSY - because we enter this state before posting
-    an event to the FSM in order to prevent potential race conditions*/
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
             "Processing shutdown request in FSM");
 
-  /*Return Success*/
+  
   return WDI_ProcessRequest( pWDICtx, pEventData );
 
-}/*WDI_MainShutdown*/
+}
 
-/**
- @brief Main FSM Shutdown function for BUSY state
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_MainShutdownBusy
 (
@@ -6991,9 +4318,6 @@ WDI_MainShutdownBusy
   WDI_EventInfoType*     pEventData
 )
 {
-  /*--------------------------------------------------------------------
-     Sanity Check
-  ----------------------------------------------------------------------*/
   if (( NULL ==  pWDICtx ) || ( NULL == pEventData ))
   {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -7002,9 +4326,6 @@ WDI_MainShutdownBusy
      return WDI_STATUS_E_FAILURE;
   }
 
-  /* If you are waiting for a HAL response at this stage, you are not
-   * going to get it. Riva is already shutdown/crashed.
-   */
   wpalTimerStop(&gWDICb.wptResponseTimer);
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
@@ -7012,28 +4333,10 @@ WDI_MainShutdownBusy
 
   return WDI_ProcessRequest( pWDICtx, pEventData );
 
-}/*WDI_MainShutdownBusy*/
+}
 
 
-/*=======================================================================
 
-           WLAN DAL Control Path Main Processing Functions
-
-*=======================================================================*/
-
-/*========================================================================
-          Main DAL Control Path Request Processing API
-========================================================================*/
-/**
- @brief Process Start Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessStartReq
 (
@@ -7049,11 +4352,8 @@ WDI_ProcessStartReq
 
   tHalMacStartReqMsg      halStartReq;
   wpt_uint16              usLen              = 0;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == (pwdiStartParams = (WDI_StartReqParamsType*)pEventData->pEventData)) ||
       ( NULL == (wdiStartRspCb   = (WDI_StartRspCb)pEventData->pCBfnc)))
@@ -7064,9 +4364,6 @@ WDI_ProcessStartReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   usLen = sizeof(halStartReq.startReqParams) +
           pwdiStartParams->usConfigBufferLen;
 
@@ -7082,9 +4379,6 @@ WDI_ProcessStartReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-----------------------------------------------------------------------
-    Fill in the message
-  -----------------------------------------------------------------------*/
   halStartReq.startReqParams.driverType =
      WDI_2_HAL_DRV_TYPE(pwdiStartParams->wdiDriverType);
 
@@ -7102,31 +4396,16 @@ WDI_ProcessStartReq
   pWDICtx->wdiReqStatusCB     = pwdiStartParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiStartParams->pUserData;
 
-  /*Save Low Level Ind CB and associated user data - it will be used further
-    on when an indication is coming from the lower MAC*/
   pWDICtx->wdiLowLevelIndCB   = pwdiStartParams->wdiLowLevelIndCB;
   pWDICtx->pIndUserData       = pwdiStartParams->pIndUserData;
 
   pWDICtx->bFrameTransEnabled = pwdiStartParams->bFrameTransEnabled;
-  /*-------------------------------------------------------------------------
-    Send Start Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiStartRspCb, pEventData->pUserData, WDI_START_RESP);
 
 
-}/*WDI_ProcessStartReq*/
+}
 
-/**
- @brief Process Stop Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessStopReq
 (
@@ -7141,11 +4420,8 @@ WDI_ProcessStopReq
   wpt_uint16             usSendSize          = 0;
   wpt_status             status;
   tHalMacStopReqMsg      halStopReq;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
- /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == (pwdiStopParams = (WDI_StopReqParamsType*)pEventData->pEventData)) ||
       ( NULL == (wdiStopRspCb   = (WDI_StopRspCb)pEventData->pCBfnc)))
@@ -7156,9 +4432,6 @@ WDI_ProcessStopReq
      goto failRequest;
   }
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_STOP_REQ,
                         sizeof(halStopReq.stopReqParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -7171,9 +4444,6 @@ WDI_ProcessStopReq
      goto failRequest;
   }
 
-  /*-----------------------------------------------------------------------
-    Fill in the message
-  -----------------------------------------------------------------------*/
   halStopReq.stopReqParams.reason = WDI_2_HAL_STOP_REASON(
                                           pwdiStopParams->wdiStopReason);
 
@@ -7184,14 +4454,12 @@ WDI_ProcessStopReq
   pWDICtx->wdiReqStatusCB     = pwdiStopParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiStopParams->pUserData;
 
-  /*! TO DO: stop the data services */
+  
   if ( eDRIVER_TYPE_MFG != pWDICtx->driverMode )
   {
-     /*Stop the STA Table !UT- check this logic again
-      It is safer to do it here than on the response - because a stop is imminent*/
      WDI_STATableStop(pWDICtx);
 
-     /* Reset the event to be not signalled */
+     
      status = wpalEventReset(&pWDICtx->setPowerStateEvent);
      if (eWLAN_PAL_STATUS_SUCCESS != status)
      {
@@ -7201,18 +4469,15 @@ WDI_ProcessStopReq
         WDI_ASSERT(0);
         goto fail;
      }
-     /* Stop Transport Driver, DXE */
+     
      status = WDTS_SetPowerState(pWDICtx, WDTS_POWER_STATE_DOWN, WDI_SetPowerStateCb);
      if( eWLAN_PAL_STATUS_SUCCESS != status ) 
      {
         WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
-                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Power Down state\n", status);
+                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Power Down state", status);
         WDI_ASSERT(0);
         goto fail;
      }
-     /*
-      * Wait for the event to be set once the ACK comes back from DXE
-      */
      status = wpalEventWait(&pWDICtx->setPowerStateEvent, 
                             WDI_SET_POWER_STATE_TIMEOUT);
      if (eWLAN_PAL_STATUS_SUCCESS != status)
@@ -7225,32 +4490,19 @@ WDI_ProcessStopReq
       }
   }
 
-  /*-------------------------------------------------------------------------
-    Send Stop Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiStopRspCb, pEventData->pUserData, WDI_STOP_RESP);
 
 fail:
-   // Release the message buffer so we don't leak
+   
    wpalMemoryFree(pSendBuffer);
 
 failRequest:
-   //WDA should have failure check to avoid the memory leak
+   
    return WDI_STATUS_E_FAILURE;
 
-}/*WDI_ProcessStopReq*/
+}
 
-/**
- @brief Process Close Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessCloseReq
 (
@@ -7259,28 +4511,28 @@ WDI_ProcessCloseReq
 )
 {
    wpt_status              wptStatus;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*Lock control block for cleanup*/
+   
    wpalMutexAcquire(&pWDICtx->wptMutex);
 
-   /*Clear all pending request*/
+   
    WDI_ClearPendingRequests(pWDICtx);
 
-   /* Close Control transport*/
+   
    WCTS_CloseTransport(pWDICtx->wctsHandle);
 
-   /* Close Data transport*/
-   /* FTM mode does not open Data Path */
+   
+   
    if ( eDRIVER_TYPE_MFG != pWDICtx->driverMode )
    {
       WDTS_Close(pWDICtx);
    }
 
-   /*Close the STA Table !UT- check this logic again*/
+   
    WDI_STATableClose(pWDICtx);
 
-   /*close the PAL */
+   
    wptStatus = wpalClose(pWDICtx->pPALContext);
    if ( eWLAN_PAL_STATUS_SUCCESS !=  wptStatus )
    {
@@ -7289,32 +4541,19 @@ WDI_ProcessCloseReq
      WDI_ASSERT(0);
    }
 
-   /*Transition back to init state*/
+   
    WDI_STATE_TRANSITION( pWDICtx, WDI_INIT_ST);
 
    wpalMutexRelease(&pWDICtx->wptMutex);
 
-   /*Make sure the expected state is properly defaulted to Init*/
+   
    pWDICtx->ucExpectedStateTransition = WDI_INIT_ST;
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessCloseReq*/
+}
 
 
-/*===========================================================================
-                  SCANING REQUEST PROCESSING API
-===========================================================================*/
 
-/**
- @brief Process Init Scan Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessInitScanReq
 (
@@ -7331,15 +4570,10 @@ WDI_ProcessInitScanReq
 
   tHalInitScanReqMsg          halInitScanReqMsg;
 
-  /*This is temporary fix.
-   * It shold be removed once host and riva changes are in sync*/
   tHalInitScanConReqMsg       halInitScanConReqMsg;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-    -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == (pwdiInitScanParams = (WDI_InitScanReqParamsType*)pEventData->pEventData)) ||
       ( NULL == (wdiInitScanRspCb   = (WDI_InitScanRspCb)pEventData->pCBfnc)))
@@ -7352,11 +4586,6 @@ WDI_ProcessInitScanReq
 
 #if 0
   wpalMutexAcquire(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Check to see if SCAN is already in progress - if so reject the req
-    We only allow one scan at a time
-    ! TO DO: - revisit this constraint
-    -----------------------------------------------------------------------*/
   if ( pWDICtx->bScanInProgress )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -7374,11 +4603,6 @@ WDI_ProcessInitScanReq
 #endif
   if ((pwdiInitScanParams->wdiReqInfo.bUseNOA) && (!WDI_getFwWlanFeatCaps(P2P_GO_NOA_DECOUPLE_INIT_SCAN)))
   {
-    /*This is temporary fix.
-     * It shold be removed once host and riva changes are in sync*/
-    /*-----------------------------------------------------------------------
-      Get message buffer
-      -----------------------------------------------------------------------*/
     if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_INIT_SCAN_CON_REQ,
             sizeof(halInitScanConReqMsg.initScanParams),
             &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -7392,9 +4616,6 @@ WDI_ProcessInitScanReq
     }
 
 
-    /*-----------------------------------------------------------------------
-      Fill in the message
-      -----------------------------------------------------------------------*/
     halInitScanConReqMsg.initScanParams.scanMode =
       WDI_2_HAL_SCAN_MODE(pwdiInitScanParams->wdiReqInfo.wdiScanMode);
 
@@ -7429,9 +4650,6 @@ WDI_ProcessInitScanReq
   }
   else
   {
-    /*-----------------------------------------------------------------------
-      Get message buffer
-      -----------------------------------------------------------------------*/
     if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_INIT_SCAN_REQ,
             sizeof(halInitScanReqMsg.initScanParams),
             &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -7445,9 +4663,6 @@ WDI_ProcessInitScanReq
     }
 
 
-    /*-----------------------------------------------------------------------
-      Fill in the message
-      -----------------------------------------------------------------------*/
     halInitScanReqMsg.initScanParams.scanMode =
       WDI_2_HAL_SCAN_MODE(pwdiInitScanParams->wdiReqInfo.wdiScanMode);
 
@@ -7481,24 +4696,11 @@ WDI_ProcessInitScanReq
   pWDICtx->wdiReqStatusCB     = pwdiInitScanParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiInitScanParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Init Scan Request to HAL
-    -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
       wdiInitScanRspCb, pEventData->pUserData, WDI_INIT_SCAN_RESP);
 
-}/*WDI_ProcessInitScanReq*/
+}
 
-/**
- @brief Process Start Scan Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessStartScanReq
 (
@@ -7513,11 +4715,8 @@ WDI_ProcessStartScanReq
   wpt_uint16                   usSendSize             = 0;
 
   tHalStartScanReqMsg          halStartScanReqMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == (pwdiStartScanParams = (WDI_StartScanReqParamsType*)pEventData->pEventData)) ||
       ( NULL == (wdiStartScanRspCb   = (WDI_StartScanRspCb)pEventData->pCBfnc)))
@@ -7530,11 +4729,6 @@ WDI_ProcessStartScanReq
 
 #if 0
   wpalMutexAcquire(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Check to see if SCAN is already in progress - start scan is only
-    allowed when a scan is ongoing and the state of the scan procedure
-    is either init or end
-  -----------------------------------------------------------------------*/
   if (( !pWDICtx->bScanInProgress ) ||
       (( WDI_SCAN_INITIALIZED_ST != pWDICtx->uScanState ) &&
        ( WDI_SCAN_ENDED_ST != pWDICtx->uScanState )))
@@ -7552,9 +4746,6 @@ WDI_ProcessStartScanReq
   wpalMutexRelease(&pWDICtx->wptMutex);
 #endif
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_START_SCAN_REQ,
                         sizeof(halStartScanReqMsg.startScanParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -7576,24 +4767,11 @@ WDI_ProcessStartScanReq
   pWDICtx->wdiReqStatusCB     = pwdiStartScanParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiStartScanParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Start Scan Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiStartScanRspCb, pEventData->pUserData, WDI_START_SCAN_RESP);
-}/*WDI_ProcessStartScanReq*/
+}
 
 
-/**
- @brief Process End Scan Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessEndScanReq
 (
@@ -7608,11 +4786,8 @@ WDI_ProcessEndScanReq
   wpt_uint16                 usSendSize           = 0;
 
   tHalEndScanReqMsg          halEndScanReqMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == (pwdiEndScanParams = (WDI_EndScanReqParamsType*)pEventData->pEventData)) ||
       ( NULL == (wdiEndScanRspCb   = (WDI_EndScanRspCb)pEventData->pCBfnc)))
@@ -7623,16 +4798,8 @@ WDI_ProcessEndScanReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /* commenting this check as UMAC is sending END_SCAN_REQ after FINISH_SCAN
-  * sometimes  because of this check the scan request is not being
-  * forwarded to HAL and result in hang*/
 #if 0
   wpalMutexAcquire(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Check to see if SCAN is already in progress - end scan is only
-    allowed when a scan is ongoing and the state of the scan procedure
-    is started
-  -----------------------------------------------------------------------*/
   if (( !pWDICtx->bScanInProgress ) ||
       ( WDI_SCAN_STARTED_ST != pWDICtx->uScanState ))
   {
@@ -7649,9 +4816,6 @@ WDI_ProcessEndScanReq
   wpalMutexRelease(&pWDICtx->wptMutex);
 #endif
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_END_SCAN_REQ,
                         sizeof(halEndScanReqMsg.endScanParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -7673,24 +4837,11 @@ WDI_ProcessEndScanReq
   pWDICtx->wdiReqStatusCB     = pwdiEndScanParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiEndScanParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send End Scan Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiEndScanRspCb, pEventData->pUserData, WDI_END_SCAN_RESP);
-}/*WDI_ProcessEndScanReq*/
+}
 
 
-/**
- @brief Process Finish Scan Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessFinishScanReq
 (
@@ -7706,11 +4857,8 @@ WDI_ProcessFinishScanReq
   wpt_uint8                     i                    = 0;
   wpt_status                    wptStatus;
   tHalFinishScanReqMsg          halFinishScanReqMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData) ||
       ( NULL == pEventData->pCBfnc))
@@ -7723,16 +4871,8 @@ WDI_ProcessFinishScanReq
 
   pwdiFinishScanParams = (WDI_FinishScanReqParamsType*)pEventData->pEventData;
   wdiFinishScanRspCb   = (WDI_FinishScanRspCb)pEventData->pCBfnc;
-  /* commenting this check as UMAC is sending END_SCAN_REQ after FINISH_SCAN
-  * sometimes  because of this check the scan request is not being
-  * forwarded to HAL and result in hang*/
 #if 0
   wpalMutexAcquire(&pWDICtx->wptMutex);
-   /*-----------------------------------------------------------------------
-    Check to see if SCAN is already in progress
-    Finish scan gets invoked any scan states. ie. abort scan
-    It should be allowed in any states.
-  -----------------------------------------------------------------------*/
   if ( !pWDICtx->bScanInProgress )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -7743,10 +4883,6 @@ WDI_ProcessFinishScanReq
     return WDI_STATUS_E_NOT_ALLOWED; 
   }
 
-  /*-----------------------------------------------------------------------
-    It is safe to reset the scan flags here because until the response comes
-    back all subsequent requests will be blocked at BUSY state
-  -----------------------------------------------------------------------*/
   pWDICtx->uScanState      = WDI_SCAN_FINISHED_ST;
   pWDICtx->bScanInProgress = eWLAN_PAL_FALSE;
   wpalMutexRelease(&pWDICtx->wptMutex);
@@ -7754,19 +4890,16 @@ WDI_ProcessFinishScanReq
 
   if ( pWDICtx->bInBmps )
   {
-     // notify DTS that we are entering BMPS
+     
      wptStatus = WDTS_SetPowerState(pWDICtx, WDTS_POWER_STATE_BMPS, NULL);
      if( eWLAN_PAL_STATUS_SUCCESS != wptStatus ) 
      {
         WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
-                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering BMPS\n", wptStatus);
+                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering BMPS", wptStatus);
         WDI_ASSERT(0);
      }
   }
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_FINISH_SCAN_REQ,
                         sizeof(halFinishScanReqMsg.finishScanParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -7817,26 +4950,11 @@ WDI_ProcessFinishScanReq
   pWDICtx->wdiReqStatusCB     = pwdiFinishScanParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiFinishScanParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Finish Scan Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiFinishScanRspCb, pEventData->pUserData, WDI_FINISH_SCAN_RESP);
-}/*WDI_ProcessFinishScanReq*/
+}
 
 
-/*==========================================================================
-                    ASSOCIATION REQUEST API
-==========================================================================*/
-/**
- @brief Process BSS Join for a given Session
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessBSSSessionJoinReq
 (
@@ -7853,14 +4971,10 @@ WDI_ProcessBSSSessionJoinReq
   wpt_uint8               ucCurrentBSSSesIdx  = 0;
 
   tHalJoinReqMsg          halJoinReqMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Check to see if we have any session with this BSSID already stored, we
-    should not
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSession( pWDICtx,
                                    pwdiJoinParams->wdiReqInfo.macBSSID,
                                   &pBSSSes);
@@ -7871,16 +4985,11 @@ WDI_ProcessBSSSessionJoinReq
           "Association for this BSSID: " MAC_ADDRESS_STR " is already in place",
           MAC_ADDR_ARRAY(pwdiJoinParams->wdiReqInfo.macBSSID));
 
-    /*reset the bAssociationInProgress otherwise the next 
-     *join request will be queued*/
     pWDICtx->bAssociationInProgress = eWLAN_PAL_FALSE;
     wpalMutexRelease(&pWDICtx->wptMutex);
     return WDI_STATUS_E_NOT_ALLOWED; 
   }
 
-  /*------------------------------------------------------------------------
-    Fetch an empty session block
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindEmptySession( pWDICtx, &pBSSSes);
   if ( NULL == pBSSSes )
   {
@@ -7888,27 +4997,22 @@ WDI_ProcessBSSSessionJoinReq
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
               "DAL has no free sessions - cannot run another join");
 
-    /*reset the bAssociationInProgress otherwise the next 
-     *join request will be queued*/
     pWDICtx->bAssociationInProgress = eWLAN_PAL_FALSE;
     wpalMutexRelease(&pWDICtx->wptMutex);
     return WDI_STATUS_RES_FAILURE;
   }
 
-  /*Save BSS Session Info*/
+  
   pBSSSes->bInUse = eWLAN_PAL_TRUE;
   wpalMemoryCopy( pBSSSes->macBSSID, pwdiJoinParams->wdiReqInfo.macBSSID,
                   WDI_MAC_ADDR_LEN);
 
-  /*Transition to state Joining*/
+  
   pBSSSes->wdiAssocState      = WDI_ASSOC_JOINING_ST;
   pWDICtx->ucCurrentBSSSesIdx = ucCurrentBSSSesIdx;
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_JOIN_REQ,
                         sizeof(halJoinReqMsg.joinReqParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -7952,24 +5056,11 @@ WDI_ProcessBSSSessionJoinReq
   pWDICtx->wdiReqStatusCB     = pwdiJoinParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiJoinParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Join Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiJoinRspCb, pUserData, WDI_JOIN_RESP);
 
-}/*WDI_ProcessBSSSessionJoinReq*/
+}
 
-/**
- @brief Process Join Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessJoinReq
 (
@@ -7980,11 +5071,8 @@ WDI_ProcessJoinReq
   WDI_Status              wdiStatus          = WDI_STATUS_SUCCESS;
   WDI_JoinReqParamsType*  pwdiJoinParams     = NULL;
   WDI_JoinRspCb           wdiJoinRspCb       = NULL;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == (pwdiJoinParams = (WDI_JoinReqParamsType*)pEventData->pEventData)) ||
       ( NULL == (wdiJoinRspCb   = (WDI_JoinRspCb)pEventData->pCBfnc)))
@@ -7995,10 +5083,6 @@ WDI_ProcessJoinReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
   if ( eWLAN_PAL_FALSE != pWDICtx->bAssociationInProgress )
@@ -8006,7 +5090,7 @@ WDI_ProcessJoinReq
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
               "Association is currently in progress, queueing new join req");
 
-    /*Association is in progress - queue current one*/
+    
     wdiStatus = WDI_QueueNewAssocRequest(pWDICtx, pEventData,
                              pwdiJoinParams->wdiReqInfo.macBSSID);
 
@@ -8015,27 +5099,17 @@ WDI_ProcessJoinReq
     return wdiStatus;
   }
 
-  /*Starting a new association */
+  
   pWDICtx->bAssociationInProgress = eWLAN_PAL_TRUE;
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*Process the Join Request*/
+  
   return WDI_ProcessBSSSessionJoinReq( pWDICtx, pwdiJoinParams,
                                        wdiJoinRspCb,pEventData->pUserData);
 
-}/*WDI_ProcessJoinReq*/
+}
 
 
-/**
- @brief Process Config BSS Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessConfigBSSReq
 (
@@ -8054,11 +5128,8 @@ WDI_ProcessConfigBSSReq
   WDI_Status                   wdiStatus           = WDI_STATUS_SUCCESS;
 
   tConfigBssReqMsg             halConfigBssReqMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
@@ -8071,15 +5142,8 @@ WDI_ProcessConfigBSSReq
 
   pwdiConfigBSSParams = (WDI_ConfigBSSReqParamsType*)pEventData->pEventData;
   wdiConfigBSSRspCb   = (WDI_ConfigBSSRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSession( pWDICtx,
                                  pwdiConfigBSSParams->wdiReqInfo.macBSSID,
                                  &pBSSSes);
@@ -8087,9 +5151,6 @@ WDI_ProcessConfigBSSReq
   if ( NULL == pBSSSes )
   {
 #ifdef WLAN_FEATURE_VOWIFI_11R
-      /*------------------------------------------------------------------------
-        Fetch an empty session block
-      ------------------------------------------------------------------------*/
       ucCurrentBSSSesIdx = WDI_FindEmptySession( pWDICtx, &pBSSSes);
       if ( NULL == pBSSSes )
       {
@@ -8101,25 +5162,20 @@ WDI_ProcessConfigBSSReq
         return WDI_STATUS_RES_FAILURE;
       }
 
-      /*Save BSS Session Info*/
+      
       pBSSSes->bInUse = eWLAN_PAL_TRUE;
       wpalMemoryCopy( pBSSSes->macBSSID, pwdiConfigBSSParams->wdiReqInfo.macBSSID,
                       WDI_MAC_ADDR_LEN);
 
-      /*Transition to state Joining*/
+      
       pBSSSes->wdiAssocState      = WDI_ASSOC_JOINING_ST;
       pWDICtx->ucCurrentBSSSesIdx = ucCurrentBSSSesIdx;
 #else
-    /* If the BSS type is IBSS create the session here as there is no Join
-     * Request in case of IBSS*/
     if((pwdiConfigBSSParams->wdiReqInfo.wdiBSSType == WDI_IBSS_MODE) ||
        (pwdiConfigBSSParams->wdiReqInfo.wdiBSSType == WDI_INFRA_AP_MODE) ||
        (pwdiConfigBSSParams->wdiReqInfo.wdiBSSType == WDI_BTAMP_AP_MODE) ||
        (pwdiConfigBSSParams->wdiReqInfo.wdiBSSType == WDI_BTAMP_STA_MODE))
     {
-      /*------------------------------------------------------------------------
-        Fetch an empty session block
-      ------------------------------------------------------------------------*/
       ucCurrentBSSSesIdx = WDI_FindEmptySession( pWDICtx, &pBSSSes);
       if ( NULL == pBSSSes )
       {
@@ -8131,12 +5187,12 @@ WDI_ProcessConfigBSSReq
         return WDI_STATUS_RES_FAILURE;
       }
 
-      /*Save BSS Session Info*/
+      
       pBSSSes->bInUse = eWLAN_PAL_TRUE;
       wpalMemoryCopy( pBSSSes->macBSSID, pwdiConfigBSSParams->wdiReqInfo.macBSSID,
                       WDI_MAC_ADDR_LEN);
 
-      /*Transition to state Joining*/
+      
       pBSSSes->wdiAssocState      = WDI_ASSOC_JOINING_ST;
       pWDICtx->ucCurrentBSSSesIdx = ucCurrentBSSSesIdx;
     }
@@ -8147,17 +5203,13 @@ WDI_ProcessConfigBSSReq
                 __func__, MAC_ADDR_ARRAY(pwdiConfigBSSParams->wdiReqInfo.macBSSID), 
                 pwdiConfigBSSParams->wdiReqInfo.wdiBSSType);
       
-      /* for IBSS testing */
+      
       wpalMutexRelease(&pWDICtx->wptMutex);
       return WDI_STATUS_E_NOT_ALLOWED;
     }
 #endif
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -8172,24 +5224,21 @@ WDI_ProcessConfigBSSReq
     return wdiStatus;
   }
 
-  /* Cache the request for response processing */
+  
   wpalMemoryCopy(&pWDICtx->wdiCachedConfigBssReq,
                  pwdiConfigBSSParams,
                  sizeof(pWDICtx->wdiCachedConfigBssReq));
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /* Allocation of BssReqMsg Memory Based on Firmware Capabilities */
+  
 #ifdef WLAN_FEATURE_11AC
   if (WDI_getFwWlanFeatCaps(DOT11AC))
-     uMsgSize = sizeof(halConfigBssReqMsg.uBssParams.configBssParams_V1); // Version - 1 For 11AC
+     uMsgSize = sizeof(halConfigBssReqMsg.uBssParams.configBssParams_V1); 
   else
 #endif
-     uMsgSize = sizeof(halConfigBssReqMsg.uBssParams.configBssParams); // default Version - 0 Structure
+     uMsgSize = sizeof(halConfigBssReqMsg.uBssParams.configBssParams); 
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_CONFIG_BSS_REQ,
                     uMsgSize, &pSendBuffer, &usDataOffset, &usSendSize))||
       ( usSendSize < (usDataOffset + uMsgSize )))
@@ -8201,7 +5250,7 @@ WDI_ProcessConfigBSSReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*Copy the BSS request */
+  
 #ifdef WLAN_FEATURE_11AC
   if (WDI_getFwWlanFeatCaps(DOT11AC))
     WDI_CopyWDIConfigBSSToHALConfigBSS( (tConfigBssParams*)&halConfigBssReqMsg.uBssParams.configBssParams_V1,
@@ -8211,11 +5260,9 @@ WDI_ProcessConfigBSSReq
   WDI_CopyWDIConfigBSSToHALConfigBSS( &halConfigBssReqMsg.uBssParams.configBssParams,
                                       &pwdiConfigBSSParams->wdiReqInfo);
 
-  /* Need to fill in the STA Index to invalid, since at this point we have not
-     yet received it from HAL */
   halConfigBssReqMsg.uBssParams.configBssParams.staContext.staIdx = WDI_STA_INVALID_IDX;
 
-  /* Need to fill in the BSS index */
+  
   halConfigBssReqMsg.uBssParams.configBssParams.staContext.bssIdx = pBSSSes->ucBSSIdx;
 
 #ifdef WLAN_FEATURE_11AC
@@ -8241,26 +5288,13 @@ WDI_ProcessConfigBSSReq
   pWDICtx->wdiReqStatusCB     = pwdiConfigBSSParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiConfigBSSParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Config BSS Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiConfigBSSRspCb, pEventData->pUserData,
                        WDI_CONFIG_BSS_RESP);
 
-}/*WDI_ProcessConfigBSSReq*/
+}
 
 
-/**
- @brief Process Del BSS Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelBSSReq
 (
@@ -8278,11 +5312,8 @@ WDI_ProcessDelBSSReq
   WDI_Status                wdiStatus           = WDI_STATUS_SUCCESS;
 
   tDeleteBssReqMsg          halBssReqMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == (pwdiDelBSSParams = (WDI_DelBSSReqParamsType*)pEventData->pEventData)) ||
       ( NULL == (wdiDelBSSRspCb   = (WDI_DelBSSRspCb)pEventData->pCBfnc)))
@@ -8293,15 +5324,8 @@ WDI_ProcessDelBSSReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSessionByBSSIdx( pWDICtx,
                                              pwdiDelBSSParams->ucBssIdx,
                                             &pBSSSes);
@@ -8317,10 +5341,6 @@ WDI_ProcessDelBSSReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -8334,28 +5354,14 @@ WDI_ProcessDelBSSReq
     return wdiStatus;
   }
 
-  /*-----------------------------------------------------------------------
-    If we receive a Del BSS request for an association that is already in
-    progress, it indicates that the assoc has failed => we no longer have
-    an association in progress => we must check for pending associations
-    that were queued and start as soon as the Del BSS response is received
-  -----------------------------------------------------------------------*/
   if ( ucCurrentBSSSesIdx == pWDICtx->ucCurrentBSSSesIdx )
   {
-    /*We can switch to false here because even if a subsequent Join comes in
-      it will only be processed when DAL transitions out of BUSY state which
-      happens when the Del BSS request comes */
      pWDICtx->bAssociationInProgress = eWLAN_PAL_FALSE;
 
-     /*Former association is complete - prepare next pending assoc for
-       processing */
      WDI_DequeueAssocRequest(pWDICtx);
   }
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_DEL_BSS_REQ,
                         sizeof(halBssReqMsg.deleteBssParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -8368,9 +5374,9 @@ WDI_ProcessDelBSSReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*Fill in the message request structure*/
+  
 
-  /*BSS Index is saved on config BSS response and Post Assoc Response */
+  
   halBssReqMsg.deleteBssParams.bssIdx = pBSSSes->ucBSSIdx;
 
   wpalMemoryCopy( pSendBuffer+usDataOffset,
@@ -8381,25 +5387,12 @@ WDI_ProcessDelBSSReq
   pWDICtx->pReqStatusUserData = pwdiDelBSSParams->pUserData;
 
 
-  /*-------------------------------------------------------------------------
-    Send Del BSS Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiDelBSSRspCb, pEventData->pUserData, WDI_DEL_BSS_RESP);
 
 
-}/*WDI_ProcessDelBSSReq*/
+}
 
-/**
- @brief Process Post Assoc Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessPostAssocReq
 (
@@ -8419,11 +5412,8 @@ WDI_ProcessPostAssocReq
   WDI_Status                  wdiStatus             = WDI_STATUS_SUCCESS;
 
   tPostAssocReqMsg            halPostAssocReqMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == (pwdiPostAssocParams = (WDI_PostAssocReqParamsType*)pEventData->pEventData)) ||
       ( NULL == (wdiPostAssocRspCb   = (WDI_PostAssocRspCb)pEventData->pCBfnc)))
@@ -8434,15 +5424,8 @@ WDI_ProcessPostAssocReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSession( pWDICtx,
                               pwdiPostAssocParams->wdiBSSParams.macBSSID,
                               &pBSSSes);
@@ -8458,10 +5441,6 @@ WDI_ProcessPostAssocReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -8475,10 +5454,6 @@ WDI_ProcessPostAssocReq
     return wdiStatus;
   }
 
-  /*-----------------------------------------------------------------------
-    If Post Assoc was not yet received - the current association must
-    be in progress
-    -----------------------------------------------------------------------*/
   if (( ucCurrentBSSSesIdx != pWDICtx->ucCurrentBSSSesIdx ) ||
       ( eWLAN_PAL_FALSE == pWDICtx->bAssociationInProgress ))
   {
@@ -8490,9 +5465,6 @@ WDI_ProcessPostAssocReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*-----------------------------------------------------------------------
-    Post Assoc Request is only allowed in Joining state
-  -----------------------------------------------------------------------*/
   if ( WDI_ASSOC_JOINING_ST != pBSSSes->wdiAssocState)
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -8506,9 +5478,6 @@ WDI_ProcessPostAssocReq
 
   uMsgSize = sizeof(halPostAssocReqMsg.postAssocReqParams.configStaParams) +
              sizeof(halPostAssocReqMsg.postAssocReqParams.configBssParams) ;
-  /*-----------------------------------------------------------------------
-    Fill message for tx over the bus
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_POST_ASSOC_REQ,
                         uMsgSize,&pSendBuffer, &usDataOffset, &usSendSize))||
       ( usSendSize < (usDataOffset + uMsgSize )))
@@ -8520,11 +5489,11 @@ WDI_ProcessPostAssocReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*Copy the STA parameters */
+  
   WDI_CopyWDIStaCtxToHALStaCtx(&halPostAssocReqMsg.postAssocReqParams.configStaParams,
                                &pwdiPostAssocParams->wdiSTAParams );
 
-  /* Need to fill in the self STA Index */
+  
   if ( WDI_STATUS_SUCCESS !=
        WDI_STATableFindStaidByAddr(pWDICtx,
                                    pwdiPostAssocParams->wdiSTAParams.macSTA,
@@ -8537,15 +5506,15 @@ WDI_ProcessPostAssocReq
     return WDI_STATUS_E_FAILURE;
   }
 
-  /* Need to fill in the BSS index */
+  
   halPostAssocReqMsg.postAssocReqParams.configStaParams.bssIdx =
      pBSSSes->ucBSSIdx;
 
-  /*Copy the BSS parameters */
+  
   WDI_CopyWDIConfigBSSToHALConfigBSS( &halPostAssocReqMsg.postAssocReqParams.configBssParams,
                                       &pwdiPostAssocParams->wdiBSSParams);
 
-  /* Need to fill in the STA index of the peer */
+  
   if ( WDI_STATUS_SUCCESS !=
        WDI_STATableFindStaidByAddr(pWDICtx,
                                    pwdiPostAssocParams->wdiBSSParams.wdiSTAContext.macSTA,
@@ -8558,7 +5527,7 @@ WDI_ProcessPostAssocReq
     return WDI_STATUS_E_FAILURE;
   }
 
-  /* Need to fill in the BSS index */
+  
   halPostAssocReqMsg.postAssocReqParams.configStaParams.bssIdx =
      pBSSSes->ucBSSIdx;
 
@@ -8582,25 +5551,12 @@ WDI_ProcessPostAssocReq
                   pwdiPostAssocParams,
                   sizeof(pWDICtx->wdiCachedPostAssocReq));
 
-  /*-------------------------------------------------------------------------
-    Send Post Assoc Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiPostAssocRspCb, pEventData->pUserData, WDI_POST_ASSOC_RESP);
 
 
-}/*WDI_ProcessPostAssocReq*/
+}
 
-/**
- @brief Process Del STA Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelSTAReq
 (
@@ -8619,11 +5575,8 @@ WDI_ProcessDelSTAReq
   WDI_Status                wdiStatus           = WDI_STATUS_SUCCESS;
 
   tDeleteStaReqMsg          halDelStaReqMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -8635,15 +5588,8 @@ WDI_ProcessDelSTAReq
 
   pwdiDelSTAParams = (WDI_DelSTAReqParamsType*)pEventData->pEventData;
   wdiDelSTARspCb   = (WDI_DelSTARspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made and identify WDI session
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                                                          pwdiDelSTAParams->ucSTAIdx,
                                                          &macBSSID))
@@ -8665,10 +5611,6 @@ WDI_ProcessDelSTAReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -8681,9 +5623,6 @@ WDI_ProcessDelSTAReq
   }
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_DEL_STA_REQ,
                         sizeof(halDelStaReqMsg.delStaParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -8704,28 +5643,12 @@ WDI_ProcessDelSTAReq
   pWDICtx->wdiReqStatusCB     = pwdiDelSTAParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiDelSTAParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Del STA Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiDelSTARspCb, pEventData->pUserData, WDI_DEL_STA_RESP);
 
-}/*WDI_ProcessDelSTAReq*/
+}
 
 
-/*==========================================================================
-                 SECURITY REQUEST PROCESSING API
-==========================================================================*/
-/**
- @brief Process Set BSS Key Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetBssKeyReq
 (
@@ -8744,11 +5667,8 @@ WDI_ProcessSetBssKeyReq
   tSetBssKeyReqMsg             halSetBssKeyReqMsg  = {{0}};
   wpt_uint8                    keyIndex            = 0;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -8760,15 +5680,8 @@ WDI_ProcessSetBssKeyReq
 
   pwdiSetBSSKeyParams = (WDI_SetBSSKeyReqParamsType*)pEventData->pEventData;
   wdiSetBSSKeyRspCb   = (WDI_SetBSSKeyRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSessionByBSSIdx( pWDICtx,
                            pwdiSetBSSKeyParams->wdiBSSKeyInfo.ucBssIdx,
                           &pBSSSes);
@@ -8783,10 +5696,6 @@ WDI_ProcessSetBssKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -8800,9 +5709,6 @@ WDI_ProcessSetBssKeyReq
 
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_BSS_KEY_REQ,
                         sizeof(halSetBssKeyReqMsg.setBssKeyParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -8815,9 +5721,6 @@ WDI_ProcessSetBssKeyReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-----------------------------------------------------------------------
-    Copy the Key parameters into the HAL message
-  -----------------------------------------------------------------------*/
 
   halSetBssKeyReqMsg.setBssKeyParams.bssIdx = ucCurrentBSSSesIdx;
 
@@ -8855,25 +5758,12 @@ WDI_ProcessSetBssKeyReq
   pWDICtx->wdiReqStatusCB     = pwdiSetBSSKeyParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiSetBSSKeyParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Set BSS Key Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiSetBSSKeyRspCb, pEventData->pUserData,
                        WDI_SET_BSS_KEY_RESP);
 
-}/*WDI_ProcessSetBssKeyReq*/
+}
 
-/**
- @brief Process Remove BSS Key Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessRemoveBssKeyReq
 (
@@ -8890,11 +5780,8 @@ WDI_ProcessRemoveBssKeyReq
   wpt_uint16                      usSendSize             = 0;
   WDI_Status                      wdiStatus              = WDI_STATUS_SUCCESS;
   tRemoveBssKeyReqMsg             halRemoveBssKeyReqMsg  = {{0}};
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -8906,15 +5793,8 @@ WDI_ProcessRemoveBssKeyReq
 
   pwdiRemoveBSSKeyParams = (WDI_RemoveBSSKeyReqParamsType*)pEventData->pEventData;
   wdiRemoveBSSKeyRspCb   = (WDI_RemoveBSSKeyRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSessionByBSSIdx( pWDICtx,
                            pwdiRemoveBSSKeyParams->wdiKeyInfo.ucBssIdx,
                           &pBSSSes);
@@ -8929,10 +5809,6 @@ WDI_ProcessRemoveBssKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -8947,9 +5823,6 @@ WDI_ProcessRemoveBssKeyReq
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_RMV_BSS_KEY_REQ,
                         sizeof(halRemoveBssKeyReqMsg.removeBssKeyParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -8961,9 +5834,6 @@ WDI_ProcessRemoveBssKeyReq
      WDI_ASSERT(0);
      return WDI_STATUS_E_FAILURE;
   }
-  /*-----------------------------------------------------------------------
-    Copy the Key parameters into the HAL message
-  -----------------------------------------------------------------------*/
   halRemoveBssKeyReqMsg.removeBssKeyParams.bssIdx = ucCurrentBSSSesIdx;
 
   halRemoveBssKeyReqMsg.removeBssKeyParams.encType =
@@ -8981,24 +5851,11 @@ WDI_ProcessRemoveBssKeyReq
   pWDICtx->wdiReqStatusCB     = pwdiRemoveBSSKeyParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiRemoveBSSKeyParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Remove BSS Key Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiRemoveBSSKeyRspCb, pEventData->pUserData,
                        WDI_RMV_BSS_KEY_RESP);
-}/*WDI_ProcessRemoveBssKeyReq*/
+}
 
-/**
- @brief Process Set STA KeyRequest function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetStaKeyReq
 (
@@ -9018,11 +5875,8 @@ WDI_ProcessSetStaKeyReq
   tSetStaKeyReqMsg             halSetStaKeyReqMsg  = {{0}};
   wpt_uint8                    keyIndex            = 0;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -9034,15 +5888,8 @@ WDI_ProcessSetStaKeyReq
 
    pwdiSetSTAKeyParams = (WDI_SetSTAKeyReqParamsType*)pEventData->pEventData;
    wdiSetSTAKeyRspCb   = (WDI_SetSTAKeyRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made and identify WDI session
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                                   pwdiSetSTAKeyParams->wdiKeyInfo.ucSTAIdx,
                                   &macBSSID))
@@ -9064,10 +5911,6 @@ WDI_ProcessSetStaKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -9081,9 +5924,6 @@ WDI_ProcessSetStaKeyReq
 
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_STA_KEY_REQ,
                         sizeof(halSetStaKeyReqMsg.setStaKeyParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -9095,9 +5935,6 @@ WDI_ProcessSetStaKeyReq
      WDI_ASSERT(0);
      return WDI_STATUS_E_FAILURE;
   }
-  /*-----------------------------------------------------------------------
-    Copy the STA Key parameters into the HAL message
-  -----------------------------------------------------------------------*/
   halSetStaKeyReqMsg.setStaKeyParams.encType =
       WDI_2_HAL_ENC_TYPE (pwdiSetSTAKeyParams->wdiKeyInfo.wdiEncType);
 
@@ -9138,25 +5975,12 @@ WDI_ProcessSetStaKeyReq
   pWDICtx->wdiReqStatusCB     = pwdiSetSTAKeyParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiSetSTAKeyParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Set STA Key Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiSetSTAKeyRspCb, pEventData->pUserData,
                        WDI_SET_STA_KEY_RESP);
 
-}/*WDI_ProcessSetSTAKeyReq*/
+}
 
-/**
- @brief Process Remove STA Key Request function (called when
-        Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessRemoveStaKeyReq
 (
@@ -9174,11 +5998,8 @@ WDI_ProcessRemoveStaKeyReq
   wpt_macAddr                     macBSSID;
   wpt_uint8                       ucCurrentBSSSesIdx;
   tRemoveStaKeyReqMsg             halRemoveStaKeyReqMsg  = {{0}};
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
  if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -9190,15 +6011,8 @@ WDI_ProcessRemoveStaKeyReq
 
   pwdiRemoveSTAKeyParams = (WDI_RemoveSTAKeyReqParamsType*)pEventData->pEventData;
   wdiRemoveSTAKeyRspCb   = (WDI_RemoveSTAKeyRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made and identify WDI session
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                              pwdiRemoveSTAKeyParams->wdiKeyInfo.ucSTAIdx,
                              &macBSSID))
@@ -9220,10 +6034,6 @@ WDI_ProcessRemoveStaKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -9238,9 +6048,6 @@ WDI_ProcessRemoveStaKeyReq
 
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_RMV_STA_KEY_REQ,
                         sizeof(halRemoveStaKeyReqMsg.removeStaKeyParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -9253,9 +6060,6 @@ WDI_ProcessRemoveStaKeyReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-----------------------------------------------------------------------
-    Copy the Key parameters into the HAL message
-  -----------------------------------------------------------------------*/
 
   halRemoveStaKeyReqMsg.removeStaKeyParams.staIdx =
       pwdiRemoveSTAKeyParams->wdiKeyInfo.ucSTAIdx;
@@ -9276,25 +6080,12 @@ WDI_ProcessRemoveStaKeyReq
   pWDICtx->wdiReqStatusCB     = pwdiRemoveSTAKeyParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiRemoveSTAKeyParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Remove STA Key Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiRemoveSTAKeyRspCb, pEventData->pUserData,
                        WDI_RMV_STA_KEY_RESP);
 
-}/*WDI_ProcessRemoveSTAKeyReq*/
+}
 
-/**
- @brief Process Set STA KeyRequest function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetStaBcastKeyReq
 (
@@ -9314,11 +6105,8 @@ WDI_ProcessSetStaBcastKeyReq
   tSetStaKeyReqMsg             halSetStaKeyReqMsg  = {{0}};
   wpt_uint8                    keyIndex            = 0;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -9330,15 +6118,8 @@ WDI_ProcessSetStaBcastKeyReq
 
    pwdiSetSTAKeyParams = (WDI_SetSTAKeyReqParamsType*)pEventData->pEventData;
    wdiSetSTAKeyRspCb   = (WDI_SetSTAKeyRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made and identify WDI session
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                                   pwdiSetSTAKeyParams->wdiKeyInfo.ucSTAIdx,
                                   &macBSSID))
@@ -9360,10 +6141,6 @@ WDI_ProcessSetStaBcastKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -9377,9 +6154,6 @@ WDI_ProcessSetStaBcastKeyReq
 
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_STA_KEY_REQ,
                         sizeof(halSetStaKeyReqMsg.setStaKeyParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -9391,9 +6165,6 @@ WDI_ProcessSetStaBcastKeyReq
      WDI_ASSERT(0);
      return WDI_STATUS_E_FAILURE;
   }
-  /*-----------------------------------------------------------------------
-    Copy the STA Key parameters into the HAL message
-  -----------------------------------------------------------------------*/
   halSetStaKeyReqMsg.setStaKeyParams.encType =
       WDI_2_HAL_ENC_TYPE (pwdiSetSTAKeyParams->wdiKeyInfo.wdiEncType);
 
@@ -9434,25 +6205,12 @@ WDI_ProcessSetStaBcastKeyReq
   pWDICtx->wdiReqStatusCB     = pwdiSetSTAKeyParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiSetSTAKeyParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Set STA Key Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiSetSTAKeyRspCb, pEventData->pUserData,
                        WDI_SET_STA_KEY_RESP);
 
-}/*WDI_ProcessSetSTABcastKeyReq*/
+}
 
-/**
- @brief Process Remove STA Key Request function (called when
-        Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessRemoveStaBcastKeyReq
 (
@@ -9470,11 +6228,8 @@ WDI_ProcessRemoveStaBcastKeyReq
   wpt_macAddr                     macBSSID;
   wpt_uint8                       ucCurrentBSSSesIdx;
   tRemoveStaKeyReqMsg             halRemoveStaBcastKeyReqMsg = {{0}};
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
  if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -9486,15 +6241,8 @@ WDI_ProcessRemoveStaBcastKeyReq
 
   pwdiRemoveSTABcastKeyParams = (WDI_RemoveSTAKeyReqParamsType*)pEventData->pEventData;
   wdiRemoveSTAKeyRspCb   = (WDI_RemoveSTAKeyRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made and identify WDI session
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                              pwdiRemoveSTABcastKeyParams->wdiKeyInfo.ucSTAIdx,
                              &macBSSID))
@@ -9516,10 +6264,6 @@ WDI_ProcessRemoveStaBcastKeyReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -9534,9 +6278,6 @@ WDI_ProcessRemoveStaBcastKeyReq
 
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_RMV_STA_BCAST_KEY_REQ,
                         sizeof(halRemoveStaBcastKeyReqMsg.removeStaKeyParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -9549,9 +6290,6 @@ WDI_ProcessRemoveStaBcastKeyReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-----------------------------------------------------------------------
-    Copy the Key parameters into the HAL message
-  -----------------------------------------------------------------------*/
 
   halRemoveStaBcastKeyReqMsg.removeStaKeyParams.staIdx =
       pwdiRemoveSTABcastKeyParams->wdiKeyInfo.ucSTAIdx;
@@ -9572,28 +6310,12 @@ WDI_ProcessRemoveStaBcastKeyReq
   pWDICtx->wdiReqStatusCB     = pwdiRemoveSTABcastKeyParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiRemoveSTABcastKeyParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Remove STA Key Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiRemoveSTAKeyRspCb, pEventData->pUserData,
                        WDI_RMV_STA_KEY_RESP);
 
-}/*WDI_ProcessRemoveSTABcastKeyReq*/
+}
 
-/*==========================================================================
-                   QOS and BA PROCESSING REQUEST API
-==========================================================================*/
-/**
- @brief Process Add TSpec Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessAddTSpecReq
 (
@@ -9612,11 +6334,8 @@ WDI_ProcessAddTSpecReq
   wpt_macAddr              macBSSID;
   tAddTsParams             halAddTsParams      = {0};
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -9628,15 +6347,8 @@ WDI_ProcessAddTSpecReq
 
   pwdiAddTSParams = (WDI_AddTSReqParamsType*)pEventData->pEventData;
   wdiAddTSRspCb   = (WDI_AddTsRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made and identify WDI session
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                                         pwdiAddTSParams->wdiTsInfo.ucSTAIdx,
                                         &macBSSID))
@@ -9658,10 +6370,6 @@ WDI_ProcessAddTSpecReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -9674,10 +6382,6 @@ WDI_ProcessAddTSpecReq
   }
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-    ! TO DO : proper conversion into the HAL Message Request Format
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_ADD_TS_REQ,
                                                     sizeof(halAddTsParams),
                                                     &pSendBuffer, &usDataOffset,
@@ -9694,7 +6398,7 @@ WDI_ProcessAddTSpecReq
   halAddTsParams.staIdx = pwdiAddTSParams->wdiTsInfo.ucSTAIdx;
   halAddTsParams.tspecIdx = pwdiAddTSParams->wdiTsInfo.ucTspecIdx;
 
-  //TSPEC IE
+  
   halAddTsParams.tspec.type = pwdiAddTSParams->wdiTsInfo.wdiTspecIE.ucType;
   halAddTsParams.tspec.length = pwdiAddTSParams->wdiTsInfo.wdiTspecIE.ucLength;
   halAddTsParams.tspec.nomMsduSz =
@@ -9728,7 +6432,7 @@ WDI_ProcessAddTSpecReq
   halAddTsParams.tspec.mediumTime =
      pwdiAddTSParams->wdiTsInfo.wdiTspecIE.usMediumTime;
 
-  //TSPEC IE : TS INFO : TRAFFIC
+  
   halAddTsParams.tspec.tsinfo.traffic.ackPolicy =
      pwdiAddTSParams->wdiTsInfo.wdiTspecIE.wdiTSinfo.wdiTraffic.accessPolicy;
   halAddTsParams.tspec.tsinfo.traffic.userPrio =
@@ -9744,7 +6448,7 @@ WDI_ProcessAddTSpecReq
   halAddTsParams.tspec.tsinfo.traffic.trafficType =
      pwdiAddTSParams->wdiTsInfo.wdiTspecIE.wdiTSinfo.wdiTraffic.trafficType;
 
-  //TSPEC IE : TS INFO : SCHEDULE
+  
   halAddTsParams.tspec.tsinfo.schedule.rsvd =
      pwdiAddTSParams->wdiTsInfo.wdiTspecIE.wdiTSinfo.wdiSchedule.rsvd;
   halAddTsParams.tspec.tsinfo.schedule.schedule =
@@ -9757,25 +6461,12 @@ WDI_ProcessAddTSpecReq
   pWDICtx->wdiReqStatusCB     = pwdiAddTSParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiAddTSParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Add TS Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiAddTSRspCb, pEventData->pUserData,
                        WDI_ADD_TS_RESP);
-}/*WDI_ProcessAddTSpecReq*/
+}
 
 
-/**
- @brief Process Del TSpec Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelTSpecReq
 (
@@ -9791,11 +6482,8 @@ WDI_ProcessDelTSpecReq
   wpt_uint16                   usDataOffset        = 0;
   wpt_uint16                   usSendSize          = 0;
   WDI_Status                   wdiStatus           = WDI_STATUS_SUCCESS;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -9808,15 +6496,8 @@ WDI_ProcessDelTSpecReq
   pwdiDelTSParams = (WDI_DelTSReqParamsType*)pEventData->pEventData;
   wdiDelTSRspCb   = (WDI_DelTsRspCb)pEventData->pCBfnc;
 
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSession( pWDICtx,
                            pwdiDelTSParams->wdiDelTSInfo.macBSSID,
                           &pBSSSes);
@@ -9831,10 +6512,6 @@ WDI_ProcessDelTSpecReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -9848,10 +6525,6 @@ WDI_ProcessDelTSpecReq
 
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-    ! TO DO : proper conversion into the HAL Message Request Format
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_DEL_TS_REQ,
                         sizeof(pwdiDelTSParams->wdiDelTSInfo),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -9871,23 +6544,10 @@ WDI_ProcessDelTSpecReq
   pWDICtx->wdiReqStatusCB     = pwdiDelTSParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiDelTSParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Del TS Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiDelTSRspCb, pEventData->pUserData, WDI_DEL_TS_RESP);
-}/*WDI_ProcessDelTSpecReq*/
+}
 
-/**
- @brief Process Update EDCA Params Request function (called when
-        Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateEDCAParamsReq
 (
@@ -9903,11 +6563,8 @@ WDI_ProcessUpdateEDCAParamsReq
   wpt_uint16                   usDataOffset         = 0;
   wpt_uint16                   usSendSize           = 0;
   WDI_Status                   wdiStatus;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -9919,15 +6576,8 @@ WDI_ProcessUpdateEDCAParamsReq
 
   pwdiUpdateEDCAParams = (WDI_UpdateEDCAParamsType*)pEventData->pEventData;
   wdiUpdateEDCARspCb   = (WDI_UpdateEDCAParamsRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSessionByBSSIdx( pWDICtx,
                            pwdiUpdateEDCAParams->wdiEDCAInfo.ucBssIdx,
                           &pBSSSes);
@@ -9942,10 +6592,6 @@ WDI_ProcessUpdateEDCAParamsReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -9959,10 +6605,6 @@ WDI_ProcessUpdateEDCAParamsReq
 
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-    ! TO DO : proper conversion into the HAL Message Request Format
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_UPD_EDCA_PRMS_REQ,
                         sizeof(pwdiUpdateEDCAParams->wdiEDCAInfo),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -9982,24 +6624,11 @@ WDI_ProcessUpdateEDCAParamsReq
   pWDICtx->wdiReqStatusCB     = pwdiUpdateEDCAParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiUpdateEDCAParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Update EDCA Params Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiUpdateEDCARspCb, pEventData->pUserData,
                        WDI_UPD_EDCA_PRMS_RESP);
-}/*WDI_ProcessUpdateEDCAParamsReq*/
+}
 
-/**
- @brief Process Add BA Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessAddBASessionReq
 (
@@ -10018,11 +6647,8 @@ WDI_ProcessAddBASessionReq
   wpt_macAddr                     macBSSID;
 
   tAddBASessionReqMsg             halAddBASessionReq;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -10036,15 +6662,8 @@ WDI_ProcessAddBASessionReq
                   (WDI_AddBASessionReqParamsType*)pEventData->pEventData;
   wdiAddBASessionRspCb =
                   (WDI_AddBASessionRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                    pwdiAddBASessionParams->wdiBASessionInfoType.ucSTAIdx,
                    &macBSSID))
@@ -10068,10 +6687,6 @@ WDI_ProcessAddBASessionReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -10085,9 +6700,6 @@ WDI_ProcessAddBASessionReq
 
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                         WDI_ADD_BA_SESSION_REQ,
                         sizeof(halAddBASessionReq.addBASessionParams),
@@ -10127,24 +6739,11 @@ WDI_ProcessAddBASessionReq
   pWDICtx->wdiReqStatusCB     = pwdiAddBASessionParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiAddBASessionParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Start Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiAddBASessionRspCb, pEventData->pUserData,
                         WDI_ADD_BA_SESSION_RESP);
-}/*WDI_ProcessAddBASessionReq*/
+}
 
-/**
- @brief Process Del BA Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelBAReq
 (
@@ -10162,11 +6761,8 @@ WDI_ProcessDelBAReq
   WDI_Status                   wdiStatus           = WDI_STATUS_SUCCESS;
   wpt_macAddr                  macBSSID;
   tDelBAParams                 halDelBAparam;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -10178,15 +6774,8 @@ WDI_ProcessDelBAReq
 
   pwdiDelBAParams = (WDI_DelBAReqParamsType*)pEventData->pEventData;
   wdiDelBARspCb   = (WDI_DelBARspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                                      pwdiDelBAParams->wdiBAInfo.ucSTAIdx,
                                      &macBSSID))
@@ -10209,10 +6798,6 @@ WDI_ProcessDelBAReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -10248,12 +6833,9 @@ WDI_ProcessDelBAReq
   pWDICtx->wdiReqStatusCB     = pwdiDelBAParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiDelBAParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Start Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiDelBARspCb, pEventData->pUserData, WDI_DEL_BA_RESP);
-}/*WDI_ProcessDelBAReq*/
+}
 
 #ifdef FEATURE_WLAN_CCX
 
@@ -10274,11 +6856,8 @@ WDI_ProcessTSMStatsReq
   WDI_Status                  wdiStatus            = WDI_STATUS_SUCCESS; 
   tTsmStatsParams             halTsmStatsReqParams = {0};
   
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-       Sanity check 
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -10290,10 +6869,6 @@ WDI_ProcessTSMStatsReq
 
   pwdiTSMParams = (WDI_TSMStatsReqParamsType*)pEventData->pEventData;
   wdiTSMRspCb   = (WDI_TsmRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request 
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
   ucCurrentBSSSesIdx = WDI_FindAssocSession( pWDICtx, pwdiTSMParams->wdiTsmStatsParamsInfo.bssid, &pBSSSes); 
@@ -10307,10 +6882,6 @@ WDI_ProcessTSMStatsReq
     return WDI_STATUS_E_NOT_ALLOWED; 
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well 
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -10323,10 +6894,6 @@ WDI_ProcessTSMStatsReq
   }
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-    ! TO DO : proper conversion into the HAL Message Request Format 
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_TSM_STATS_REQ, 
                                                     sizeof(halTsmStatsReqParams), 
                                                     &pSendBuffer, &usDataOffset,                                                     &usSendSize))||
@@ -10350,27 +6917,14 @@ WDI_ProcessTSMStatsReq
   pWDICtx->wdiReqStatusCB     = pwdiTSMParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiTSMParams->pUserData; 
 
-  /*-------------------------------------------------------------------------
-    Send TSM Stats Request to HAL 
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize, 
                        wdiTSMRspCb, pEventData->pUserData,
                        WDI_TSM_STATS_RESP); 
-}/*WDI_ProcessTSMStatsReq*/
+}
 
 #endif
 
 
-/**
- @brief Process Flush AC Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessFlushAcReq
 (
@@ -10383,11 +6937,8 @@ WDI_ProcessFlushAcReq
    wpt_uint8*                   pSendBuffer         = NULL;
    wpt_uint16                   usDataOffset        = 0;
    wpt_uint16                   usSendSize          = 0;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
        ( NULL == pEventData->pCBfnc ))
    {
@@ -10399,10 +6950,6 @@ WDI_ProcessFlushAcReq
 
    pwdiFlushAcParams = (WDI_FlushAcReqParamsType*)pEventData->pEventData;
    wdiFlushAcRspCb   = (WDI_FlushAcRspCb)pEventData->pCBfnc;
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_FLUSH_AC_REQ,
                          sizeof(pwdiFlushAcParams->wdiFlushAcInfo),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -10422,23 +6969,10 @@ WDI_ProcessFlushAcReq
    pWDICtx->wdiReqStatusCB     = pwdiFlushAcParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiFlushAcParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Start Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiFlushAcRspCb, pEventData->pUserData, WDI_FLUSH_AC_RESP);
-}/*WDI_ProcessFlushAcReq*/
+}
 
-/**
- @brief Process BT AMP event Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessBtAmpEventReq
 (
@@ -10453,11 +6987,8 @@ WDI_ProcessBtAmpEventReq
    wpt_uint16                   usSendSize          = 0;
 
    tBtAmpEventMsg               haltBtAmpEventMsg;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
        ( NULL == pEventData->pCBfnc ))
    {
@@ -10469,10 +7000,6 @@ WDI_ProcessBtAmpEventReq
 
    pwdiBtAmpEventParams = (WDI_BtAmpEventParamsType*)pEventData->pEventData;
    wdiBtAmpEventRspCb   = (WDI_BtAmpEventRspCb)pEventData->pCBfnc;
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_BTAMP_EVENT_REQ,
                          sizeof(haltBtAmpEventMsg.btAmpEventParams),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -10494,23 +7021,10 @@ WDI_ProcessBtAmpEventReq
    pWDICtx->wdiReqStatusCB     = pwdiBtAmpEventParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiBtAmpEventParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Start Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiBtAmpEventRspCb, pEventData->pUserData, WDI_BTAMP_EVENT_RESP);
-}/*WDI_ProcessBtAmpEventReq*/
+}
 
-/**
- @brief Process Add STA self Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessAddSTASelfReq
 (
@@ -10524,11 +7038,8 @@ WDI_ProcessAddSTASelfReq
   wpt_uint16                            usDataOffset        = 0;
   wpt_uint16                            usSendSize          = 0;
   tAddStaSelfParams_V1                  halAddSTASelfParams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData) ||
       ( NULL == pEventData->pCBfnc))
@@ -10543,9 +7054,6 @@ WDI_ProcessAddSTASelfReq
     (WDI_AddSTASelfReqParamsType*)pEventData->pEventData;
   wdiAddSTASelfReqRspCb =
     (WDI_AddSTASelfParamsRspCb)pEventData->pCBfnc;
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                         WDI_ADD_STA_SELF_REQ,
                         sizeof(tAddStaSelfParams_V1),
@@ -10559,7 +7067,7 @@ WDI_ProcessAddSTASelfReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /* Cache the request for response processing */
+  
   wpalMemoryCopy(&pWDICtx->wdiCacheAddSTASelfReq, pwdiAddSTASelfReqParams,
                  sizeof(pWDICtx->wdiCacheAddSTASelfReq));
 
@@ -10583,26 +7091,13 @@ WDI_ProcessAddSTASelfReq
   pWDICtx->wdiReqStatusCB     = pwdiAddSTASelfReqParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiAddSTASelfReqParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Update Probe Resp Template Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiAddSTASelfReqRspCb, pEventData->pUserData,
                        WDI_ADD_STA_SELF_RESP);
-}/*WDI_ProcessAddSTASelfReq*/
+}
 
 
 
-/**
- @brief Process Del Sta Self Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelSTASelfReq
 (
@@ -10616,11 +7111,8 @@ WDI_ProcessDelSTASelfReq
   wpt_uint16                   usDataOffset        = 0;
   wpt_uint16                   usSendSize          = 0;
   tDelStaSelfParams            halSetDelSelfSTAParams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -10634,10 +7126,6 @@ WDI_ProcessDelSTASelfReq
                  (WDI_DelSTASelfReqParamsType*)pEventData->pEventData;
   wdiDelStaSelfRspCb      = (WDI_DelSTASelfRspCb)pEventData->pCBfnc;
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_DEL_STA_SELF_REQ,
                          sizeof(pwdiDelStaSelfReqParams->wdiDelStaSelfInfo),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -10660,9 +7148,6 @@ WDI_ProcessDelSTASelfReq
   pWDICtx->wdiReqStatusCB     = pwdiDelStaSelfReqParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiDelStaSelfReqParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-     Send Start Request to HAL
-   -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiDelStaSelfRspCb, pEventData->pUserData,
                                                      WDI_DEL_STA_SELF_RESP);
@@ -10670,16 +7155,6 @@ WDI_ProcessDelSTASelfReq
 }
 
 #ifdef FEATURE_OEM_DATA_SUPPORT
-/**
- @brief Process Start Oem Data Request function (called when Main 
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessStartOemDataReq
 (
@@ -10695,9 +7170,6 @@ WDI_ProcessStartOemDataReq
   wpt_uint16                   reqLen;
   tStartOemDataReqParams*      halStartOemDataReqParams;
 
-  /*-------------------------------------------------------------------------
-  Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -10710,9 +7182,6 @@ WDI_ProcessStartOemDataReq
   pwdiOemDataReqParams = (WDI_oemDataReqParamsType*)pEventData->pEventData;
   wdiOemDataRspCb   = (WDI_oemDataRspCb)pEventData->pCBfnc;
 
-  /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
 
   reqLen = sizeof(tStartOemDataReqParams);
 
@@ -10728,7 +7197,7 @@ WDI_ProcessStartOemDataReq
       return WDI_STATUS_E_FAILURE;
   }
 
-  //copying WDI OEM DATA REQ PARAMS to shared memory
+  
   halStartOemDataReqParams = (tStartOemDataReqParams *)(pSendBuffer + usDataOffset );
 
   wpalMemoryCopy(&halStartOemDataReqParams->selfMacAddr, &pwdiOemDataReqParams->wdiOemDataReqInfo.selfMacAddr, sizeof(wpt_macAddr));
@@ -10737,25 +7206,12 @@ WDI_ProcessStartOemDataReq
   pWDICtx->wdiReqStatusCB     = pwdiOemDataReqParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiOemDataReqParams->pUserData; 
 
-  /*-------------------------------------------------------------------------
-    Send Start Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize, 
                         wdiOemDataRspCb, pEventData->pUserData, 
                                             WDI_START_OEM_DATA_RESP); 
-}/*WDI_ProcessStartOemDataReq*/
+}
 #endif
 
-/**
- @brief Process Host Resume Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessHostResumeReq
 (
@@ -10770,11 +7226,8 @@ WDI_ProcessHostResumeReq
   wpt_uint16                     usSendSize          = 0;
   tHalWlanHostResumeReqParam     halResumeReqParams;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-  Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -10787,9 +7240,6 @@ WDI_ProcessHostResumeReq
    pwdiHostResumeParams = (WDI_ResumeParamsType*)pEventData->pEventData;
    wdiHostResumeRspCb   = (WDI_HostResumeEventRspCb)pEventData->pCBfnc;
 
-  /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                          WDI_HOST_RESUME_REQ, sizeof(halResumeReqParams),
                               &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -10812,24 +7262,11 @@ WDI_ProcessHostResumeReq
   pWDICtx->wdiReqStatusCB     = pwdiHostResumeParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiHostResumeParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Start Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiHostResumeRspCb, pEventData->pUserData,
                                             WDI_HOST_RESUME_RESP);
-}/*WDI_ProcessHostResumeReq*/
+}
 
-/**
- @brief Process set Tx Per Tracking Parameters Request function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetTxPerTrackingReq
 (
@@ -10843,11 +7280,8 @@ WDI_ProcessSetTxPerTrackingReq
    wpt_uint16               usDataOffset        = 0;
    wpt_uint16               usSendSize          = 0;
    tHalTxPerTrackingReqParam     halTxPerTrackingReqParam;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
        ( NULL == pEventData->pCBfnc ))
    {
@@ -10860,10 +7294,6 @@ WDI_ProcessSetTxPerTrackingReq
    pwdiSetTxPerTrackingReqParams = (WDI_SetTxPerTrackingReqParamsType*)pEventData->pEventData;
    pwdiSetTxPerTrackingRspCb   = (WDI_SetTxPerTrackingRspCb)pEventData->pCBfnc;
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_TX_PER_TRACKING_REQ,
                          sizeof(halTxPerTrackingReqParam),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -10888,26 +7318,11 @@ WDI_ProcessSetTxPerTrackingReq
    pWDICtx->wdiReqStatusCB     = pwdiSetTxPerTrackingReqParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiSetTxPerTrackingReqParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         pwdiSetTxPerTrackingRspCb, pEventData->pUserData, WDI_SET_TX_PER_TRACKING_RESP);
-}/*WDI_ProcessSetTxPerTrackingReq*/
+}
 
-/*=========================================================================
-                             Indications
-=========================================================================*/
 
-/**
- @brief Process Suspend Indications function (called when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessHostSuspendInd
 (
@@ -10921,11 +7336,8 @@ WDI_ProcessHostSuspendInd
   wpt_uint16                     usSendSize          = 0;
   WDI_Status                     wdiStatus;
   tHalWlanHostSuspendIndParam    halWlanSuspendIndparams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-     Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ))
   {
       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -10936,9 +7348,6 @@ WDI_ProcessHostSuspendInd
 
   pSuspendIndParams = (WDI_SuspendParamsType *)pEventData->pEventData;
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                          WDI_HOST_SUSPEND_IND,
                      sizeof(halWlanSuspendIndparams),
@@ -10960,27 +7369,15 @@ WDI_ProcessHostSuspendInd
   wpalMemoryCopy( pSendBuffer+usDataOffset, &halWlanSuspendIndparams,
                                          sizeof(tHalWlanHostSuspendIndParam));
 
-  /*-------------------------------------------------------------------------
-    Send Suspend Request to HAL
-  -------------------------------------------------------------------------*/
   pWDICtx->wdiReqStatusCB     = pSuspendIndParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pSuspendIndParams->pUserData;
 
   wdiStatus = WDI_SendIndication( pWDICtx, pSendBuffer, usSendSize);
   return  ( wdiStatus != WDI_STATUS_SUCCESS )?wdiStatus:WDI_STATUS_SUCCESS_SYNC;
-}/*WDI_ProcessHostSuspendInd*/
+}
 
 
 
-/**
- @brief Process Traffic Stats Indications function (called when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-              pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessTrafficStatsInd
 (
@@ -10994,11 +7391,8 @@ WDI_ProcessTrafficStatsInd
   wpt_uint16                     usSendSize          = 0;
   WDI_Status                     wdiStatus;
   tStatsClassBIndParams*         pStatsClassBIndParams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-     Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ))
   {
       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -11017,9 +7411,6 @@ WDI_ProcessTrafficStatsInd
       return WDI_STATUS_E_FAILURE;
   }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                          WDI_TRAFFIC_STATS_IND,
                      sizeof(tStatsClassBIndParams),
@@ -11040,27 +7431,14 @@ WDI_ProcessTrafficStatsInd
                  pTrafficStatsIndParams->pTrafficStats,
                  pTrafficStatsIndParams->length);
 
-  /*-------------------------------------------------------------------------
-    Send Suspend Request to HAL
-  -------------------------------------------------------------------------*/
   pWDICtx->wdiReqStatusCB     = pTrafficStatsIndParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pTrafficStatsIndParams->pUserData;
 
   wdiStatus = WDI_SendIndication( pWDICtx, pSendBuffer, usSendSize);
   return  ( wdiStatus != WDI_STATUS_SUCCESS )?wdiStatus:WDI_STATUS_SUCCESS_SYNC;
-}/*WDI_ProcessTrafficStatsInd*/
+}
 
 #ifdef WLAN_FEATURE_11W
-/**
- @brief Process Exclude Unencrypted Indications function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-              pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessExcludeUnencryptInd
 (
@@ -11074,11 +7452,8 @@ WDI_ProcessExcludeUnencryptInd
   wpt_uint16                     usSendSize          = 0;
   WDI_Status                     wdiStatus;
   tHalWlanExcludeUnEncryptedIndParam* pHalExcUnencIndParams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-     Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ))
   {
       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -11089,9 +7464,6 @@ WDI_ProcessExcludeUnencryptInd
 
   pWDIExcUnencIndParams = (WDI_ExcludeUnencryptIndType *)pEventData->pEventData;
 
-  /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                          WDI_EXCLUDE_UNENCRYPTED_IND,
                      sizeof(tHalWlanExcludeUnEncryptedIndParam),
@@ -11111,27 +7483,14 @@ WDI_ProcessExcludeUnencryptInd
   wpalMemoryCopy(pHalExcUnencIndParams->bssId,
                  pWDIExcUnencIndParams->bssid, WDI_MAC_ADDR_LEN);
 
-  /*-------------------------------------------------------------------------
-    Send Suspend Request to HAL
-  -------------------------------------------------------------------------*/
   pWDICtx->wdiReqStatusCB     = pWDIExcUnencIndParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pWDIExcUnencIndParams->pUserData;
 
   wdiStatus = WDI_SendIndication( pWDICtx, pSendBuffer, usSendSize);
   return  ( wdiStatus != WDI_STATUS_SUCCESS )?wdiStatus:WDI_STATUS_SUCCESS_SYNC;
-}/*WDI_ProcessExcludeUnencryptInd*/
+}
 #endif
 
-/**
- @brief Process Add Periodic Tx Pattern Indication function (called when
-           Main FSM allows it)
-
- @param pWDICtx:         pointer to the WLAN DAL context
-        pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessAddPeriodicTxPtrnInd
 (
@@ -11147,9 +7506,6 @@ WDI_ProcessAddPeriodicTxPtrnInd
   tHalAddPeriodicTxPtrn          *halAddPeriodicTxPtrn;
   wpt_uint8                      selfStaIdx          = 0;
 
-  /*-------------------------------------------------------------------------
-     Sanity check
-  -------------------------------------------------------------------------*/
   if ((NULL == pEventData) || (NULL == pEventData->pEventData))
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -11161,9 +7517,6 @@ WDI_ProcessAddPeriodicTxPtrnInd
   pAddPeriodicTxPtrnParams =
     (WDI_AddPeriodicTxPtrnParamsType *)pEventData->pEventData;
 
-   /*------------------------------------------------------------------------
-     Get message buffer
-   ------------------------------------------------------------------------*/
   if ((WDI_STATUS_SUCCESS != WDI_GetMessageBuffer(pWDICtx,
        WDI_ADD_PERIODIC_TX_PATTERN_IND, sizeof(tHalAddPeriodicTxPtrn),
        &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -11201,9 +7554,6 @@ WDI_ProcessAddPeriodicTxPtrnInd
     pAddPeriodicTxPtrnParams->wdiAddPeriodicTxPtrnParams.ucPattern,
     pAddPeriodicTxPtrnParams->wdiAddPeriodicTxPtrnParams.ucPtrnSize);
 
-  /*-------------------------------------------------------------------------
-    Send Indication to HAL
-  -------------------------------------------------------------------------*/
   pWDICtx->wdiReqStatusCB     = pAddPeriodicTxPtrnParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pAddPeriodicTxPtrnParams->pUserData;
 
@@ -11213,18 +7563,8 @@ WDI_ProcessAddPeriodicTxPtrnInd
              "%s: Sent WLAN_HAL_ADD_PERIODIC_TX_PTRN_IND to HAL.", __func__);
 
   return (wdiStatus != WDI_STATUS_SUCCESS) ? wdiStatus : WDI_STATUS_SUCCESS_SYNC;
-} /* WDI_ProcessAddPeriodicTxPtrnInd */
+} 
 
-/**
- @brief Process Delete Periodic Tx Pattern Indication function (called when
-           Main FSM allows it)
-
- @param pWDICtx:         pointer to the WLAN DAL context
-        pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelPeriodicTxPtrnInd
 (
@@ -11240,9 +7580,6 @@ WDI_ProcessDelPeriodicTxPtrnInd
   tHalDelPeriodicTxPtrn          *halDelPeriodicTxPtrn;
   wpt_uint8                      selfStaIdx          = 0;
 
-  /*-------------------------------------------------------------------------
-     Sanity check
-  -------------------------------------------------------------------------*/
   if ((NULL == pEventData) || (NULL == pEventData->pEventData))
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -11254,9 +7591,6 @@ WDI_ProcessDelPeriodicTxPtrnInd
   pDelPeriodicTxPtrnParams =
     (WDI_DelPeriodicTxPtrnParamsType *)pEventData->pEventData;
 
-   /*------------------------------------------------------------------------
-     Get message buffer
-   ------------------------------------------------------------------------*/
   if ((WDI_STATUS_SUCCESS != WDI_GetMessageBuffer(pWDICtx,
        WDI_DEL_PERIODIC_TX_PATTERN_IND, sizeof(tHalDelPeriodicTxPtrn),
        &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -11286,9 +7620,6 @@ WDI_ProcessDelPeriodicTxPtrnInd
   halDelPeriodicTxPtrn->uPatternIdBitmap =
     pDelPeriodicTxPtrnParams->wdiDelPeriodicTxPtrnParams.ucPatternIdBitmap;
 
-  /*-------------------------------------------------------------------------
-    Send Indication to HAL
-  -------------------------------------------------------------------------*/
   pWDICtx->wdiReqStatusCB     = pDelPeriodicTxPtrnParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pDelPeriodicTxPtrnParams->pUserData;
 
@@ -11298,21 +7629,8 @@ WDI_ProcessDelPeriodicTxPtrnInd
              "%s: Sent WLAN_HAL_DEL_PERIODIC_TX_PTRN_IND to HAL.", __func__);
 
   return (wdiStatus != WDI_STATUS_SUCCESS) ? wdiStatus : WDI_STATUS_SUCCESS_SYNC;
-} /* WDI_ProcessDelPeriodicTxPtrnInd */
+} 
 
-/*==========================================================================
-                  MISC CONTROL PROCESSING REQUEST API
-==========================================================================*/
-/**
- @brief Process Channel Switch Request function (called when
-        Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessChannelSwitchReq
 (
@@ -11326,11 +7644,8 @@ WDI_ProcessChannelSwitchReq
   wpt_uint16                   usDataOffset        = 0;
   wpt_uint16                   usSendSize          = 0;
   tSwitchChannelReqMsg         halSwitchChannelReq = {{0}};
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -11342,10 +7657,6 @@ WDI_ProcessChannelSwitchReq
 
   pwdiSwitchChParams = (WDI_SwitchChReqParamsType*)pEventData->pEventData;
   wdiSwitchChRspCb   = (WDI_SwitchChRspCb)pEventData->pCBfnc;
-  /*-----------------------------------------------------------------------
-    Get message buffer
-    ! TO DO : proper conversion into the HAL Message Request Format
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_CH_SWITCH_REQ,
                         sizeof(halSwitchChannelReq.switchChannelParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -11384,23 +7695,83 @@ WDI_ProcessChannelSwitchReq
   pWDICtx->wdiReqStatusCB     = pwdiSwitchChParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiSwitchChParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Switch Channel Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiSwitchChRspCb, pEventData->pUserData, WDI_CH_SWITCH_RESP);
-}/*WDI_ProcessChannelSwitchReq*/
+}
 
-/**
- @brief Process Config STA Request function (called when Main FSM
-        allows it)
+WDI_Status WDI_ProcessChannelSwitchReq_V1
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+)
+{
+  WDI_SwitchChReqParamsType_V1*   pwdiSwitchChParams;
+  WDI_SwitchChRspCb_V1            wdiSwitchChRspCb;
+  wpt_uint8*                   pSendBuffer         = NULL;
+  wpt_uint16                   usDataOffset        = 0;
+  wpt_uint16                   usSendSize          = 0;
+  tSwitchChannelReqMsg_V1      halSwitchChannelReq = {{0}};
+  
 
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
+  if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
+      ( NULL == pEventData->pCBfnc ))
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
+                 "%s: Invalid parameters", __func__);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
 
- @see
- @return Result of the function call
-*/
+  pwdiSwitchChParams = (WDI_SwitchChReqParamsType_V1*)pEventData->pEventData;
+  wdiSwitchChRspCb   = (WDI_SwitchChRspCb_V1)pEventData->pCBfnc;
+  if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
+            WDI_CH_SWITCH_REQ_V1,
+            sizeof(halSwitchChannelReq.switchChannelParams_V1),
+            &pSendBuffer, &usDataOffset, &usSendSize))||
+      ( usSendSize < (usDataOffset +
+        sizeof(halSwitchChannelReq.switchChannelParams_V1) )))
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
+              "Unable to get send buffer in channel switch req %p %p %p",
+                pEventData, pwdiSwitchChParams, wdiSwitchChRspCb);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+
+  halSwitchChannelReq.switchChannelParams_V1.channelSwitchSrc =
+        pwdiSwitchChParams->wdiChInfo.channelSwitchSrc;
+
+  halSwitchChannelReq.switchChannelParams_V1.channelNumber =
+                       pwdiSwitchChParams->wdiChInfo.ucChannel;
+#ifndef WLAN_FEATURE_VOWIFI
+  halSwitchChannelReq.switchChannelParams_V1.localPowerConstraint =
+                       pwdiSwitchChParams->wdiChInfo.ucLocalPowerConstraint;
+#endif
+  halSwitchChannelReq.switchChannelParams_V1.secondaryChannelOffset =
+                pwdiSwitchChParams->wdiChInfo.wdiSecondaryChannelOffset;
+
+#ifdef WLAN_FEATURE_VOWIFI
+  halSwitchChannelReq.switchChannelParams_V1.maxTxPower
+                            = pwdiSwitchChParams->wdiChInfo.cMaxTxPower;
+  wpalMemoryCopy(halSwitchChannelReq.switchChannelParams_V1.selfStaMacAddr,
+                  pwdiSwitchChParams->wdiChInfo.macSelfStaMacAddr,
+                  WDI_MAC_ADDR_LEN);
+  wpalMemoryCopy(halSwitchChannelReq.switchChannelParams_V1.bssId,
+                  pwdiSwitchChParams->wdiChInfo.macBSSId,
+                  WDI_MAC_ADDR_LEN);
+#endif
+  wpalMemoryCopy( pSendBuffer+usDataOffset,
+                  &halSwitchChannelReq.switchChannelParams_V1,
+                  sizeof(halSwitchChannelReq.switchChannelParams_V1));
+
+  pWDICtx->wdiReqStatusCB     = pwdiSwitchChParams->wdiReqStatusCB;
+  pWDICtx->pReqStatusUserData = pwdiSwitchChParams->pUserData;
+
+  return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
+                         wdiSwitchChRspCb, pEventData->pUserData,
+                         WDI_CH_SWITCH_RESP_V1);
+}
+
 WDI_Status
 WDI_ProcessConfigStaReq
 (
@@ -11419,11 +7790,8 @@ WDI_ProcessConfigStaReq
 
   tConfigStaReqMsg             halConfigStaReqMsg;
   wpt_uint16                   uMsgSize            = 0;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -11435,15 +7803,8 @@ WDI_ProcessConfigStaReq
 
   pwdiConfigSTAParams = (WDI_ConfigSTAReqParamsType*)pEventData->pEventData;
   wdiConfigSTARspCb   = (WDI_ConfigSTARspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSession( pWDICtx,
                            pwdiConfigSTAParams->wdiReqInfo.macBSSID,
                           &pBSSSes);
@@ -11458,10 +7819,6 @@ WDI_ProcessConfigStaReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -11475,17 +7832,14 @@ WDI_ProcessConfigStaReq
 
   wpalMutexRelease(&pWDICtx->wptMutex);
   
-  /* Allocation of StaReqMsg Memory Based on Firmware Capabilities */
+  
 #ifdef WLAN_FEATURE_11AC
   if (WDI_getFwWlanFeatCaps(DOT11AC))
-     uMsgSize = sizeof(halConfigStaReqMsg.uStaParams.configStaParams_V1); // Version-1 For 11AC
+     uMsgSize = sizeof(halConfigStaReqMsg.uStaParams.configStaParams_V1); 
   else
 #endif
-     uMsgSize = sizeof(halConfigStaReqMsg.uStaParams.configStaParams); // Version-0 Default
+     uMsgSize = sizeof(halConfigStaReqMsg.uStaParams.configStaParams); 
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_CONFIG_STA_REQ,
                         uMsgSize,
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -11498,13 +7852,13 @@ WDI_ProcessConfigStaReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*Copy the station context*/
+  
   WDI_CopyWDIStaCtxToHALStaCtx( &halConfigStaReqMsg.uStaParams.configStaParams,
                                 &pwdiConfigSTAParams->wdiReqInfo);
 
   if(pwdiConfigSTAParams->wdiReqInfo.wdiSTAType == WDI_STA_ENTRY_SELF)
   {
-    /* Need to fill in the self STA Index */
+    
     if ( WDI_STATUS_SUCCESS !=
          WDI_STATableFindStaidByAddr(pWDICtx,
                                      pwdiConfigSTAParams->wdiReqInfo.macSTA,
@@ -11519,12 +7873,10 @@ WDI_ProcessConfigStaReq
   }
   else
   {
-  /* Need to fill in the STA Index to invalid, since at this point we have not
-     yet received it from HAL */
     halConfigStaReqMsg.uStaParams.configStaParams.staIdx = pwdiConfigSTAParams->wdiReqInfo.staIdx;
   }
 
-  /* Need to fill in the BSS index */
+  
   halConfigStaReqMsg.uStaParams.configStaParams.bssIdx = pBSSSes->ucBSSIdx;
   
   wpalMemoryCopy( pSendBuffer+usDataOffset,
@@ -11538,24 +7890,11 @@ WDI_ProcessConfigStaReq
                   pwdiConfigSTAParams,
                   sizeof(pWDICtx->wdiCachedConfigStaReq));
 
-  /*-------------------------------------------------------------------------
-    Send Config STA Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiConfigSTARspCb, pEventData->pUserData, WDI_CONFIG_STA_RESP);
-}/*WDI_ProcessConfigStaReq*/
+}
 
 
-/**
- @brief Process Set Link State Request function (called when
-        Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetLinkStateReq
 (
@@ -11572,11 +7911,8 @@ WDI_ProcessSetLinkStateReq
   wpt_uint16                   usSendSize          = 0;
   WDI_Status                   wdiStatus           = WDI_STATUS_SUCCESS;
   tLinkStateParams             halLinkStateReqMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -11588,15 +7924,8 @@ WDI_ProcessSetLinkStateReq
 
   pwdiSetLinkParams = (WDI_SetLinkReqParamsType*)pEventData->pEventData;
   wdiSetLinkRspCb   = (WDI_SetLinkStateRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSession( pWDICtx,
                            pwdiSetLinkParams->wdiLinkInfo.macBSSID,
                           &pBSSSes);
@@ -11609,10 +7938,6 @@ WDI_ProcessSetLinkStateReq
   }
   else
   {
-    /*------------------------------------------------------------------------
-      Check if this BSS is being currently processed or queued,
-      if queued - queue the new request as well
-    ------------------------------------------------------------------------*/
     if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
     {
       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -11624,17 +7949,10 @@ WDI_ProcessSetLinkStateReq
       return wdiStatus;
     }
   }
-  /* If the link is set to enter IDLE - the Session allocated for this BSS
-     will be deleted on the Set Link State response coming from HAL
-   - cache the request for response processing */
   wpalMemoryCopy(&pWDICtx->wdiCacheSetLinkStReq, pwdiSetLinkParams,
                  sizeof(pWDICtx->wdiCacheSetLinkStReq));
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-    ! TO DO : proper conversion into the HAL Message Request Format
-  -----------------------------------------------------------------------*/
 
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_LINK_ST_REQ,
                         sizeof(halLinkStateReqMsg),
@@ -11664,24 +7982,11 @@ WDI_ProcessSetLinkStateReq
   pWDICtx->wdiReqStatusCB     = pwdiSetLinkParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiSetLinkParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Set Link State Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiSetLinkRspCb, pEventData->pUserData, WDI_SET_LINK_ST_RESP);
-}/*WDI_ProcessSetLinkStateReq*/
+}
 
 
-/**
- @brief Process Get Stats Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessGetStatsReq
 (
@@ -11699,11 +8004,8 @@ WDI_ProcessGetStatsReq
   wpt_macAddr                  macBSSID;
   WDI_Status                   wdiStatus           = WDI_STATUS_SUCCESS;
   tHalStatsReqMsg              halStatsReqMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData) ||
       ( NULL == pEventData->pCBfnc ) )
   {
@@ -11716,15 +8018,8 @@ WDI_ProcessGetStatsReq
   pwdiGetStatsParams = (WDI_GetStatsReqParamsType*)pEventData->pEventData;
   wdiGetStatsRspCb   = (WDI_GetStatsRspCb)pEventData->pCBfnc;
 
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                         pwdiGetStatsParams->wdiGetStatsParamsInfo.ucSTAIdx,
                         &macBSSID))
@@ -11746,10 +8041,6 @@ WDI_ProcessGetStatsReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -11764,9 +8055,6 @@ WDI_ProcessGetStatsReq
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_GET_STATS_REQ,
                         sizeof(halStatsReqMsg.statsReqParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -11790,24 +8078,11 @@ WDI_ProcessGetStatsReq
   pWDICtx->wdiReqStatusCB     = pwdiGetStatsParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiGetStatsParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Get STA Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiGetStatsRspCb, pEventData->pUserData, WDI_GET_STATS_RESP);
-}/*WDI_ProcessGetStatsReq*/
+}
 
 #if defined WLAN_FEATURE_VOWIFI_11R || defined FEATURE_WLAN_CCX || defined(FEATURE_WLAN_LFR)
-/**
- @brief Process Get Roam Rssi Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessGetRoamRssiReq
 (
@@ -11825,10 +8100,7 @@ WDI_ProcessGetRoamRssiReq
   wpt_macAddr                  macBSSID;
   WDI_Status                   wdiStatus           = WDI_STATUS_SUCCESS;
   tHalGetRoamRssiReqMsg        halRssiRoamReqMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
+  
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData) ||
       ( NULL == pEventData->pCBfnc ) )
   {
@@ -11841,15 +8113,8 @@ WDI_ProcessGetRoamRssiReq
   pwdiGetRoamRssiParams = (WDI_GetRoamRssiReqParamsType*)pEventData->pEventData;
   wdiGetStatsRspCb   = (WDI_GetStatsRspCb)pEventData->pCBfnc;
 
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                         pwdiGetRoamRssiParams->wdiGetRoamRssiParamsInfo.ucSTAIdx,
                         &macBSSID))
@@ -11871,10 +8136,6 @@ WDI_ProcessGetRoamRssiReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -11888,9 +8149,6 @@ WDI_ProcessGetRoamRssiReq
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_GET_ROAM_RSSI_REQ,
                         sizeof(halRssiRoamReqMsg.roamRssiReqParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -11912,24 +8170,11 @@ WDI_ProcessGetRoamRssiReq
   pWDICtx->wdiReqStatusCB     = pwdiGetRoamRssiParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiGetRoamRssiParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Get STA Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiGetStatsRspCb, pEventData->pUserData, WDI_GET_ROAM_RSSI_RESP);
-}/*WDI_ProcessGetRoamRssiReq*/
+}
 #endif
 
-/**
- @brief Process Update Cfg Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateCfgReq
 (
@@ -11943,11 +8188,8 @@ WDI_ProcessUpdateCfgReq
   wpt_uint8*                   pSendBuffer         = NULL;
   wpt_uint16                   usDataOffset         = 0;
   wpt_uint16                   usSendSize          = 0;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc))
   {
@@ -11960,10 +8202,6 @@ WDI_ProcessUpdateCfgReq
   pwdiUpdateCfgParams = (WDI_UpdateCfgReqParamsType*)pEventData->pEventData;
   wdiUpdateCfgRspCb   = (WDI_UpdateCfgRspCb)pEventData->pCBfnc;
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-    ! TO DO : proper conversion into the HAL Message Request Format
-  -----------------------------------------------------------------------*/
 
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_UPDATE_CFG_REQ,
                         pwdiUpdateCfgParams->uConfigBufferLen + sizeof(wpt_uint32),
@@ -11987,26 +8225,13 @@ WDI_ProcessUpdateCfgReq
   pWDICtx->wdiReqStatusCB     = pwdiUpdateCfgParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiUpdateCfgParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Update Cfg Request to HAL
-  -------------------------------------------------------------------------*/
 
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiUpdateCfgRspCb, pEventData->pUserData, WDI_UPDATE_CFG_RESP);
 
-}/*WDI_ProcessUpdateCfgReq*/
+}
 
 
-/**
- @brief Process Add BA Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessAddBAReq
 (
@@ -12025,11 +8250,8 @@ WDI_ProcessAddBAReq
   wpt_macAddr              macBSSID;
 
   tAddBAReqMsg             halAddBAReq;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData) ||
       ( NULL == pEventData->pCBfnc ))
@@ -12043,15 +8265,8 @@ WDI_ProcessAddBAReq
   pwdiAddBAParams = (WDI_AddBAReqParamsType*)pEventData->pEventData;
   wdiAddBARspCb   = (WDI_AddBARspCb)pEventData->pCBfnc;
 
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                                   pwdiAddBAParams->wdiBAInfoType.ucSTAIdx,
                                   &macBSSID))
@@ -12073,10 +8288,6 @@ WDI_ProcessAddBAReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -12090,9 +8301,6 @@ WDI_ProcessAddBAReq
 
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_ADD_BA_REQ,
                         sizeof(halAddBAReq.addBAParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -12121,26 +8329,13 @@ WDI_ProcessAddBAReq
   pWDICtx->wdiReqStatusCB     = pwdiAddBAParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiAddBAParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Start Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiAddBARspCb, pEventData->pUserData,
                         WDI_ADD_BA_RESP);
-}/*WDI_ProcessAddBAReq*/
+}
 
 
 
-/**
- @brief Process Trigger BA Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessTriggerBAReq
 (
@@ -12162,11 +8357,8 @@ WDI_ProcessTriggerBAReq
   tTriggerBAReqMsg               halTriggerBAReq;
   tTriggerBaReqCandidate*        halTriggerBACandidate;
   WDI_TriggerBAReqCandidateType* wdiTriggerBACandidate;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
@@ -12179,15 +8371,8 @@ WDI_ProcessTriggerBAReq
 
   pwdiTriggerBAParams = (WDI_TriggerBAReqParamsType*)pEventData->pEventData;
   wdiTriggerBARspCb = (WDI_TriggerBARspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                                   pwdiTriggerBAParams->wdiTriggerBAInfoType.ucSTAIdx,
                                   &macBSSID))
@@ -12209,10 +8394,6 @@ WDI_ProcessTriggerBAReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -12226,9 +8407,6 @@ WDI_ProcessTriggerBAReq
 
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                   WDI_TRIGGER_BA_REQ,
                   sizeof(halTriggerBAReq.triggerBAParams) +
@@ -12273,26 +8451,13 @@ WDI_ProcessTriggerBAReq
   pWDICtx->wdiReqStatusCB     = pwdiTriggerBAParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiTriggerBAParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Start Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiTriggerBARspCb, pEventData->pUserData,
                         WDI_TRIGGER_BA_RESP);
-}/*WDI_ProcessTriggerBAReq*/
+}
 
 
 
-/**
- @brief Process Update Beacon Params  Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateBeaconParamsReq
 (
@@ -12306,11 +8471,8 @@ WDI_ProcessUpdateBeaconParamsReq
   wpt_uint16                   usDataOffset        = 0;
   wpt_uint16                   usSendSize          = 0;
   tUpdateBeaconParams          halUpdateBeaconParams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData) ||
       ( NULL == pEventData->pCBfnc))
@@ -12323,9 +8485,6 @@ WDI_ProcessUpdateBeaconParamsReq
 
   pwdiUpdateBeaconParams = (WDI_UpdateBeaconParamsType*)pEventData->pEventData;
   wdiUpdateBeaconParamsRspCb = (WDI_UpdateBeaconParamsRspCb)pEventData->pCBfnc;
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_UPD_BCON_PRMS_REQ,
                         sizeof(halUpdateBeaconParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -12338,21 +8497,19 @@ WDI_ProcessUpdateBeaconParamsReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*BSS Index of the BSS*/
+  
   halUpdateBeaconParams.bssIdx =
     pwdiUpdateBeaconParams->wdiUpdateBeaconParamsInfo.ucBssIdx;
-  /*shortPreamble mode. HAL should update all the STA rates when it
-    receives this message*/
   halUpdateBeaconParams.fShortPreamble =
     pwdiUpdateBeaconParams->wdiUpdateBeaconParamsInfo.ucfShortPreamble;
-  /* short Slot time.*/
+  
   halUpdateBeaconParams.fShortSlotTime =
     pwdiUpdateBeaconParams->wdiUpdateBeaconParamsInfo.ucfShortSlotTime;
-  /* Beacon Interval */
+  
   halUpdateBeaconParams.beaconInterval =
     pwdiUpdateBeaconParams->wdiUpdateBeaconParamsInfo.usBeaconInterval;
 
-  /*Protection related */
+  
   halUpdateBeaconParams.llaCoexist =
     pwdiUpdateBeaconParams->wdiUpdateBeaconParamsInfo.ucllaCoexist;
   halUpdateBeaconParams.llbCoexist =
@@ -12376,25 +8533,12 @@ WDI_ProcessUpdateBeaconParamsReq
   pWDICtx->wdiReqStatusCB     = pwdiUpdateBeaconParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiUpdateBeaconParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Del TS Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiUpdateBeaconParamsRspCb, pEventData->pUserData, WDI_UPD_BCON_PRMS_RESP);
-}/*WDI_ProcessUpdateBeaconParamsReq*/
+}
 
 
 
-/**
- @brief Process Send Beacon template  Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSendBeaconParamsReq
 (
@@ -12407,12 +8551,9 @@ WDI_ProcessSendBeaconParamsReq
   wpt_uint8*                   pSendBuffer         = NULL;
   wpt_uint16                   usDataOffset        = 0;
   wpt_uint16                   usSendSize          = 0;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   tSendBeaconReqMsg            halSendBeaconReq;
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
@@ -12425,9 +8566,6 @@ WDI_ProcessSendBeaconParamsReq
 
   pwdiSendBeaconParams = (WDI_SendBeaconParamsType*)pEventData->pEventData;
   wdiSendBeaconParamsRspCb   = (WDI_SendBeaconParamsRspCb)pEventData->pCBfnc;
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SND_BCON_REQ,
                         sizeof(halSendBeaconReq.sendBeaconParam),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -12450,7 +8588,7 @@ WDI_ProcessSendBeaconParamsReq
                   pwdiSendBeaconParams->wdiSendBeaconParamsInfo.beaconLength);
   halSendBeaconReq.sendBeaconParam.timIeOffset =
                   pwdiSendBeaconParams->wdiSendBeaconParamsInfo.timIeOffset;
-  /* usP2PIeOffset should be atleast greater than timIeOffset */
+  
   if ((pwdiSendBeaconParams->wdiSendBeaconParamsInfo.usP2PIeOffset != 0 ) &&
           (pwdiSendBeaconParams->wdiSendBeaconParamsInfo.usP2PIeOffset <
            pwdiSendBeaconParams->wdiSendBeaconParamsInfo.timIeOffset))
@@ -12472,23 +8610,10 @@ WDI_ProcessSendBeaconParamsReq
   pWDICtx->wdiReqStatusCB     = pwdiSendBeaconParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiSendBeaconParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Del TS Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiSendBeaconParamsRspCb, pEventData->pUserData, WDI_SND_BCON_RESP);
-}/*WDI_ProcessSendBeaconParamsReq*/
+}
 
-/**
- @brief Process Update Beacon Params  Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateProbeRspTemplateReq
 (
@@ -12502,11 +8627,8 @@ WDI_ProcessUpdateProbeRspTemplateReq
   wpt_uint16                             usDataOffset        = 0;
   wpt_uint16                             usSendSize          = 0;
   tSendProbeRespReqParams                halUpdateProbeRspTmplParams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData) ||
       ( NULL == pEventData->pCBfnc))
@@ -12521,9 +8643,6 @@ WDI_ProcessUpdateProbeRspTemplateReq
     (WDI_UpdateProbeRspTemplateParamsType*)pEventData->pEventData;
   wdiUpdateProbeRespTmplRspCb =
     (WDI_UpdateProbeRspTemplateRspCb)pEventData->pCBfnc;
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_UPD_PROBE_RSP_TEMPLATE_REQ,
                         sizeof(halUpdateProbeRspTmplParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -12559,24 +8678,11 @@ WDI_ProcessUpdateProbeRspTemplateReq
   pWDICtx->wdiReqStatusCB     = pwdiUpdateProbeRespTmplParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiUpdateProbeRespTmplParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Update Probe Resp Template Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiUpdateProbeRespTmplRspCb, pEventData->pUserData,
                        WDI_UPD_PROBE_RSP_TEMPLATE_RESP);
-}/*WDI_ProcessUpdateProbeRspTemplateReq*/
+}
 
-/**
- @brief Process NV blob download function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessNvDownloadReq
 (
@@ -12588,9 +8694,6 @@ WDI_ProcessNvDownloadReq
   WDI_NvDownloadReqParamsType*  pwdiNvDownloadReqParams = NULL;
   WDI_NvDownloadRspCb      wdiNvDownloadRspCb = NULL;
 
-  /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == (pwdiNvDownloadReqParams =
                  (WDI_NvDownloadReqParamsType*)pEventData->pEventData)) ||
@@ -12603,12 +8706,10 @@ WDI_ProcessNvDownloadReq
     return WDI_STATUS_E_FAILURE;
   }
 
-  /*Intialize the Nv Blob Info */
+  
   pWDICtx->wdiNvBlobInfo.usTotalFragment =
                 TOTALFRAGMENTS(pwdiNvDownloadReqParams->wdiBlobInfo.uBlobSize);
 
-  /*cache the wdi nv request message here if the the first fragment
-   * To issue the request to HAL for the next fragment */
   if( 0 == pWDICtx->wdiNvBlobInfo.usCurrentFragment)
   {
     wpalMemoryCopy(&pWDICtx->wdiCachedNvDownloadReq,
@@ -12622,16 +8723,6 @@ WDI_ProcessNvDownloadReq
   return WDI_SendNvBlobReq(pWDICtx,pEventData);
 }
 
-/**
- @brief Process Set Max Tx Power Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status WDI_ProcessSetMaxTxPowerReq
 (
   WDI_ControlBlockType*  pWDICtx,
@@ -12644,11 +8735,8 @@ WDI_Status WDI_ProcessSetMaxTxPowerReq
   wpt_uint16                        usDataOffset        = 0;
   wpt_uint16                        usSendSize          = 0;
   tSetMaxTxPwrReq                   halSetMaxTxPower;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
@@ -12663,9 +8751,6 @@ WDI_Status WDI_ProcessSetMaxTxPowerReq
   wdiSetMaxTxPowerRspCb =
     (WDA_SetMaxTxPowerRspCb)pEventData->pCBfnc;
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
 if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_MAX_TX_POWER_REQ,
                         sizeof(halSetMaxTxPower.setMaxTxPwrParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -12696,25 +8781,12 @@ if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_MAX_TX_POWER_
   pWDICtx->wdiReqStatusCB     = pwdiSetMaxTxPowerParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiSetMaxTxPowerParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Del TS Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiSetMaxTxPowerRspCb, pEventData->pUserData,
                                                       WDI_SET_MAX_TX_POWER_RESP);
 
 }
 
-/*
- @brief Process Set Max Tx Power Per Band Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status WDI_ProcessSetMaxTxPowerPerBandReq
 (
   WDI_ControlBlockType*  pWDICtx,
@@ -12726,13 +8798,10 @@ WDI_Status WDI_ProcessSetMaxTxPowerPerBandReq
   wpt_uint8*                             pSendBuffer         = NULL;
   wpt_uint16                             usDataOffset        = 0;
   wpt_uint16                             usSendSize          = 0;
-  tpSetMaxTxPwrPerBandReq                phalSetMxTxPwrPerBand = NULL;
+  tpSetMaxTxPwrPerBandParams             phalSetMxTxPwrPerBand = NULL;
   WDI_Status                             rValue = WDI_STATUS_SUCCESS;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
@@ -12748,9 +8817,6 @@ WDI_Status WDI_ProcessSetMaxTxPowerPerBandReq
   wdiSetMaxTxPowerPerBandRspCb = \
   (WDA_SetMaxTxPowerPerBandRspCb)pEventData->pCBfnc;
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
 
   rValue = WDI_GetMessageBuffer(pWDICtx,
                                 WDI_SET_MAX_TX_POWER_PER_BAND_REQ,
@@ -12769,34 +8835,21 @@ WDI_Status WDI_ProcessSetMaxTxPowerPerBandReq
   }
 
 
-  phalSetMxTxPwrPerBand = (tpSetMaxTxPwrPerBandReq)(pSendBuffer + usDataOffset);
-  phalSetMxTxPwrPerBand->setMaxTxPwrPerBandParams.bandInfo = \
+  phalSetMxTxPwrPerBand = (tpSetMaxTxPwrPerBandParams)(pSendBuffer + usDataOffset);
+  phalSetMxTxPwrPerBand->bandInfo = \
   pwdiSetMaxTxPowerPerBandParams->wdiMaxTxPowerPerBandInfo.bandInfo;
 
-  phalSetMxTxPwrPerBand->setMaxTxPwrPerBandParams.power = \
+  phalSetMxTxPwrPerBand->power = \
   pwdiSetMaxTxPowerPerBandParams->wdiMaxTxPowerPerBandInfo.ucPower;
 
   pWDICtx->wdiReqStatusCB     = pwdiSetMaxTxPowerPerBandParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiSetMaxTxPowerPerBandParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Set Max Tx Power Per Band Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg(pWDICtx, pSendBuffer, usSendSize,
                       wdiSetMaxTxPowerPerBandRspCb, pEventData->pUserData,
                       WDI_SET_MAX_TX_POWER_PER_BAND_RSP);
 }
 
-/**
- @brief Process Set Tx Power Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status WDI_ProcessSetTxPowerReq
 (
   WDI_ControlBlockType*  pWDICtx,
@@ -12809,11 +8862,8 @@ WDI_Status WDI_ProcessSetTxPowerReq
   wpt_uint16                     usDataOffset         = 0;
   wpt_uint16                     usSendSize           = 0;
   tSetTxPwrReqParams            *halSetTxPower       = NULL;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
@@ -12829,9 +8879,6 @@ WDI_Status WDI_ProcessSetTxPowerReq
   wdiSetTxPowerRspCb =
     (WDA_SetTxPowerRspCb)pEventData->pCBfnc;
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_TX_POWER_REQ,
                         sizeof(tSetTxPwrReqParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -12852,24 +8899,11 @@ WDI_Status WDI_ProcessSetTxPowerReq
   pWDICtx->wdiReqStatusCB     = pwdiSetTxPowerParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiSetTxPowerParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Set Tx Power Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiSetTxPowerRspCb, pEventData->pUserData,
                        WDI_SET_TX_POWER_RESP);
 }
 
-/**
- @brief Process P2P Notice Of Absence Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessP2PGONOAReq
 (
@@ -12883,11 +8917,8 @@ WDI_ProcessP2PGONOAReq
   wpt_uint16                             usDataOffset        = 0;
   wpt_uint16                             usSendSize          = 0;
   tSetP2PGONOAParams                     halSetP2PGONOAParams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData) ||
       ( NULL == pEventData->pCBfnc))
@@ -12902,9 +8933,6 @@ WDI_ProcessP2PGONOAReq
     (WDI_SetP2PGONOAReqParamsType*)pEventData->pEventData;
   wdiP2PGONOAReqRspCb =
     (WDI_SetP2PGONOAReqParamsRspCb)pEventData->pCBfnc;
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                         WDI_P2P_GO_NOTICE_OF_ABSENCE_REQ,
                         sizeof(halSetP2PGONOAParams),
@@ -12939,26 +8967,13 @@ WDI_ProcessP2PGONOAReq
   pWDICtx->wdiReqStatusCB     = pwdiP2PGONOAReqParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiP2PGONOAReqParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Update Probe Resp Template Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiP2PGONOAReqRspCb, pEventData->pUserData,
                        WDI_P2P_GO_NOTICE_OF_ABSENCE_RESP);
-}/*WDI_ProcessP2PGONOAReq*/
+}
 
 #ifdef FEATURE_WLAN_TDLS
 
-/**
- @brief Process P2P Notice Of Absence Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessTdlsLinkEstablishReq
 (
@@ -12973,11 +8988,8 @@ WDI_ProcessTdlsLinkEstablishReq
   wpt_uint16                             usSendSize          = 0;
 
   tTDLSLinkEstablishedType               halSetTDLSLinkEstablishParams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData) ||
       ( NULL == pEventData->pCBfnc))
@@ -12993,9 +9005,6 @@ WDI_ProcessTdlsLinkEstablishReq
     (WDI_SetTDLSLinkEstablishReqParamsRspCb)pEventData->pCBfnc;
 
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                         WDI_TDLS_LINK_ESTABLISH_REQ,
                         sizeof(halSetTDLSLinkEstablishParams),
@@ -13033,28 +9042,17 @@ WDI_ProcessTdlsLinkEstablishReq
   pWDICtx->wdiReqStatusCB     = pwdiTDLSLinkEstablishReqParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiTDLSLinkEstablishReqParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Update Probe Resp Template Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiTDLSLinkEstablishReqRspCb, pEventData->pUserData,
                        WDI_TDLS_LINK_ESTABLISH_REQ_RESP);
   return 0;
-}/*WDI_ProcessTdlsLinkEstablishReq*/
+}
 
 
 #endif
 
 
 
-/**
- @brief    Function to handle the ack from DXE once the power
-           state is set.
- @param    None
-
- @see
- @return void
-*/
 void
 WDI_SetPowerStateCb
 (
@@ -13065,18 +9063,14 @@ WDI_SetPowerStateCb
 {
    wpt_status              wptStatus;
    WDI_ControlBlockType *pCB = NULL;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-   /*
-    * Trigger the event to bring the Enter BMPS req function to come
-    * out of wait
-*/
+   
    if( NULL != pContext )
    {
       pCB = (WDI_ControlBlockType *)pContext;
    }
    else
    {
-      //put an error msg
+      
       pCB = &gWDICb;
    }
 
@@ -13101,16 +9095,6 @@ WDI_SetPowerStateCb
 }
 
 
-/**
- @brief Process Enter IMPS Request function (called when
-        Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessEnterImpsReq
 (
@@ -13124,11 +9108,8 @@ WDI_ProcessEnterImpsReq
    wpt_uint16               usDataOffset        = 0;
    wpt_uint16               usSendSize          = 0;
    WDI_EnterImpsReqParamsType*  pwdiEnterImpsReqParams = NULL;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if ((NULL == pEventData ) ||
        (NULL == (wdiEnterImpsRspCb = (WDI_EnterImpsRspCb)pEventData->pCBfnc)) ||
        (NULL == (pwdiEnterImpsReqParams =
@@ -13140,10 +9121,6 @@ WDI_ProcessEnterImpsReq
       goto failRequest;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_ENTER_IMPS_REQ,
                                                      0,
                                                      &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -13156,7 +9133,7 @@ WDI_ProcessEnterImpsReq
       goto failRequest;
    }
 
-   /* Reset the event to be not signalled */
+   
    wptStatus = wpalEventReset(&pWDICtx->setPowerStateEvent);
    if ( eWLAN_PAL_STATUS_SUCCESS != wptStatus ) 
    {
@@ -13167,18 +9144,15 @@ WDI_ProcessEnterImpsReq
       goto fail;
    }
 
-   // notify DTS that we are entering IMPS
+   
    wptStatus = WDTS_SetPowerState(pWDICtx, WDTS_POWER_STATE_IMPS, WDI_SetPowerStateCb);
    if( eWLAN_PAL_STATUS_SUCCESS != wptStatus ) {
         WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
-                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering IMPS\n", wptStatus);
+                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering IMPS", wptStatus);
         WDI_ASSERT(0);
         goto fail;
     }
 
-   /*
-    * Wait for the event to be set once the ACK comes back from DXE
-    */
    wptStatus = wpalEventWait(&pWDICtx->setPowerStateEvent, 
                              WDI_SET_POWER_STATE_TIMEOUT);
    if ( eWLAN_PAL_STATUS_SUCCESS != wptStatus ) 
@@ -13200,31 +9174,18 @@ WDI_ProcessEnterImpsReq
 
    pWDICtx->wdiReqStatusCB     = pwdiEnterImpsReqParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiEnterImpsReqParams->pUserData;
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiEnterImpsRspCb, pEventData->pUserData, WDI_ENTER_IMPS_RESP);
 
 fail:
-   // Release the message buffer so we don't leak
+   
    wpalMemoryFree(pSendBuffer);
 
 failRequest:
-   //WDA should have failure check to avoid the memory leak
+   
    return WDI_STATUS_E_FAILURE;
-}/*WDI_ProcessEnterImpsReq*/
+}
 
-/**
- @brief Process Exit IMPS Request function (called when
-        Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessExitImpsReq
 (
@@ -13236,11 +9197,8 @@ WDI_ProcessExitImpsReq
    wpt_uint8*               pSendBuffer         = NULL;
    wpt_uint16               usDataOffset        = 0;
    wpt_uint16               usSendSize          = 0;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (wdiExitImpsRspCb   = (WDI_ExitImpsRspCb)pEventData->pCBfnc)))
    {
@@ -13250,10 +9208,6 @@ WDI_ProcessExitImpsReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_EXIT_IMPS_REQ,
                                                      0,
                                                      &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -13266,23 +9220,10 @@ WDI_ProcessExitImpsReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiExitImpsRspCb, pEventData->pUserData, WDI_EXIT_IMPS_RESP);
-}/*WDI_ProcessExitImpsReq*/
+}
 
-/**
- @brief Process Enter BMPS Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessEnterBmpsReq
 (
@@ -13298,11 +9239,8 @@ WDI_ProcessEnterBmpsReq
    tHalEnterBmpsReqParams   enterBmpsReq;
    wpt_status               wptStatus; 
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-  /*-------------------------------------------------------------------------
-     Sanity check
-  -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiEnterBmpsReqParams = (WDI_EnterBmpsReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiEnterBmpsRspCb   = (WDI_EnterBmpsRspCb)pEventData->pCBfnc)))
@@ -13313,10 +9251,6 @@ WDI_ProcessEnterBmpsReq
       goto failRequest;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_ENTER_BMPS_REQ,
                          sizeof(enterBmpsReq),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -13329,7 +9263,7 @@ WDI_ProcessEnterBmpsReq
       goto failRequest;
    }
 
-   /* Reset the event to be not signalled */
+   
    wptStatus = wpalEventReset(&pWDICtx->setPowerStateEvent);
    if ( eWLAN_PAL_STATUS_SUCCESS != wptStatus )
    {
@@ -13340,19 +9274,16 @@ WDI_ProcessEnterBmpsReq
       goto fail;
    }
 
-   // notify DTS that we are entering BMPS
+   
    wptStatus = WDTS_SetPowerState(pWDICtx, WDTS_POWER_STATE_BMPS, WDI_SetPowerStateCb);
    if( eWLAN_PAL_STATUS_SUCCESS != wptStatus ) 
    {
         WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
-                "WDTS_SetPowerState returned with status %d when trying to notify DTS that we are entering BMPS\n", wptStatus);
+                "WDTS_SetPowerState returned with status %d when trying to notify DTS that we are entering BMPS", wptStatus);
         WDI_ASSERT(0);
         goto fail;
     }
 
-/*
-    * Wait for the event to be set once the ACK comes back from DXE
-    */
    wptStatus = wpalEventWait(&pWDICtx->setPowerStateEvent, 
                              WDI_SET_POWER_STATE_TIMEOUT);
    if ( eWLAN_PAL_STATUS_SUCCESS != wptStatus )
@@ -13371,7 +9302,7 @@ WDI_ProcessEnterBmpsReq
    enterBmpsReq.dtimCount = pwdiEnterBmpsReqParams->wdiEnterBmpsInfo.ucDtimCount;
    enterBmpsReq.dtimPeriod = pwdiEnterBmpsReqParams->wdiEnterBmpsInfo.ucDtimPeriod;
 
-   // For CCX and 11R Roaming
+   
    enterBmpsReq.rssiFilterPeriod = pwdiEnterBmpsReqParams->wdiEnterBmpsInfo.rssiFilterPeriod;
    enterBmpsReq.numBeaconPerRssiAverage = pwdiEnterBmpsReqParams->wdiEnterBmpsInfo.numBeaconPerRssiAverage;
    enterBmpsReq.bRssiFilterEnable = pwdiEnterBmpsReqParams->wdiEnterBmpsInfo.bRssiFilterEnable;
@@ -13383,31 +9314,18 @@ WDI_ProcessEnterBmpsReq
    pWDICtx->wdiReqStatusCB     = pwdiEnterBmpsReqParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiEnterBmpsReqParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiEnterBmpsRspCb, pEventData->pUserData, WDI_ENTER_BMPS_RESP);
 
 fail:
-   // Release the message buffer so we don't leak
+   
    wpalMemoryFree(pSendBuffer);
 
 failRequest:
-   //WDA should have failure check to avoid the memory leak
+   
    return WDI_STATUS_E_FAILURE;
-}/*WDI_ProcessEnterBmpsReq*/
+}
 
-/**
- @brief Process Exit BMPS Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessExitBmpsReq
 (
@@ -13421,11 +9339,8 @@ WDI_ProcessExitBmpsReq
    wpt_uint16               usDataOffset        = 0;
    wpt_uint16               usSendSize          = 0;
    tHalExitBmpsReqParams    exitBmpsReq;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiExitBmpsReqParams = (WDI_ExitBmpsReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiExitBmpsRspCb   = (WDI_ExitBmpsRspCb)pEventData->pCBfnc)))
@@ -13436,10 +9351,6 @@ WDI_ProcessExitBmpsReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_EXIT_BMPS_REQ,
                          sizeof(exitBmpsReq),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -13462,23 +9373,10 @@ WDI_ProcessExitBmpsReq
    pWDICtx->wdiReqStatusCB     = pwdiExitBmpsReqParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiExitBmpsReqParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiExitBmpsRspCb, pEventData->pUserData, WDI_EXIT_BMPS_RESP);
-}/*WDI_ProcessExitBmpsReq*/
+}
 
-/**
- @brief Process Enter UAPSD Request function (called when Main
-        FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessEnterUapsdReq
 (
@@ -13492,11 +9390,8 @@ WDI_ProcessEnterUapsdReq
    wpt_uint16               usDataOffset        = 0;
    wpt_uint16               usSendSize          = 0;
    tUapsdReqParams          enterUapsdReq;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiEnterUapsdReqParams = (WDI_EnterUapsdReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiEnterUapsdRspCb   = (WDI_EnterUapsdRspCb)pEventData->pCBfnc)))
@@ -13507,10 +9402,6 @@ WDI_ProcessEnterUapsdReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_ENTER_UAPSD_REQ,
                          sizeof(enterUapsdReq),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -13540,23 +9431,10 @@ WDI_ProcessEnterUapsdReq
    pWDICtx->wdiReqStatusCB     = pwdiEnterUapsdReqParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiEnterUapsdReqParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiEnterUapsdRspCb, pEventData->pUserData, WDI_ENTER_UAPSD_RESP);
-}/*WDI_ProcessEnterUapsdReq*/
+}
 
-/**
- @brief Process Exit UAPSD Request function (called when
-        Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessExitUapsdReq
 (
@@ -13571,11 +9449,8 @@ WDI_ProcessExitUapsdReq
    WDI_ExitUapsdReqParamsType *pExitUapsdparams;
    wpt_uint8                bssIdx = 0;
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pExitUapsdparams = (WDI_ExitUapsdReqParamsType *)pEventData->pEventData)) ||
        ( NULL == (wdiExitUapsdRspCb   = (WDI_ExitUapsdRspCb)pEventData->pCBfnc)))
@@ -13586,10 +9461,6 @@ WDI_ProcessExitUapsdReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_EXIT_UAPSD_REQ,
                                                      sizeof(wpt_uint8),
                                                      &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -13611,23 +9482,10 @@ WDI_ProcessExitUapsdReq
    pWDICtx->wdiReqStatusCB     = pExitUapsdparams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pExitUapsdparams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiExitUapsdRspCb, pEventData->pUserData, WDI_EXIT_UAPSD_RESP);
-}/*WDI_ProcessExitUapsdReq*/
+}
 
-/**
- @brief Process Set UAPSD params Request function (called when
-        Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetUapsdAcParamsReq
 (
@@ -13641,11 +9499,8 @@ WDI_ProcessSetUapsdAcParamsReq
   wpt_uint16               usDataOffset        = 0;
   wpt_uint16               usSendSize          = 0;
   tUapsdInfo               uapsdAcParamsReq;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == (pwdiSetUapsdAcParams = (WDI_SetUapsdAcParamsReqParamsType*)pEventData->pEventData)) ||
       ( NULL == (wdiSetUapsdAcParamsCb   = (WDI_SetUapsdAcParamsCb)pEventData->pCBfnc)))
@@ -13656,10 +9511,6 @@ WDI_ProcessSetUapsdAcParamsReq
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-    ! TO DO : proper conversion into the HAL Message Request Format
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_UAPSD_PARAM_REQ,
                         sizeof(uapsdAcParamsReq),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -13686,23 +9537,10 @@ WDI_ProcessSetUapsdAcParamsReq
   pWDICtx->wdiReqStatusCB     = pwdiSetUapsdAcParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiSetUapsdAcParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Get STA Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiSetUapsdAcParamsCb, pEventData->pUserData, WDI_SET_UAPSD_PARAM_RESP);
-}/*WDI_ProcessSetUapsdAcParamsReq*/
+}
 
-/**
- @brief Process update UAPSD params Request function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateUapsdParamsReq
 (
@@ -13715,11 +9553,8 @@ WDI_ProcessUpdateUapsdParamsReq
    wpt_uint8*               pSendBuffer         = NULL;
    wpt_uint16               usDataOffset        = 0;
    wpt_uint16               usSendSize          = 0;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiUpdateUapsdReqParams = (WDI_UpdateUapsdReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiUpdateUapsdParamsCb   = (WDI_UpdateUapsdParamsCb)pEventData->pCBfnc)))
@@ -13730,10 +9565,6 @@ WDI_ProcessUpdateUapsdParamsReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_UPDATE_UAPSD_PARAM_REQ,
                          sizeof(pwdiUpdateUapsdReqParams->wdiUpdateUapsdInfo),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -13753,23 +9584,10 @@ WDI_ProcessUpdateUapsdParamsReq
    pWDICtx->wdiReqStatusCB     = pwdiUpdateUapsdReqParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiUpdateUapsdReqParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiUpdateUapsdParamsCb, pEventData->pUserData, WDI_UPDATE_UAPSD_PARAM_RESP);
-}/*WDI_ProcessUpdateUapsdParamsReq*/
+}
 
-/**
- @brief Process Configure RXP filter Request function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessConfigureRxpFilterReq
 (
@@ -13784,11 +9602,8 @@ WDI_ProcessConfigureRxpFilterReq
   wpt_uint16               usSendSize          = 0;
   tHalConfigureRxpFilterReqParams     halRxpFilterParams;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == (pwdiRxpFilterParams = (WDI_ConfigureRxpFilterReqParamsType*)pEventData->pEventData)) ||
       ( NULL == (wdiConfigureRxpFilterCb   = (WDI_ConfigureRxpFilterCb)pEventData->pCBfnc)))
@@ -13799,9 +9614,6 @@ WDI_ProcessConfigureRxpFilterReq
      return WDI_STATUS_E_FAILURE;
   }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_CONFIGURE_RXP_FILTER_REQ,
                         sizeof(halRxpFilterParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -13826,23 +9638,10 @@ WDI_ProcessConfigureRxpFilterReq
   pWDICtx->wdiReqStatusCB     = pwdiRxpFilterParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiRxpFilterParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Get STA Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiConfigureRxpFilterCb, pEventData->pUserData, WDI_CONFIGURE_RXP_FILTER_RESP);
-}/*WDI_ProcessConfigureRxpFilterReq*/
+}
 
-/**
- @brief Process set beacon filter Request function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetBeaconFilterReq
 (
@@ -13855,11 +9654,8 @@ WDI_ProcessSetBeaconFilterReq
    wpt_uint8*               pSendBuffer         = NULL;
    wpt_uint16               usDataOffset        = 0;
    wpt_uint16               usSendSize          = 0;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiBeaconFilterParams = (WDI_BeaconFilterReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiBeaconFilterCb   = (WDI_SetBeaconFilterCb)pEventData->pCBfnc)))
@@ -13870,10 +9666,6 @@ WDI_ProcessSetBeaconFilterReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_BEACON_FILTER_REQ,
                          sizeof(pwdiBeaconFilterParams->wdiBeaconFilterInfo) + pwdiBeaconFilterParams->wdiBeaconFilterInfo.usIeNum * sizeof(tBeaconFilterIe),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -13896,23 +9688,10 @@ WDI_ProcessSetBeaconFilterReq
    pWDICtx->wdiReqStatusCB     = pwdiBeaconFilterParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiBeaconFilterParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiBeaconFilterCb, pEventData->pUserData, WDI_SET_BEACON_FILTER_RESP);
-}/*WDI_ProcessSetBeaconFilterReq*/
+}
 
-/**
- @brief Process remove beacon filter Request function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessRemBeaconFilterReq
 (
@@ -13925,11 +9704,8 @@ WDI_ProcessRemBeaconFilterReq
    wpt_uint8*               pSendBuffer         = NULL;
    wpt_uint16               usDataOffset        = 0;
    wpt_uint16               usSendSize          = 0;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiBeaconFilterParams = (WDI_RemBeaconFilterReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiBeaconFilterCb   = (WDI_RemBeaconFilterCb)pEventData->pCBfnc)))
@@ -13940,10 +9716,6 @@ WDI_ProcessRemBeaconFilterReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_REM_BEACON_FILTER_REQ,
                          sizeof(pwdiBeaconFilterParams->wdiBeaconFilterInfo),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -13963,23 +9735,10 @@ WDI_ProcessRemBeaconFilterReq
    pWDICtx->wdiReqStatusCB     = pwdiBeaconFilterParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiBeaconFilterParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiBeaconFilterCb, pEventData->pUserData, WDI_REM_BEACON_FILTER_RESP);
 }
 
-/**
- @brief Process set RSSI thresholds Request function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetRSSIThresholdsReq
 (
@@ -13994,11 +9753,8 @@ WDI_ProcessSetRSSIThresholdsReq
    wpt_uint16               usSendSize          = 0;
    tHalRSSIThresholds       rssiThresholdsReq;
    WDI_Status               ret_status = 0;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiRSSIThresholdsParams = (WDI_SetRSSIThresholdsReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiRSSIThresholdsCb   = (WDI_SetRSSIThresholdsCb)pEventData->pCBfnc)))
@@ -14009,10 +9765,6 @@ WDI_ProcessSetRSSIThresholdsReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_RSSI_THRESHOLDS_REQ,
                          sizeof(rssiThresholdsReq),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -14053,34 +9805,21 @@ WDI_ProcessSetRSSIThresholdsReq
    pWDICtx->wdiReqStatusCB     = pwdiRSSIThresholdsParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiRSSIThresholdsParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Set threshold req to HAL 
-   -------------------------------------------------------------------------*/
    if ((ret_status = WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize, 
                         wdiRSSIThresholdsCb, pEventData->pUserData, WDI_SET_RSSI_THRESHOLDS_RESP)) == WDI_STATUS_SUCCESS)
    {
-      // When we are in idle state WDI_STARTED_ST and we receive indication for threshold
-      // req. Then as a result of processing the threshold cross ind, we trigger
-      // a Set threshold req, then we need to indicate to WDI that it needs to 
-      // go to busy state as a result of the indication as we sent a req in the 
-      // same WDI context.
-      // Hence expected state transition is to busy.
+      
+      
+      
+      
+      
+      
       pWDICtx->ucExpectedStateTransition =  WDI_BUSY_ST;
    }
 
    return ret_status;
 }
 
-/**
- @brief Process set RSSI thresholds Request function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessHostOffloadReq
 (
@@ -14098,11 +9837,8 @@ WDI_ProcessHostOffloadReq
    wpt_uint8                ucCurrentBSSSesIdx  = 0;
    WDI_BSSSessionType*      pBSSSes = NULL;
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiHostOffloadParams = (WDI_HostOffloadReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiHostOffloadCb   = (WDI_HostOffloadCb)pEventData->pCBfnc)))
@@ -14113,10 +9849,6 @@ WDI_ProcessHostOffloadReq
       goto failRequest;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_HOST_OFFLOAD_REQ,
                          sizeof(hostOffloadParams)+sizeof(nsOffloadParams),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -14145,20 +9877,20 @@ WDI_ProcessHostOffloadReq
 
    if( HAL_IPV4_ARP_REPLY_OFFLOAD == hostOffloadParams.offloadType )
    {
-      // ARP Offload
+      
       wpalMemoryCopy(hostOffloadParams.params.hostIpv4Addr,
                      pwdiHostOffloadParams->wdiHostOffloadInfo.params.aHostIpv4Addr,
                      4);
    }
    else
    {
-      // NS Offload
+      
       wpalMemoryCopy(hostOffloadParams.params.hostIpv6Addr,
                      pwdiHostOffloadParams->wdiHostOffloadInfo.params.aHostIpv6Addr,
                      16);
 
 #ifdef WLAN_NS_OFFLOAD
-        // copy pwdiHostOffloadParams->wdiNsOffloadParams into nsOffloadParams
+        
         wpalMemoryCopy(nsOffloadParams.srcIPv6Addr,
                         pwdiHostOffloadParams->wdiNsOffloadParams.srcIPv6Addr,
                         16);
@@ -14186,19 +9918,19 @@ WDI_ProcessHostOffloadReq
         nsOffloadParams.slotIndex =
             pwdiHostOffloadParams->wdiNsOffloadParams.slotIdx;
 
-#endif // WLAN_NS_OFFLOAD
+#endif 
    }
 
    nsOffloadParams.bssIdx = pBSSSes->ucBSSIdx;
 
-   // copy hostOffloadParams into pSendBuffer
+   
    wpalMemoryCopy( pSendBuffer+usDataOffset, 
                    &hostOffloadParams, 
                    sizeof(hostOffloadParams)); 
 
    if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION) )
    {
-        // copy nsOffloadParams into pSendBuffer
+        
         wpalMemoryCopy( pSendBuffer+usDataOffset+sizeof(hostOffloadParams), 
                        &nsOffloadParams, 
                        sizeof(nsOffloadParams)); 
@@ -14208,7 +9940,7 @@ WDI_ProcessHostOffloadReq
 #ifdef WLAN_NS_OFFLOAD
         if( HAL_IPV6_NS_OFFLOAD == hostOffloadParams.offloadType )
         {
-            // copy nsOffloadParams into pSendBuffer
+            
             wpalMemoryCopy( pSendBuffer+usDataOffset+sizeof(hostOffloadParams), 
                        &nsOffloadParams, 
                        sizeof(nsOffloadParams)); 
@@ -14219,31 +9951,18 @@ WDI_ProcessHostOffloadReq
    pWDICtx->wdiReqStatusCB     = pwdiHostOffloadParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiHostOffloadParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiHostOffloadCb, pEventData->pUserData, WDI_HOST_OFFLOAD_RESP);
 
 fail:
-   // Release the message buffer so we don't leak
+   
    wpalMemoryFree(pSendBuffer);
 
 failRequest:
-   //WDA should have failure check to avoid the memory leak
+   
    return WDI_STATUS_E_FAILURE;
-}/*WDI_ProcessHostOffloadReq*/
+}
 
-/**
- @brief Process Keep Alive Request function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessKeepAliveReq
 (
@@ -14260,11 +9979,8 @@ WDI_ProcessKeepAliveReq
    wpt_uint8                ucCurrentBSSSesIdx  = 0;
    WDI_BSSSessionType*      pBSSSes = NULL;
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiKeepAliveParams = (WDI_KeepAliveReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiKeepAliveCb   = (WDI_KeepAliveCb)pEventData->pCBfnc)))
@@ -14275,10 +9991,6 @@ WDI_ProcessKeepAliveReq
       goto failRequest;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_KEEP_ALIVE_REQ,
                          sizeof(keepAliveReq),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -14335,32 +10047,19 @@ WDI_ProcessKeepAliveReq
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_INFO,
                   "Sending keep alive req to HAL");
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiKeepAliveCb, pEventData->pUserData, WDI_KEEP_ALIVE_RESP);
 
 fail:
-   // Release the message buffer so we don't leak
+   
    wpalMemoryFree(pSendBuffer);
 
 failRequest:
-   //WDA should have failure check to avoid the memory leak
+   
    return WDI_STATUS_E_FAILURE;
-}/*WDI_ProcessKeepAliveReq*/
+}
 
 
-/**
- @brief Process Wowl add bc ptrn Request function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessWowlAddBcPtrnReq
 (
@@ -14377,11 +10076,8 @@ WDI_ProcessWowlAddBcPtrnReq
    wpt_uint8                ucCurrentBSSSesIdx  = 0;
    WDI_BSSSessionType*        pBSSSes = NULL;
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiWowlAddBcPtrnParams = (WDI_WowlAddBcPtrnReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiWowlAddBcPtrnCb   = (WDI_WowlAddBcPtrnCb)pEventData->pCBfnc)))
@@ -14392,10 +10088,6 @@ WDI_ProcessWowlAddBcPtrnReq
       goto failRequest;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_WOWL_ADD_BC_PTRN_REQ,
                          sizeof(wowlAddBcPtrnReq),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -14462,30 +10154,17 @@ WDI_ProcessWowlAddBcPtrnReq
    pWDICtx->wdiReqStatusCB     = pwdiWowlAddBcPtrnParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiWowlAddBcPtrnParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiWowlAddBcPtrnCb, pEventData->pUserData, WDI_WOWL_ADD_BC_PTRN_RESP);
 fail:
-   // Release the message buffer so we don't leak
+   
    wpalMemoryFree(pSendBuffer);
 
 failRequest:
-   //WDA should have failure check to avoid the memory leak
+   
    return WDI_STATUS_E_FAILURE;
-}/*WDI_ProcessWowlAddBcPtrnReq*/
+}
 
-/**
- @brief Process Wowl delete bc ptrn Request function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessWowlDelBcPtrnReq
 (
@@ -14501,11 +10180,8 @@ WDI_ProcessWowlDelBcPtrnReq
    tHalWowlDelBcastPtrn     wowlDelBcPtrnReq;
    wpt_uint8                ucCurrentBSSSesIdx  = 0;
    WDI_BSSSessionType*        pBSSSes = NULL;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiWowlDelBcPtrnParams = (WDI_WowlDelBcPtrnReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiWowlDelBcPtrnCb   = (WDI_WowlDelBcPtrnCb)pEventData->pCBfnc)))
@@ -14516,10 +10192,6 @@ WDI_ProcessWowlDelBcPtrnReq
       goto failRequest;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_WOWL_DEL_BC_PTRN_REQ,
                          sizeof(wowlDelBcPtrnReq),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -14554,31 +10226,18 @@ WDI_ProcessWowlDelBcPtrnReq
    pWDICtx->wdiReqStatusCB     = pwdiWowlDelBcPtrnParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiWowlDelBcPtrnParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiWowlDelBcPtrnCb, pEventData->pUserData, WDI_WOWL_DEL_BC_PTRN_RESP);
 
 fail:
-   // Release the message buffer so we don't leak
+   
    wpalMemoryFree(pSendBuffer);
 
 failRequest:
-   //WDA should have failure check to avoid the memory leak
+   
    return WDI_STATUS_E_FAILURE;
-}/*WDI_ProcessWowlDelBcPtrnReq*/
+}
 
-/**
- @brief Process Wowl enter Request function (called
-        when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessWowlEnterReq
 (
@@ -14592,11 +10251,8 @@ WDI_ProcessWowlEnterReq
    wpt_uint16               usDataOffset        = 0;
    wpt_uint16               usSendSize          = 0;
    tHalWowlEnterParams      wowlEnterReq;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiWowlEnterParams = (WDI_WowlEnterReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiWowlEnterCb   = (WDI_WowlEnterReqCb)pEventData->pCBfnc)))
@@ -14607,10 +10263,6 @@ WDI_ProcessWowlEnterReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_WOWL_ENTER_REQ,
                          sizeof(wowlEnterReq),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -14657,7 +10309,7 @@ WDI_ProcessWowlEnterReq
 
    wowlEnterReq.ucWoWBSSConnLoss = 
       pwdiWowlEnterParams->wdiWowlEnterInfo.ucWoWBSSConnLoss;
-#endif // WLAN_WAKEUP_EVENTS
+#endif 
 
    wowlEnterReq.bssIdx = pwdiWowlEnterParams->wdiWowlEnterInfo.bssIdx;
 
@@ -14672,23 +10324,10 @@ WDI_ProcessWowlEnterReq
    pWDICtx->wdiReqStatusCB     = pwdiWowlEnterParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiWowlEnterParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiWowlEnterCb, pEventData->pUserData, WDI_WOWL_ENTER_RESP);
-}/*WDI_ProcessWowlEnterReq*/
+}
 
-/**
- @brief Process Wowl exit Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessWowlExitReq
 (
@@ -14702,11 +10341,8 @@ WDI_ProcessWowlExitReq
    wpt_uint16               usDataOffset        = 0;
    wpt_uint16               usSendSize          = 0;
    tHalWowlExitParams       wowlExitparams;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiWowlExitParams = (WDI_WowlExitReqParamsType *)pEventData->pEventData)) ||
        ( NULL == (wdiWowlExitCb   = (WDI_WowlExitReqCb)pEventData->pCBfnc)))
@@ -14717,10 +10353,6 @@ WDI_ProcessWowlExitReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-     ! TO DO : proper conversion into the HAL Message Request Format
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_WOWL_EXIT_REQ,
                                                      sizeof(wowlExitparams),
                                                      &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -14738,23 +10370,10 @@ WDI_ProcessWowlExitReq
    wpalMemoryCopy( pSendBuffer+usDataOffset,
                    &wowlExitparams,
                    sizeof(wowlExitparams));
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiWowlExitCb, pEventData->pUserData, WDI_WOWL_EXIT_RESP);
-}/*WDI_ProcessWowlExitReq*/
+}
 
-/**
- @brief Process Configure Apps Cpu Wakeup State Request function
-        (called when Main FSM allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessConfigureAppsCpuWakeupStateReq
 (
@@ -14768,11 +10387,8 @@ WDI_ProcessConfigureAppsCpuWakeupStateReq
    wpt_uint16               usDataOffset        = 0;
    wpt_uint16               usSendSize          = 0;
    tHalConfigureAppsCpuWakeupStateReqParams  halCfgAppsCpuWakeupStateReqParams;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiAppsCpuWakeupStateParams = (WDI_ConfigureAppsCpuWakeupStateReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiConfigureAppsCpuWakeupStateCb   = (WDI_ConfigureAppsCpuWakeupStateCb)pEventData->pCBfnc)))
@@ -14783,9 +10399,6 @@ WDI_ProcessConfigureAppsCpuWakeupStateReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_CONFIGURE_APPS_CPU_WAKEUP_STATE_REQ,
                          sizeof(halCfgAppsCpuWakeupStateReqParams),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -14808,25 +10421,12 @@ WDI_ProcessConfigureAppsCpuWakeupStateReq
    pWDICtx->wdiReqStatusCB     = pwdiAppsCpuWakeupStateParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiAppsCpuWakeupStateParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiConfigureAppsCpuWakeupStateCb, pEventData->pUserData,
                         WDI_CONFIGURE_APPS_CPU_WAKEUP_STATE_RESP);
-}/*WDI_ProcessConfigureAppsCpuWakeupStateReq*/
+}
 
 #ifdef WLAN_FEATURE_VOWIFI_11R
-/**
- @brief Process Aggregated Add TSpec Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessAggrAddTSpecReq
 (
@@ -14845,11 +10445,8 @@ WDI_ProcessAggrAddTSpecReq
   wpt_macAddr              macBSSID;
   tAggrAddTsReq            halAggrAddTsReq;
   int i;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ) ||
       ( NULL == pEventData->pCBfnc ))
   {
@@ -14861,15 +10458,8 @@ WDI_ProcessAggrAddTSpecReq
   wpalMemoryFill( &halAggrAddTsReq, sizeof(tAggrAddTsReq), 0 );
   pwdiAggrAddTSParams = (WDI_AggrAddTSReqParamsType*)pEventData->pEventData;
   wdiAggrAddTSRspCb   = (WDI_AggrAddTsRspCb)pEventData->pCBfnc;
-  /*-------------------------------------------------------------------------
-    Check to see if we are in the middle of an association, if so queue, if
-    not it means it is free to process request
-  -------------------------------------------------------------------------*/
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made and identify WDI session
-  ------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != WDI_STATableGetStaBSSIDAddr(pWDICtx,
                                         pwdiAggrAddTSParams->wdiAggrTsInfo.ucSTAIdx,
                                         &macBSSID))
@@ -14891,10 +10481,6 @@ WDI_ProcessAggrAddTSpecReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Check if this BSS is being currently processed or queued,
-    if queued - queue the new request as well
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_TRUE == pBSSSes->bAssocReqQueued )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -14907,10 +10493,6 @@ WDI_ProcessAggrAddTSpecReq
   }
 
   wpalMutexRelease(&pWDICtx->wptMutex);
-  /*-----------------------------------------------------------------------
-    Get message buffer
-    ! TO DO : proper conversion into the HAL Message Request Format
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_AGGR_ADD_TS_REQ,
                         sizeof(tAggrAddTsParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -15003,25 +10585,12 @@ WDI_ProcessAggrAddTSpecReq
   pWDICtx->wdiReqStatusCB     = pwdiAggrAddTSParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiAggrAddTSParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Add TS Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                        wdiAggrAddTSRspCb, pEventData->pUserData,
                        WDI_AGGR_ADD_TS_RESP);
-}/*WDI_ProcessAggrAddTSpecReq*/
-#endif /* WLAN_FEATURE_VOWIFI_11R */
+}
+#endif 
 
-/**
- @brief Process Shutdown Request function (called when Main FSM
-        allows it)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessShutdownReq
 (
@@ -15032,11 +10601,8 @@ WDI_ProcessShutdownReq
    wpt_status              wptStatus;
 
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-     -------------------------------------------------------------------------*/
    if ( NULL == pEventData )
    {
       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -15049,28 +10615,26 @@ WDI_ProcessShutdownReq
 
 
    gWDIInitialized = eWLAN_PAL_FALSE;
-   /*! TO DO: stop the data services */
+   
    if ( eDRIVER_TYPE_MFG != pWDICtx->driverMode )
    {
-      /*Stop the STA Table !UT- check this logic again
-        It is safer to do it here than on the response - because a stop is imminent*/
       WDI_STATableStop(pWDICtx);
 
-      /* Stop Transport Driver, DXE */
+      
       WDTS_Stop(pWDICtx);
    }
 
-   /*Clear all pending request*/
+   
    WDI_ClearPendingRequests(pWDICtx);
-   /* Close Data transport*/
-   /* FTM mode does not open Data Path */
+   
+   
    if ( eDRIVER_TYPE_MFG != pWDICtx->driverMode )
    {
       WDTS_Close(pWDICtx);
    }
-   /*Close the STA Table !UT- check this logic again*/
+   
    WDI_STATableClose(pWDICtx);
-   /*close the PAL */
+   
    wptStatus = wpalClose(pWDICtx->pPALContext);
    if ( eWLAN_PAL_STATUS_SUCCESS !=  wptStatus )
    {
@@ -15079,32 +10643,19 @@ WDI_ProcessShutdownReq
       WDI_ASSERT(0);
    }
 
-   /*Transition back to init state*/
+   
    WDI_STATE_TRANSITION( pWDICtx, WDI_INIT_ST);
 
    wpalMutexRelease(&pWDICtx->wptMutex);
 
-   /*Make sure the expected state is properly defaulted to Init*/
+   
    pWDICtx->ucExpectedStateTransition = WDI_INIT_ST;
 
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessShutdownReq*/
+}
 
-/*========================================================================
-          Main DAL Control Path Response Processing API
-========================================================================*/
 
-/**
- @brief Process Start Response function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessStartRsp
 (
@@ -15120,12 +10671,9 @@ WDI_ProcessStartRsp
 #ifndef HAL_SELF_STA_PER_BSS
   WDI_AddStaParams         wdiAddSTAParam = {0};
 #endif
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   wdiStartRspCb = (WDI_StartRspCb)pWDICtx->pfncRspCB;
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData) ||
       ( NULL == wdiStartRspCb ))
@@ -15136,12 +10684,9 @@ WDI_ProcessStartRsp
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   if ( sizeof(tHalMacStartRspParams) > pEventData->uEventDataSize )
   {
-     // not enough data was received
+     
      WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
                  "Invalid response length in Start Resp Expect %x Rcvd %x",
                  sizeof(tHalMacStartRspParams), pEventData->uEventDataSize);
@@ -15149,10 +10694,6 @@ WDI_ProcessStartRsp
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Unpack HAL Response Message - the header was already extracted by the
-    main Response Handling procedure
-  -------------------------------------------------------------------------*/
   startRspParams = (tHalMacStartRspParams *) pEventData->pEventData;
 
   wdiRspParams.ucMaxBssids   = startRspParams->ucMaxBssids;
@@ -15177,7 +10718,7 @@ WDI_ProcessStartRsp
           sizeof(wdiRspParams.wcnssHardwareVersion));
   wdiRspParams.wdiStatus     = WDI_HAL_2_WDI_STATUS(startRspParams->status);
 
-  /*Save the HAL Version*/
+  
   pWDICtx->wlanVersion = wdiRspParams.wlanReportedVersion; 
 
   wpalMutexAcquire(&pWDICtx->wptMutex);
@@ -15185,7 +10726,7 @@ WDI_ProcessStartRsp
   {
     pWDICtx->ucExpectedStateTransition =  WDI_STARTED_ST;
 
-    /*Cache the start response for further use*/
+    
     wpalMemoryCopy( &pWDICtx->wdiCachedStartRspParams ,
                   &wdiRspParams,
                   sizeof(pWDICtx->wdiCachedStartRspParams));
@@ -15198,19 +10739,16 @@ WDI_ProcessStartRsp
                WDI_getHALStatusMsgString(startRspParams->status),
                startRspParams->status);
 
-    /*Set the expected state transition to stopped - because the start has
-      failed*/
     pWDICtx->ucExpectedStateTransition =  WDI_STOPPED_ST;
 
     wpalMutexRelease(&pWDICtx->wptMutex);
 
-     /*Notify UMAC*/
+     
     wdiStartRspCb( &wdiRspParams, pWDICtx->pRspCBUserData);
 
     WDI_DetectedDeviceError(pWDICtx, wdiRspParams.wdiStatus);
+    wpalWlanReload();
 
-    /*Although the response is an error - it was processed by our function
-    so as far as the caller is concerned this is a succesful reponse processing*/
     return WDI_STATUS_SUCCESS;
   }
 
@@ -15218,70 +10756,56 @@ WDI_ProcessStartRsp
 
   if(eDRIVER_TYPE_MFG == pWDICtx->driverMode)
   {
-    /* FTM mode does not need to execute below */
-    /* Notify UMAC */
+    
+    
     wdiStartRspCb( &wdiRspParams, pWDICtx->pRspCBUserData);
     return WDI_STATUS_SUCCESS;
   }
 
   WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_FATAL,
               "HAL Start RSP, Start Tranport"),
-  /* START the Data transport */
+  
   WDTS_startTransport(pWDICtx);
 
-  /*Start the STA Table !- check this logic again*/
+  
   WDI_STATableStart(pWDICtx);
 
 #ifndef HAL_SELF_STA_PER_BSS
-  /* Store the Self STA Index */
+  
   pWDICtx->ucSelfStaId = halStartRspMsg.startRspParams.selfStaIdx;
 
   pWDICtx->usSelfStaDpuId = wdiRspParams.usSelfStaDpuId;
   wpalMemoryCopy(pWDICtx->macSelfSta, wdiRspParams.macSelfSta,
                  WDI_MAC_ADDR_LEN);
 
-  /* At this point add the self-STA */
+  
 
-  /*! TO DO: wdiAddSTAParam.bcastMgmtDpuSignature */
-  /* !TO DO: wdiAddSTAParam.bcastDpuSignature */
-  /*! TO DO: wdiAddSTAParam.dpuSig */
-  /*! TO DO: wdiAddSTAParam.ucWmmEnabled */
-  /*! TO DO: wdiAddSTAParam.ucHTCapable */
-  /*! TO DO: wdiAddSTAParam.ucRmfEnabled */
+  
+  
+  
+  
+  
+  
 
-  //all DPU indices are the same for self STA
+  
   wdiAddSTAParam.bcastDpuIndex = wdiRspParams.usSelfStaDpuId;
   wdiAddSTAParam.bcastMgmtDpuIndex = wdiRspParams.usSelfStaDpuId;
   wdiAddSTAParam.dpuIndex = wdiRspParams.usSelfStaDpuId;
   wpalMemoryCopy(wdiAddSTAParam.staMacAddr, wdiRspParams.macSelfSta,
                  WDI_MAC_ADDR_LEN);
-  wdiAddSTAParam.ucStaType = WDI_STA_ENTRY_SELF; /* 0 - self */
+  wdiAddSTAParam.ucStaType = WDI_STA_ENTRY_SELF; 
   wdiAddSTAParam.ucSTAIdx = halStartRspMsg.startRspParams.selfStaIdx;
 
-  /* Note: Since we don't get an explicit config STA request for self STA, we
-     add the self STA upon receiving the Start response message. But the
-     self STA entry in the table is deleted when WDI gets an explicit delete STA
-     request */
   (void)WDI_STATableAddSta(pWDICtx,&wdiAddSTAParam);
 #endif
 
-  /*Notify UMAC*/
+  
   wdiStartRspCb( &wdiRspParams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessStartRsp*/
+}
 
 
-/**
- @brief Process Stop Response function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessStopRsp
 (
@@ -15293,12 +10817,9 @@ WDI_ProcessStopRsp
   WDI_StopRspCb       wdiStopRspCb = NULL;
 
   tHalMacStopRspMsg   halMacStopRspMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   wdiStopRspCb = (WDI_StopRspCb)pWDICtx->pfncRspCB;
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData) ||
       ( NULL == wdiStopRspCb ))
@@ -15309,9 +10830,6 @@ WDI_ProcessStopRsp
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   if ( sizeof(halMacStopRspMsg) < pEventData->uEventDataSize )
   {
      WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -15321,10 +10839,6 @@ WDI_ProcessStopRsp
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Unpack HAL Response Message - the header was already extracted by the
-    main Response Handling procedure
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halMacStopRspMsg.stopRspParams,
                   pEventData->pEventData,
                   sizeof(halMacStopRspMsg.stopRspParams));
@@ -15333,9 +10847,6 @@ WDI_ProcessStopRsp
 
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*--------------------------------------------------------------------------
-    Check to see if the stop went OK
-  --------------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != wdiStatus  )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -15344,6 +10855,7 @@ WDI_ProcessStopRsp
                halMacStopRspMsg.stopRspParams.status);
 
     WDI_DetectedDeviceError( pWDICtx, WDI_ERR_BASIC_OP_FAILURE);
+    wpalWlanReload();
 
     wpalMutexRelease(&pWDICtx->wptMutex);
     return WDI_STATUS_E_FAILURE;
@@ -15351,30 +10863,17 @@ WDI_ProcessStopRsp
 
   pWDICtx->ucExpectedStateTransition = WDI_STOPPED_ST;
 
-  /*Transition now as WDI may get preempted imediately after it sends
-  up the Stop Response and it will not get to process the state transition
-  from Main Rsp function*/
   WDI_STATE_TRANSITION( pWDICtx, pWDICtx->ucExpectedStateTransition);
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*! TO DO: - STOP the Data transport */
+  
 
-  /*Notify UMAC*/
+  
   wdiStopRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessStopRsp*/
+}
 
-/**
- @brief Process Close Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessCloseRsp
 (
@@ -15382,27 +10881,12 @@ WDI_ProcessCloseRsp
   WDI_EventInfoType*     pEventData
 )
 {
-  /*There is no close response comming from HAL - function just kept for
-  simmetry */
   WDI_ASSERT(0);
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessCloseRsp*/
+}
 
 
-/*============================================================================
-                      SCAN RESPONSE PROCESSING API
-============================================================================*/
 
-/**
- @brief Process Init Scan Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessInitScanRsp
 (
@@ -15414,11 +10898,8 @@ WDI_ProcessInitScanRsp
   WDI_InitScanRspCb     wdiInitScanRspCb;
   tHalInitScanRspMsg    halInitScanRspMsg;
   wpt_status            wptStatus;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -15437,10 +10918,6 @@ WDI_ProcessInitScanRsp
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Unpack HAL Response Message - the header was already extracted by the
-    main Response Handling procedure
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halInitScanRspMsg.initScanRspParams,
                   pEventData->pEventData,
                   sizeof(halInitScanRspMsg.initScanRspParams));
@@ -15449,32 +10926,22 @@ WDI_ProcessInitScanRsp
 
   if ( pWDICtx->bInBmps )
   {
-     // notify DTS that we are entering Full power
+     
      wptStatus = WDTS_SetPowerState(pWDICtx, WDTS_POWER_STATE_FULL, NULL);
      if( eWLAN_PAL_STATUS_SUCCESS != wptStatus ) {
         WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
-                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Full Power state\n", wptStatus);
+                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Full Power state", wptStatus);
         WDI_ASSERT(0);
     }
   }
 
-  /*Notify UMAC*/
+  
   wdiInitScanRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessInitScanRsp*/
+}
 
 
-/**
- @brief Process Start Scan Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessStartScanRsp
 (
@@ -15486,11 +10953,8 @@ WDI_ProcessStartScanRsp
   WDI_StartScanRspCb           wdiStartScanRspCb;
 
   tHalStartScanRspMsg          halStartScanRspMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -15509,9 +10973,6 @@ WDI_ProcessStartScanRsp
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halStartScanRspMsg.startScanRspParams,
                   pEventData->pEventData,
                   sizeof(halStartScanRspMsg.startScanRspParams));
@@ -15532,27 +10993,17 @@ WDI_ProcessStartScanRsp
               "Start scan failed with status %s (%d)",
               WDI_getHALStatusMsgString(halStartScanRspMsg.startScanRspParams.status),
               halStartScanRspMsg.startScanRspParams.status);
-     /* send the status to UMAC, don't return from here*/
+     
   }
 
-  /*Notify UMAC*/
+  
   wdiStartScanRspCb( &wdiStartScanParams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
 
-}/*WDI_ProcessStartScanRsp*/
+}
 
 
-/**
- @brief Process End Scan Response function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessEndScanRsp
 (
@@ -15563,11 +11014,8 @@ WDI_ProcessEndScanRsp
   WDI_Status            wdiStatus;
   tHalEndScanRspMsg     halEndScanRspMsg;
   WDI_EndScanRspCb      wdiEndScanRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -15579,9 +11027,6 @@ WDI_ProcessEndScanRsp
 
   wdiEndScanRspCb = (WDI_EndScanRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halEndScanRspMsg.endScanRspParams,
                   pEventData->pEventData,
                   sizeof(halEndScanRspMsg.endScanRspParams));
@@ -15594,26 +11039,16 @@ WDI_ProcessEndScanRsp
               "End Scan failed with status %s (%d )",
               WDI_getHALStatusMsgString(halEndScanRspMsg.endScanRspParams.status),
               halEndScanRspMsg.endScanRspParams.status);
-     /* send the status to UMAC, don't return from here*/
+     
   }
 
-  /*Notify UMAC*/
+  
   wdiEndScanRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessEndScanRsp*/
+}
 
 
-/**
- @brief Process Finish Scan Response function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessFinishScanRsp
 (
@@ -15625,11 +11060,8 @@ WDI_ProcessFinishScanRsp
   WDI_FinishScanRspCb   wdiFinishScanRspCb;
 
   tHalFinishScanRspMsg  halFinishScanRspMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -15641,9 +11073,6 @@ WDI_ProcessFinishScanRsp
 
   wdiFinishScanRspCb = (WDI_FinishScanRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( (void *)&halFinishScanRspMsg.finishScanRspParams.status,
                   pEventData->pEventData,
                   sizeof(halFinishScanRspMsg.finishScanRspParams.status));
@@ -15661,25 +11090,15 @@ WDI_ProcessFinishScanRsp
               "Finish Scan failed with status %s (%d)",
               WDI_getHALStatusMsgString(halFinishScanRspMsg.finishScanRspParams.status),
               halFinishScanRspMsg.finishScanRspParams.status);
-     /* send the status to UMAC, don't return from here*/
+     
   }
 
-  /*Notify UMAC*/
+  
   wdiFinishScanRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessFinishScanRsp*/
+}
 
-/**
- @brief Process Join Response function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessJoinRsp
 (
@@ -15692,11 +11111,8 @@ WDI_ProcessJoinRsp
   WDI_BSSSessionType*           pBSSSes             = NULL;
 
   tHalJoinRspMsg                halJoinRspMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) ||
       ( NULL == pWDICtx->pfncRspCB ) ||
       ( NULL == pEventData ) ||
@@ -15710,9 +11126,6 @@ WDI_ProcessJoinRsp
 
   wdiJoinRspCb = (WDI_JoinRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halJoinRspMsg.joinRspParams,
                   pEventData->pEventData,
                   sizeof(halJoinRspMsg.joinRspParams));
@@ -15721,10 +11134,6 @@ WDI_ProcessJoinRsp
 
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*-----------------------------------------------------------------------
-    Join response can only be received for an existing assoc that
-    is current and in progress
-    -----------------------------------------------------------------------*/
   if (( !WDI_VALID_SESSION_IDX(pWDICtx->ucCurrentBSSSesIdx )) ||
       ( eWLAN_PAL_FALSE == pWDICtx->bAssociationInProgress ))
   {
@@ -15740,9 +11149,6 @@ WDI_ProcessJoinRsp
 
   pBSSSes = &pWDICtx->aBSSSessions[pWDICtx->ucCurrentBSSSesIdx];
 
-  /*-----------------------------------------------------------------------
-    Join Response is only allowed in init state
-  -----------------------------------------------------------------------*/
   if ( WDI_ASSOC_JOINING_ST != pBSSSes->wdiAssocState)
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -15756,47 +11162,32 @@ WDI_ProcessJoinRsp
   }
 
 
-  /*-----------------------------------------------------------------------
-    If assoc has failed the current session will be deleted
-  -----------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != wdiStatus )
   {
-    /*Association was failed by HAL - remove session*/
+    
     WDI_DeleteSession(pWDICtx, pBSSSes);
 
-    /*Association no longer in progress  */
+    
     pWDICtx->bAssociationInProgress = eWLAN_PAL_FALSE;
 
-    /*Association no longer in progress - prepare pending assoc for processing*/
+    
     WDI_DequeueAssocRequest(pWDICtx);
 
   }
   else
   {
-    /*Transition to state Joining - this may be redundant as we are supposed
-      to be in this state already - but just to be safe*/
     pBSSSes->wdiAssocState = WDI_ASSOC_JOINING_ST;
   }
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*Notify UMAC*/
+  
   wdiJoinRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessJoinRsp*/
+}
 
 
-/**
- @brief Process Config BSS Response function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessConfigBSSRsp
 (
@@ -15813,11 +11204,8 @@ WDI_ProcessConfigBSSRsp
   WDI_AddStaParams              wdiBcastAddSTAParam = {0};
   WDI_AddStaParams              wdiAddSTAParam = {0};
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -15829,9 +11217,6 @@ WDI_ProcessConfigBSSRsp
 
   wdiConfigBSSRspCb = (WDI_ConfigBSSRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halConfigBssRspMsg.configBssRspParams,
                    pEventData->pEventData,
                    sizeof(halConfigBssRspMsg.configBssRspParams));
@@ -15863,17 +11248,10 @@ WDI_ProcessConfigBSSRsp
                      WDI_MAC_ADDR_LEN );
 
     wpalMutexAcquire(&pWDICtx->wptMutex);
-    /*------------------------------------------------------------------------
-      Find the BSS for which the request is made
-    ------------------------------------------------------------------------*/
     ucCurrentBSSSesIdx = WDI_FindAssocSession( pWDICtx,
                                                wdiConfigBSSParams.macBSSID,
                                               &pBSSSes);
 
-    /*-----------------------------------------------------------------------
-      Config BSS response can only be received for an existing assoc that
-      is current and in progress
-      -----------------------------------------------------------------------*/
     if ( NULL == pBSSSes )
     {
       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -15886,7 +11264,7 @@ WDI_ProcessConfigBSSRsp
       return WDI_STATUS_E_NOT_ALLOWED;
     }
 
-    /*Save data for this BSS*/
+    
     pBSSSes->wdiBssType = pWDICtx->wdiCachedConfigBssReq.wdiReqInfo.wdiBSSType;
     pBSSSes->ucBSSIdx = halConfigBssRspMsg.configBssRspParams.bssIdx;
     pBSSSes->bcastDpuIndex     =
@@ -15902,16 +11280,13 @@ WDI_ProcessConfigBSSRsp
     pBSSSes->bcastStaIdx =
        halConfigBssRspMsg.configBssRspParams.bssBcastStaIdx;
 
-    /* !TO DO: Shuould we be updating the RMF Capability of self STA here? */
+    
 
-    /*-------------------------------------------------------------------------
-        Add Peer STA
-      -------------------------------------------------------------------------*/
     wdiAddSTAParam.ucSTAIdx = halConfigBssRspMsg.configBssRspParams.bssStaIdx;
     wdiAddSTAParam.dpuIndex = halConfigBssRspMsg.configBssRspParams.dpuDescIndx;
     wdiAddSTAParam.dpuSig   = halConfigBssRspMsg.configBssRspParams.ucastDpuSignature;
 
-     /*This info can be retrieved from the cached initial request*/
+     
     wdiAddSTAParam.ucWmmEnabled =
         pWDICtx->wdiCachedConfigBssReq.wdiReqInfo.wdiSTAContext.ucWMMEnabled;
     wdiAddSTAParam.ucHTCapable  =
@@ -15919,7 +11294,7 @@ WDI_ProcessConfigBSSRsp
     wdiAddSTAParam.ucStaType    =
         pWDICtx->wdiCachedConfigBssReq.wdiReqInfo.wdiSTAContext.wdiSTAType;
 
-     /* MAC Address of STA */
+     
     wpalMemoryCopy(wdiAddSTAParam.staMacAddr,
                    halConfigBssRspMsg.configBssRspParams.staMac,
                    WDI_MAC_ADDR_LEN);
@@ -15928,7 +11303,7 @@ WDI_ProcessConfigBSSRsp
                    pWDICtx->wdiCachedConfigBssReq.wdiReqInfo.wdiSTAContext.macBSSID ,
                    WDI_MAC_ADDR_LEN);
 
-    /*Add BSS specific parameters*/
+    
     wdiAddSTAParam.bcastMgmtDpuIndex     =
         halConfigBssRspMsg.configBssRspParams.mgmtDpuDescIndx;
     wdiAddSTAParam.bcastMgmtDpuSignature =
@@ -15946,9 +11321,6 @@ WDI_ProcessConfigBSSRsp
                 "Add STA to the table index: %d", wdiAddSTAParam.ucSTAIdx );
 
     WDI_STATableAddSta(pWDICtx,&wdiAddSTAParam);
-    /*-------------------------------------------------------------------------
-        Add Broadcast STA only in AP mode
-      -------------------------------------------------------------------------*/
     if( pWDICtx->wdiCachedConfigBssReq.wdiReqInfo.ucOperMode ==
         WDI_BSS_OPERATIONAL_MODE_AP || pBSSSes->wdiBssType == WDI_IBSS_MODE)
     {
@@ -15973,34 +11345,24 @@ WDI_ProcessConfigBSSRsp
                   halConfigBssRspMsg.configBssRspParams.status);
 
 
-    /*Association was failed by HAL - remove session*/
+    
     WDI_DeleteSession(pWDICtx, pBSSSes);
 
-    /*Association no longer in progress  */
+    
     pWDICtx->bAssociationInProgress = eWLAN_PAL_FALSE;
 
-    /*Association no longer in progress - prepare pending assoc for processing*/
+    
     WDI_DequeueAssocRequest(pWDICtx);
 
   }
 
-  /*Notify UMAC*/
+  
   wdiConfigBSSRspCb( &wdiConfigBSSParams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessConfigBSSRsp*/
+}
 
 
-/**
- @brief Process Del BSS Response function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelBSSRsp
 (
@@ -16014,11 +11376,8 @@ WDI_ProcessDelBSSRsp
   WDI_BSSSessionType*           pBSSSes             = NULL;
 
   tDeleteBssRspMsg              halDelBssRspMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16030,9 +11389,6 @@ WDI_ProcessDelBSSRsp
 
   wdiDelBSSRspCb = (WDI_DelBSSRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halDelBssRspMsg.deleteBssRspParams,
                   pEventData->pEventData,
                   sizeof(halDelBssRspMsg.deleteBssRspParams));
@@ -16043,17 +11399,10 @@ WDI_ProcessDelBSSRsp
 
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSessionByBSSIdx( pWDICtx,
                              halDelBssRspMsg.deleteBssRspParams.bssIdx,
                              &pBSSSes);
 
-  /*-----------------------------------------------------------------------
-    Del BSS response can only be received for an existing assoc that
-    is current and in progress
-    -----------------------------------------------------------------------*/
   if ( NULL == pBSSSes )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -16066,45 +11415,33 @@ WDI_ProcessDelBSSRsp
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*Extract BSSID for the response to UMAC*/
+  
   wpalMemoryCopy(wdiDelBSSParams.macBSSID,
                  pBSSSes->macBSSID, WDI_MAC_ADDR_LEN);
 
   wdiDelBSSParams.ucBssIdx = halDelBssRspMsg.deleteBssRspParams.bssIdx;
 
-  /*-----------------------------------------------------------------------
-    The current session will be deleted
-  -----------------------------------------------------------------------*/
   WDI_DeleteSession(pWDICtx, pBSSSes);
 
 
-  /* Delete the BCAST STA entry from the STA table if SAP/GO session is deleted */
-  if(WDI_INFRA_AP_MODE == pBSSSes->wdiBssType)
+  
+  if(WDI_INFRA_AP_MODE == pBSSSes->wdiBssType ||
+     pBSSSes->wdiBssType == WDI_IBSS_MODE)
   {
     (void)WDI_STATableDelSta( pWDICtx, pBSSSes->bcastStaIdx );
   }
 
-   /* Delete the STA's in this BSS */
+   
   WDI_STATableBSSDelSta(pWDICtx, halDelBssRspMsg.deleteBssRspParams.bssIdx);
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*Notify UMAC*/
+  
   wdiDelBSSRspCb( &wdiDelBSSParams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessDelBSSRsp*/
+}
 
-/**
- @brief Process Post Assoc Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessPostAssocRsp
 (
@@ -16117,11 +11454,8 @@ WDI_ProcessPostAssocRsp
   wpt_uint8                     ucCurrentBSSSesIdx     = 0;
   WDI_BSSSessionType*           pBSSSes                = NULL;
   tPostAssocRspMsg              halPostAssocRspMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16133,14 +11467,11 @@ WDI_ProcessPostAssocRsp
 
   wdiPostAssocRspCb = (WDI_PostAssocRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halPostAssocRspMsg.postAssocRspParams,
                    pEventData->pEventData,
                    sizeof(halPostAssocRspMsg.postAssocRspParams));
 
-  /*Extract the Post Assoc STA Params */
+  
 
   wdiPostAssocParams.staParams.ucSTAIdx   =
     halPostAssocRspMsg.postAssocRspParams.configStaRspParams.staIdx;
@@ -16152,20 +11483,16 @@ WDI_ProcessPostAssocRsp
  wdiPostAssocParams.wdiStatus =
     WDI_HAL_2_WDI_STATUS(halPostAssocRspMsg.postAssocRspParams.configStaRspParams.status);
 
- /*Copy the MAC addresses from the cached storage in the WDI CB as they are not
-   included in the response */
   wpalMemoryCopy( wdiPostAssocParams.staParams.macSTA,
                   pWDICtx->wdiCachedPostAssocReq.wdiSTAParams.macSTA,
                   WDI_MAC_ADDR_LEN);
 
-  /* Extract Post Assoc BSS Params */
+  
 
   wpalMemoryCopy( wdiPostAssocParams.bssParams.macBSSID,
                   pWDICtx->wdiCachedPostAssocReq.wdiBSSParams.macBSSID,
                   WDI_MAC_ADDR_LEN);
 
-  /*Copy the MAC addresses from the cached storage in the WDI CB as they are not
-   included in the response */
   wpalMemoryCopy( wdiPostAssocParams.bssParams.macSTA,
                   pWDICtx->wdiCachedPostAssocReq.wdiBSSParams.wdiSTAContext
                   .macSTA, WDI_MAC_ADDR_LEN);
@@ -16184,17 +11511,10 @@ WDI_ProcessPostAssocRsp
 
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Find the BSS for which the request is made
-  ------------------------------------------------------------------------*/
   ucCurrentBSSSesIdx = WDI_FindAssocSession( pWDICtx,
                                              wdiPostAssocParams.bssParams.
                                              macBSSID, &pBSSSes);
 
-  /*-----------------------------------------------------------------------
-    Post assoc response can only be received for an existing assoc that
-    is current and in progress
-    -----------------------------------------------------------------------*/
   if (( NULL == pBSSSes ) ||
       ( ucCurrentBSSSesIdx != pWDICtx->ucCurrentBSSSesIdx ) ||
       ( eWLAN_PAL_FALSE == pWDICtx->bAssociationInProgress ))
@@ -16209,9 +11529,6 @@ WDI_ProcessPostAssocRsp
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*-----------------------------------------------------------------------
-    Post Assoc Request is only allowed in Joining state
-  -----------------------------------------------------------------------*/
   if ( WDI_ASSOC_JOINING_ST != pBSSSes->wdiAssocState)
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -16224,20 +11541,17 @@ WDI_ProcessPostAssocRsp
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*-----------------------------------------------------------------------
-    If assoc has failed the current session will be deleted
-  -----------------------------------------------------------------------*/
   if ( WDI_STATUS_SUCCESS != wdiPostAssocParams.wdiStatus )
   {
-    /*Association was failed by HAL - remove session*/
+    
     WDI_DeleteSession(pWDICtx, pBSSSes);
   }
   else
   {
-    /*Transition to state POST Assoc*/
+    
     pBSSSes->wdiAssocState = WDI_ASSOC_POST_ST;
 
-    /*Save DPU Info*/
+    
     pBSSSes->bcastMgmtDpuIndex     =
       halPostAssocRspMsg.postAssocRspParams.configBssRspParams.mgmtDpuDescIndx;
     pBSSSes->bcastMgmtDpuSignature =
@@ -16251,30 +11565,20 @@ WDI_ProcessPostAssocRsp
       halPostAssocRspMsg.postAssocRspParams.configBssRspParams.bssIdx;
   }
 
-  /*Association no longer in progress  */
+  
   pWDICtx->bAssociationInProgress = eWLAN_PAL_FALSE;
 
-  /*Association no longer in progress - prepare pending assoc for processing*/
+  
   WDI_DequeueAssocRequest(pWDICtx);
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*Notify UMAC*/
+  
   wdiPostAssocRspCb( &wdiPostAssocParams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessPostAssocRsp*/
+}
 
-/**
- @brief Process Del STA Rsp function (called when a response is
-        being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelSTARsp
 (
@@ -16286,11 +11590,8 @@ WDI_ProcessDelSTARsp
   WDI_DelSTARspCb           wdiDelSTARspCb;
   wpt_uint8                 staType;
   tDeleteStaRspMsg          halDelStaRspMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16302,9 +11603,6 @@ WDI_ProcessDelSTARsp
 
   wdiDelSTARspCb = (WDI_DelSTARspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halDelStaRspMsg.delStaRspParams,
                   pEventData->pEventData,
                   sizeof(halDelStaRspMsg.delStaRspParams));
@@ -16315,21 +11613,21 @@ WDI_ProcessDelSTARsp
 
   WDI_STATableGetStaType(pWDICtx, wdiDelSTARsp.ucSTAIdx, &staType);
 
-  /* If the DEL STA request is for self STA do not delete it - Really weird!!What happens in concurrency */
+  
   if(staType == WDI_STA_ENTRY_SELF)
   {
     WDI_StaStruct* pSTATable = (WDI_StaStruct*) pWDICtx->staTable;
 
-    /* At this point add the self-STA */
+    
 
-    /*! TO DO: wdiAddSTAParam.ucWmmEnabled */
-    /*! TO DO: wdiAddSTAParam.ucHTCapable */
-    /*! TO DO: wdiAddSTAParam.ucRmfEnabled */
+    
+    
+    
 
 #define WDI_DPU_SELF_STA_DEFAULT_IDX 0
 #define WDI_DPU_SELF_STA_DEFAULT_SIG 0
 
-    //all DPU indices are the same for self STA
+    
     pSTATable[wdiDelSTARsp.ucSTAIdx].dpuIndex = WDI_DPU_SELF_STA_DEFAULT_IDX;
     pSTATable[wdiDelSTARsp.ucSTAIdx].bcastDpuIndex = WDI_DPU_SELF_STA_DEFAULT_IDX;
     pSTATable[wdiDelSTARsp.ucSTAIdx].bcastMgmtDpuIndex = WDI_DPU_SELF_STA_DEFAULT_IDX;
@@ -16341,31 +11639,18 @@ WDI_ProcessDelSTARsp
   }
   else
   {
-    //Delete the station in the table
+    
     WDI_STATableDelSta( pWDICtx, wdiDelSTARsp.ucSTAIdx);
   }
 
-  /*Notify UMAC*/
+  
   wdiDelSTARspCb( &wdiDelSTARsp, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessDelSTARsp*/
+}
 
 
-/*==========================================================================
-                   Security Response Processing Functions
-==========================================================================*/
 
-/**
- @brief Process Set BSS Key Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetBssKeyRsp
 (
@@ -16376,11 +11661,8 @@ WDI_ProcessSetBssKeyRsp
   WDI_Status            wdiStatus;
   eHalStatus            halStatus;
   WDI_SetBSSKeyRspCb    wdiSetBSSKeyRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16392,9 +11674,6 @@ WDI_ProcessSetBssKeyRsp
 
   wdiSetBSSKeyRspCb = (WDI_SetBSSKeyRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
@@ -16404,25 +11683,15 @@ WDI_ProcessSetBssKeyRsp
               "Set BSS Key failed with status %s (%d)",
               WDI_getHALStatusMsgString(halStatus),
               halStatus);
-     /* send the status to UMAC, don't return from here*/
+     
   }
 
-  /*Notify UMAC*/
+  
   wdiSetBSSKeyRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetBssKeyRsp*/
+}
 
-/**
- @brief Process Remove BSS Key Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessRemoveBssKeyRsp
 (
@@ -16433,11 +11702,8 @@ WDI_ProcessRemoveBssKeyRsp
   WDI_Status              wdiStatus;
   eHalStatus              halStatus;
   WDI_RemoveBSSKeyRspCb   wdiRemoveBSSKeyRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16449,9 +11715,6 @@ WDI_ProcessRemoveBssKeyRsp
 
   wdiRemoveBSSKeyRspCb = (WDI_RemoveBSSKeyRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
@@ -16461,26 +11724,16 @@ WDI_ProcessRemoveBssKeyRsp
               "Remove BSS Key failed with status %s (%d )",
               WDI_getHALStatusMsgString(halStatus),
               halStatus);
-     /* send the status to UMAC, don't return from here*/
+     
   }
 
-  /*Notify UMAC*/
+  
   wdiRemoveBSSKeyRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetBssKeyRsp*/
+}
 
 
-/**
- @brief Process Set STA Key Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetStaKeyRsp
 (
@@ -16491,11 +11744,8 @@ WDI_ProcessSetStaKeyRsp
   WDI_Status            wdiStatus;
   eHalStatus            halStatus;
   WDI_SetSTAKeyRspCb    wdiSetSTAKeyRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16507,9 +11757,6 @@ WDI_ProcessSetStaKeyRsp
 
   wdiSetSTAKeyRspCb = (WDI_SetSTAKeyRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
@@ -16519,25 +11766,15 @@ WDI_ProcessSetStaKeyRsp
               "Set STA Key failed with status %s (%d)",
               WDI_getHALStatusMsgString(halStatus),
               halStatus);
-     /* send the status to UMAC, don't return from here*/
+     
   }
 
-  /*Notify UMAC*/
+  
   wdiSetSTAKeyRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetSTAKeyRsp*/
+}
 
-/**
- @brief Process Remove STA Key Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessRemoveStaKeyRsp
 (
@@ -16548,11 +11785,8 @@ WDI_ProcessRemoveStaKeyRsp
   WDI_Status              wdiStatus;
   eHalStatus              halStatus;
   WDI_RemoveSTAKeyRspCb   wdiRemoveSTAKeyRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16564,9 +11798,6 @@ WDI_ProcessRemoveStaKeyRsp
 
   wdiRemoveSTAKeyRspCb = (WDI_RemoveSTAKeyRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
@@ -16576,25 +11807,15 @@ WDI_ProcessRemoveStaKeyRsp
               "Remove STA Key failed with status %s (%d)",
               WDI_getHALStatusMsgString(halStatus),
               halStatus);
-     /* send the status to UMAC, don't return from here*/
+     
   }
 
-  /*Notify UMAC*/
+  
   wdiRemoveSTAKeyRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessRemoveStaKeyRsp*/
+}
 
-/**
- @brief Process Set STA Bcast Key Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetStaBcastKeyRsp
 (
@@ -16605,11 +11826,8 @@ WDI_ProcessSetStaBcastKeyRsp
   WDI_Status            wdiStatus;
   eHalStatus            halStatus;
   WDI_SetSTAKeyRspCb    wdiSetSTABcastKeyRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16621,9 +11839,6 @@ WDI_ProcessSetStaBcastKeyRsp
 
   wdiSetSTABcastKeyRspCb = (WDI_SetSTAKeyRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halStatus,
                   pEventData->pEventData,
                   sizeof(halStatus));
@@ -16636,25 +11851,15 @@ WDI_ProcessSetStaBcastKeyRsp
               "Set STA Key failed with status %s (%d)",
               WDI_getHALStatusMsgString(halStatus),
               halStatus);
-     /* send the status to UMAC, don't return from here*/
+     
   }
 
-  /*Notify UMAC*/
+  
   wdiSetSTABcastKeyRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetSTABcastKeyRsp*/
+}
 
-/**
- @brief Process Remove STA Bcast Key Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessRemoveStaBcastKeyRsp
 (
@@ -16665,11 +11870,8 @@ WDI_ProcessRemoveStaBcastKeyRsp
   WDI_Status              wdiStatus;
   eHalStatus              halStatus;
   WDI_RemoveSTAKeyRspCb   wdiRemoveSTABcastKeyRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16681,9 +11883,6 @@ WDI_ProcessRemoveStaBcastKeyRsp
 
   wdiRemoveSTABcastKeyRspCb = (WDI_RemoveSTAKeyRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halStatus,
                   pEventData->pEventData,
                   sizeof(halStatus));
@@ -16696,30 +11895,17 @@ WDI_ProcessRemoveStaBcastKeyRsp
               "Remove STA Key failed with status %s (%d)",
               WDI_getHALStatusMsgString(halStatus),
               halStatus);
-     /* send the status to UMAC, don't return from here*/
+     
   }
 
-  /*Notify UMAC*/
+  
   wdiRemoveSTABcastKeyRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessRemoveStaBcastKeyRsp*/
+}
 
 
-/*==========================================================================
-                   QoS and BA Response Processing Functions
-==========================================================================*/
 
-/**
- @brief Process Add TSpec Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessAddTSpecRsp
 (
@@ -16730,11 +11916,8 @@ WDI_ProcessAddTSpecRsp
   WDI_Status       wdiStatus;
   eHalStatus       halStatus;
   WDI_AddTsRspCb   wdiAddTsRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16746,29 +11929,16 @@ WDI_ProcessAddTSpecRsp
 
   wdiAddTsRspCb = (WDI_AddTsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiAddTsRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessAddTSpecRsp*/
+}
 
 
-/**
- @brief Process Del TSpec Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelTSpecRsp
 (
@@ -16779,11 +11949,8 @@ WDI_ProcessDelTSpecRsp
   WDI_Status       wdiStatus;
   eHalStatus       halStatus;
   WDI_DelTsRspCb   wdiDelTsRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16795,28 +11962,15 @@ WDI_ProcessDelTSpecRsp
 
   wdiDelTsRspCb = (WDI_DelTsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiDelTsRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessDelTSpecRsp*/
+}
 
-/**
- @brief Process Update EDCA Parameters Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateEDCAParamsRsp
 (
@@ -16827,11 +11981,8 @@ WDI_ProcessUpdateEDCAParamsRsp
   WDI_Status       wdiStatus;
   eHalStatus       halStatus;
   WDI_UpdateEDCAParamsRspCb   wdiUpdateEDCAParamsRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16843,29 +11994,16 @@ WDI_ProcessUpdateEDCAParamsRsp
 
   wdiUpdateEDCAParamsRspCb = (WDI_UpdateEDCAParamsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiUpdateEDCAParamsRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessUpdateEDCAParamsRsp*/
+}
 
 
-/**
- @brief Process Add BA Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessAddBASessionRsp
 (
@@ -16879,11 +12017,8 @@ WDI_ProcessAddBASessionRsp
   WDI_AddBASessionRspParamsType wdiBASessionRsp;
 
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16895,9 +12030,6 @@ WDI_ProcessAddBASessionRsp
 
   wdiAddBASessionRspCb = (WDI_AddBASessionRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halBASessionRsp,
                   pEventData->pEventData,
                   sizeof(halBASessionRsp));
@@ -16915,23 +12047,13 @@ WDI_ProcessAddBASessionRsp
     wdiBASessionRsp.usBaSSN = halBASessionRsp.SSN;
   }
 
-  /*Notify UMAC*/
+  
   wdiAddBASessionRspCb( &wdiBASessionRsp, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessAddSessionBARsp*/
+}
 
 
-/**
- @brief Process Del BA Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelBARsp
 (
@@ -16942,11 +12064,8 @@ WDI_ProcessDelBARsp
   WDI_Status       wdiStatus;
   eHalStatus       halStatus;
   WDI_DelBARspCb   wdiDelBARspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -16958,34 +12077,21 @@ WDI_ProcessDelBARsp
 
   wdiDelBARspCb = (WDI_DelBARspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
   if ( eHAL_STATUS_SUCCESS == halStatus )
   {
-    /*! TO DO: I should notify the DAL Data Path that the BA was deleted*/
+    
   }
 
-  /*Notify UMAC*/
+  
   wdiDelBARspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessDelBARsp*/
+}
 
 #ifdef FEATURE_WLAN_CCX
-/**
- @brief Process TSM Stats Rsp function (called when a response
-        is being received over the bus from HAL)
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         pEventData:      pointer to the event information structure 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessTsmStatsRsp
 ( 
@@ -16996,11 +12102,8 @@ WDI_ProcessTsmStatsRsp
   WDI_TsmRspCb          wdiTsmStatsRspCb;
   tTsmStatsRspMsg       halTsmStatsRspMsg; 
   WDI_TSMStatsRspParamsType  wdiTsmStatsRspParams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check 
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17012,10 +12115,6 @@ WDI_ProcessTsmStatsRsp
 
   wdiTsmStatsRspCb = (WDI_TsmRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Unpack HAL Response Message - the header was already extracted by the
-    main Response Handling procedure 
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halTsmStatsRspMsg.tsmStatsRspParams, 
                   pEventData->pEventData, 
                   sizeof(halTsmStatsRspMsg.tsmStatsRspParams));
@@ -17033,26 +12132,16 @@ WDI_ProcessTsmStatsRsp
   wdiTsmStatsRspParams.wdiStatus   =   WDI_HAL_2_WDI_STATUS(
                              halTsmStatsRspMsg.tsmStatsRspParams.status);
 
-  /*Notify UMAC*/
+  
   wdiTsmStatsRspCb( &wdiTsmStatsRspParams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS; 
-}/*WDI_ProcessTsmStatsRsp*/
+}
 
 #endif
 
 
 
-/**
- @brief Process Flush AC Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessFlushAcRsp
 (
@@ -17063,11 +12152,8 @@ WDI_ProcessFlushAcRsp
   WDI_Status       wdiStatus;
   eHalStatus       halStatus;
   WDI_FlushAcRspCb wdiFlushAcRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17079,31 +12165,18 @@ WDI_ProcessFlushAcRsp
 
   wdiFlushAcRspCb = (WDI_FlushAcRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halStatus,
                   pEventData->pEventData,
                   sizeof(halStatus));
 
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiFlushAcRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessFlushAcRsp*/
+}
 
-/**
- @brief Process BT AMP event Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessBtAmpEventRsp
 (
@@ -17114,11 +12187,8 @@ WDI_ProcessBtAmpEventRsp
    WDI_Status       wdiStatus;
    eHalStatus       halStatus;
    WDI_BtAmpEventRspCb wdiBtAmpEventRspCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -17130,32 +12200,19 @@ WDI_ProcessBtAmpEventRsp
 
    wdiBtAmpEventRspCb = (WDI_BtAmpEventRspCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    wpalMemoryCopy( &halStatus,
                    pEventData->pEventData,
                    sizeof(halStatus));
 
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiBtAmpEventRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessBtAmpEventRsp*/
+}
 
 
-/**
- @brief Process ADD STA SELF Rsp function (called
-        when a response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessAddSTASelfRsp
 (
@@ -17167,11 +12224,8 @@ WDI_ProcessAddSTASelfRsp
   WDI_AddSTASelfParamsRspCb    wdiAddSTASelfReqParamsRspCb;
   tAddStaSelfRspMsg            halAddStaSelfRsp;
   WDI_AddStaParams             wdiAddSTAParam = {0};
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17184,9 +12238,6 @@ WDI_ProcessAddSTASelfRsp
   wdiAddSTASelfReqParamsRspCb =
                          (WDI_AddSTASelfParamsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halAddStaSelfRsp.addStaSelfRspParams,
                   pEventData->pEventData,
                   sizeof(halAddStaSelfRsp.addStaSelfRspParams));
@@ -17209,15 +12260,15 @@ WDI_ProcessAddSTASelfRsp
 
 #ifdef HAL_SELF_STA_PER_BSS
 
-  /* At this point add the self-STA */
+  
 
-  /*! TO DO: wdiAddSTAParam.ucWmmEnabled */
-  /*! TO DO: wdiAddSTAParam.ucHTCapable */
-  /*! TO DO: wdiAddSTAParam.ucRmfEnabled */
+  
+  
+  
 
-  //all DPU indices are the same for self STA
+  
 
-  /*DPU Information*/
+  
   wdiAddSTAParam.dpuIndex              = wdiAddSTASelfParams.dpuIdx;
   wdiAddSTAParam.dpuSig                = wdiAddSTASelfParams.dpuSignature;
   wdiAddSTAParam.bcastDpuSignature     = wdiAddSTASelfParams.dpuSignature;
@@ -17228,7 +12279,7 @@ WDI_ProcessAddSTASelfRsp
   wpalMemoryCopy(wdiAddSTAParam.staMacAddr, wdiAddSTASelfParams.macSelfSta,
                  WDI_MAC_ADDR_LEN);
 
-  wdiAddSTAParam.ucStaType = WDI_STA_ENTRY_SELF; /* 0 - self */
+  wdiAddSTAParam.ucStaType = WDI_STA_ENTRY_SELF; 
   wdiAddSTAParam.ucSTAIdx = wdiAddSTASelfParams.ucSTASelfIdx;
 
   if(halAddStaSelfRsp.addStaSelfRspParams.status
@@ -17238,24 +12289,14 @@ WDI_ProcessAddSTASelfRsp
   }
 #endif
 
-  /*Notify UMAC*/
+  
   wdiAddSTASelfReqParamsRspCb( &wdiAddSTASelfParams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessAddSTASelfRsp*/
+}
 
 
 
-/**
- @brief WDI_ProcessDelSTASelfRsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelSTASelfRsp
 (
@@ -17268,11 +12309,8 @@ WDI_ProcessDelSTASelfRsp
   tDelStaSelfRspParams            delStaSelfRspParams;
   wpt_uint8                       ucStaIdx;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-    -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17284,9 +12322,6 @@ WDI_ProcessDelSTASelfRsp
 
   wdiDelStaSelfRspCb = (WDI_DelSTASelfRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-    -------------------------------------------------------------------------*/
 
   wpalMemoryCopy( &delStaSelfRspParams,
                         (wpt_uint8*)pEventData->pEventData,
@@ -17295,8 +12330,6 @@ WDI_ProcessDelSTASelfRsp
   wdiDelStaSelfRspParams.wdiStatus   =
     WDI_HAL_2_WDI_STATUS(delStaSelfRspParams.status);
 
-  /* delStaSelfRspParams.status is not
-   eHAL_STATUS_DEL_STA_SELF_IGNORED_REF_COUNT_NOT_ZERO*/
   if( eHAL_STATUS_SUCCESS == delStaSelfRspParams.status )
   {
     WDI_Status wdiStatus;
@@ -17313,23 +12346,13 @@ WDI_ProcessDelSTASelfRsp
     WDI_STATableDelSta(pWDICtx, ucStaIdx);
   }
 
-  /*Notify UMAC*/
+  
   wdiDelStaSelfRspCb(&wdiDelStaSelfRspParams, (void*) pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
 }
 
 #ifdef FEATURE_OEM_DATA_SUPPORT
-/**
- @brief Start Oem Data Rsp function (called when a 
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 #define OFFSET_OF(structType,fldName)   (&((structType*)0)->fldName)
 
 WDI_Status
@@ -17343,9 +12366,6 @@ WDI_ProcessStartOemDataRsp
   WDI_oemDataRspParamsType*  wdiOemDataRspParams;
   tStartOemDataRspParams*    halStartOemDataRspParams;
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17357,16 +12377,13 @@ WDI_ProcessStartOemDataRsp
 
   wdiOemDataRspCb = (WDI_oemDataRspCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
   halStartOemDataRspParams = (tStartOemDataRspParams *)pEventData->pEventData;
 
 
-  //It is the responsibility of the application code to check for failure
-  //conditions!
+  
+  
 
-  //Allocate memory for WDI OEM DATA RSP structure
+  
   wdiOemDataRspParams = wpalMemoryAllocate(sizeof(WDI_oemDataRspParamsType)) ;
 
   if(NULL == wdiOemDataRspParams)
@@ -17378,33 +12395,20 @@ WDI_ProcessStartOemDataRsp
     return WDI_STATUS_E_FAILURE;
   }
 
-  /* Populate WDI structure members */
+  
   wpalMemoryCopy(wdiOemDataRspParams->oemDataRsp, halStartOemDataRspParams->oemDataRsp, OEM_DATA_RSP_SIZE);
 
-  /*Notify UMAC*/
+  
   wdiOemDataRspCb(wdiOemDataRspParams, pWDICtx->pRspCBUserData);
 
-  //Free memory allocated for WDI OEM_DATA MEAS RSP structure
+  
   wpalMemoryFree(wdiOemDataRspParams);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_PrcoessStartOemDataRsp*/
+}
 #endif
 
-/*===========================================================================
-           Miscellaneous Control Response Processing API
-===========================================================================*/
 
-/**
- @brief Process Channel Switch Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessChannelSwitchRsp
 (
@@ -17415,11 +12419,8 @@ WDI_ProcessChannelSwitchRsp
   WDI_SwitchCHRspParamsType   wdiSwitchChRsp;
   WDI_SwitchChRspCb           wdiChSwitchRspCb;
   tSwitchChannelRspParams     halSwitchChannelRsp;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17431,9 +12432,6 @@ WDI_ProcessChannelSwitchRsp
 
   wdiChSwitchRspCb = (WDI_SwitchChRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halSwitchChannelRsp,
                   (wpt_uint8*)pEventData->pEventData,
                   sizeof(halSwitchChannelRsp));
@@ -17446,23 +12444,62 @@ WDI_ProcessChannelSwitchRsp
   wdiSwitchChRsp.ucTxMgmtPower =  halSwitchChannelRsp.txMgmtPower;
 #endif
 
-  /*Notify UMAC*/
+  
   wdiChSwitchRspCb( &wdiSwitchChRsp, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessChannelSwitchRsp*/
+}
 
 
-/**
- @brief Process Config STA Rsp function (called when a response
-        is being received over the bus from HAL)
+WDI_Status
+WDI_ProcessChannelSwitchRsp_V1
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+)
+{
+  WDI_SwitchChRspParamsType_V1   wdiSwitchChRsp;
+  WDI_SwitchChRspCb_V1          wdiChSwitchRspCb;
+  tSwitchChannelRspParams_V1        halSwitchChannelRsp;
+  
 
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
+  if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
+      ( NULL == pEventData->pEventData))
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+                 "%s: Invalid parameters", __func__);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
 
- @see
- @return Result of the function call
-*/
+  wdiChSwitchRspCb = (WDI_SwitchChRspCb_V1)pWDICtx->pfncRspCB;
+
+  wpalMemoryCopy( &halSwitchChannelRsp,
+                  (wpt_uint8*)pEventData->pEventData,
+                  sizeof(halSwitchChannelRsp));
+
+  wdiSwitchChRsp.wdiStatus   =
+               WDI_HAL_2_WDI_STATUS(halSwitchChannelRsp.status);
+  wdiSwitchChRsp.ucChannel = halSwitchChannelRsp.channelNumber;
+
+#ifdef WLAN_FEATURE_VOWIFI
+  wdiSwitchChRsp.ucTxMgmtPower =  halSwitchChannelRsp.txMgmtPower;
+#endif
+
+  wdiSwitchChRsp.channelSwitchSrc = halSwitchChannelRsp.channelSwitchSrc;
+  if (( NULL == wdiChSwitchRspCb ) )
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+                   "%s: ### Call back function is null", __func__);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+  
+  wdiChSwitchRspCb( &wdiSwitchChRsp, pWDICtx->pRspCBUserData);
+
+  return WDI_STATUS_SUCCESS;
+}
+
 WDI_Status
 WDI_ProcessConfigStaRsp
 (
@@ -17478,11 +12515,8 @@ WDI_ProcessConfigStaRsp
   wpt_uint8                     ucCurrentBSSSesIdx  = 0;
 
   tConfigStaRspMsg              halConfigStaRsp;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17494,9 +12528,6 @@ WDI_ProcessConfigStaRsp
 
   wdiConfigSTARspCb = (WDI_ConfigSTARspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halConfigStaRsp.configStaRspParams,
                   pEventData->pEventData,
                   sizeof(halConfigStaRsp.configStaRspParams));
@@ -17508,8 +12539,6 @@ WDI_ProcessConfigStaRsp
   wdiCfgSTAParams.ucBcastSig  = halConfigStaRsp.configStaRspParams.ucBcastSig;
   wdiCfgSTAParams.ucMgmtSig   = halConfigStaRsp.configStaRspParams.ucMgmtSig;
 
-   /* MAC Address of STA - take from cache as it does not come back in the
-   response*/
    wpalMemoryCopy( wdiCfgSTAParams.macSTA,
           pWDICtx->wdiCachedConfigStaReq.wdiReqInfo.macSTA,
           WDI_MAC_ADDR_LEN);
@@ -17525,12 +12554,12 @@ WDI_ProcessConfigStaRsp
   {
     if ( WDI_ADD_STA == pWDICtx->wdiCachedConfigStaReq.wdiReqInfo.wdiAction )
     {
-      /* ADD STA to table */
+      
       wdiAddSTAParam.ucSTAIdx = halConfigStaRsp.configStaRspParams.staIdx;
       wdiAddSTAParam.dpuSig   = halConfigStaRsp.configStaRspParams.ucUcastSig;
       wdiAddSTAParam.dpuIndex = halConfigStaRsp.configStaRspParams.dpuIndex;
 
-      /*This info can be retrieved from the cached initial request*/
+      
       wdiAddSTAParam.ucWmmEnabled =
         pWDICtx->wdiCachedConfigStaReq.wdiReqInfo.ucWMMEnabled;
       wdiAddSTAParam.ucHTCapable  =
@@ -17540,7 +12569,7 @@ WDI_ProcessConfigStaRsp
       wdiAddSTAParam.ucRmfEnabled =
         pWDICtx->wdiCachedConfigStaReq.wdiReqInfo.ucRMFEnabled;
 
-      /* MAC Address of STA */
+      
       wpalMemoryCopy(wdiAddSTAParam.staMacAddr,
                      pWDICtx->wdiCachedConfigStaReq.wdiReqInfo.macSTA,
                      WDI_MAC_ADDR_LEN);
@@ -17562,7 +12591,7 @@ WDI_ProcessConfigStaRsp
         return WDI_STATUS_E_NOT_ALLOWED;
       }
 
-      /*Add BSS specific parameters*/
+      
       wdiAddSTAParam.bcastMgmtDpuIndex =
          halConfigStaRsp.configStaRspParams.bcastMgmtDpuIdx;
       wdiAddSTAParam.bcastMgmtDpuSignature =
@@ -17596,23 +12625,13 @@ WDI_ProcessConfigStaRsp
     }
   }
 
-  /*Notify UMAC*/
+  
   wdiConfigSTARspCb( &wdiCfgSTAParams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessConfigStaRsp*/
+}
 
 
-/**
- @brief Process Set Link State Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetLinkStateRsp
 (
@@ -17626,11 +12645,8 @@ WDI_ProcessSetLinkStateRsp
 
   WDI_BSSSessionType*     pBSSSes              = NULL;
   wpt_uint8               ucCurrentBSSSesIdx   = 0;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17644,23 +12660,13 @@ WDI_ProcessSetLinkStateRsp
 
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
-  /*If the link is being transitioned to idle - the BSS is to be deleted
-  - this type of ending a session is possible when UMAC has failed an
-  - association session during Join*/
   if ( WDI_LINK_IDLE_STATE ==
        pWDICtx->wdiCacheSetLinkStReq.wdiLinkInfo.wdiLinkState )
   {
-    /*------------------------------------------------------------------------
-      Find the BSS for which the request is made
-    ------------------------------------------------------------------------*/
     ucCurrentBSSSesIdx = WDI_FindAssocSession( pWDICtx,
                         pWDICtx->wdiCacheSetLinkStReq.wdiLinkInfo.macBSSID,
                         &pBSSSes);
 
-    /*-----------------------------------------------------------------------
-      Del BSS response can only be received for an existing assoc that
-      is current and in progress
-      -----------------------------------------------------------------------*/
     if ( NULL == pBSSSes )
     {
       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
@@ -17668,33 +12674,21 @@ WDI_ProcessSetLinkStateRsp
     }
     else
     {
-      /* For BT AMP roles no need to delete the sessions if assoc fails. There
-      will be del BSS coming after this to stop the beaconing & cleaning up the
-      sessions*/
       if(( WDI_BTAMP_STA_MODE != pBSSSes->wdiBssType )&&
          ( WDI_BTAMP_AP_MODE != pBSSSes->wdiBssType ))
       {
-         /*-----------------------------------------------------------------------
-           The current session will be deleted
-         -----------------------------------------------------------------------*/
          WDI_DeleteSession(pWDICtx, pBSSSes);
 
-         /*-----------------------------------------------------------------------
-           Check to see if this association is in progress - if so disable the
-           flag as this has ended
-         -----------------------------------------------------------------------*/
          if ( ucCurrentBSSSesIdx == pWDICtx->ucCurrentBSSSesIdx )
          {
-           /*Association no longer in progress  */
+           
            pWDICtx->bAssociationInProgress = eWLAN_PAL_FALSE;
-           /*Association no longer in progress - prepare pending assoc for processing*/
+           
            WDI_DequeueAssocRequest(pWDICtx);
          }
       }
     }
   }
-  /* If the link state has been set to POST ASSOC, reset the "association in
-     progress" flag */
   if ( WDI_LINK_POSTASSOC_STATE ==
        pWDICtx->wdiCacheSetLinkStReq.wdiLinkInfo.wdiLinkState )
   {
@@ -17704,31 +12698,18 @@ WDI_ProcessSetLinkStateRsp
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halStatus,
                   pEventData->pEventData,
                   sizeof(halStatus));
 
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiSetLinkStateRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetLinkStateRsp*/
+}
 
-/**
- @brief Process Get Stats Rsp function (called when a response is
-        being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessGetStatsRsp
 (
@@ -17740,11 +12721,8 @@ WDI_ProcessGetStatsRsp
   WDI_GetStatsRspCb           wdiGetStatsRspCb;
   tHalStatsRspParams*         pHalStatsRspParams;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17754,12 +12732,9 @@ WDI_ProcessGetStatsRsp
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   pHalStatsRspParams = (tHalStatsRspParams *)pEventData->pEventData;
 
-  /*allocate the stats response buffer */
+  
   wdiGetStatsRsp = (WDI_GetStatsRspParamsType *)wpalMemoryAllocate(
               pHalStatsRspParams->msgLen - sizeof(tHalStatsRspParams)
               + sizeof(WDI_GetStatsRspParamsType));
@@ -17782,30 +12757,20 @@ WDI_ProcessGetStatsRsp
   wdiGetStatsRsp->ucSTAIdx   = pHalStatsRspParams->staId;
   wdiGetStatsRsp->uStatsMask = pHalStatsRspParams->statsMask;
 
-  /* copy the stats from buffer at the end of the tHalStatsRspParams message */
+  
   wpalMemoryCopy(wdiGetStatsRsp + 1,
    (wpt_uint8*)pEventData->pEventData + sizeof(tHalStatsRspParams),
    pHalStatsRspParams->msgLen - sizeof(tHalStatsRspParams));
 
-  /*Notify UMAC*/
+  
   wdiGetStatsRspCb( wdiGetStatsRsp, pWDICtx->pRspCBUserData);
 
   wpalMemoryFree(wdiGetStatsRsp);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessGetStatsRsp*/
+}
 
 #if defined WLAN_FEATURE_VOWIFI_11R || defined FEATURE_WLAN_CCX || defined(FEATURE_WLAN_LFR)
-/**
- @brief Process Get Roam Rssi Rsp function (called when a response is
-        being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessGetRoamRssiRsp
 (
@@ -17816,11 +12781,8 @@ WDI_ProcessGetRoamRssiRsp
   WDI_GetRoamRssiRspParamsType   wdiGetRoamRssiRsp;
   WDI_GetRoamRssiRspCb           wdiGetRoamRssiRspCb;
   tHalGetRoamRssiRspMsg          halRoamRssiRspParams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17839,9 +12801,6 @@ WDI_ProcessGetRoamRssiRsp
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halRoamRssiRspParams.roamRssiRspParams,
                   pEventData->pEventData,
                   sizeof(halRoamRssiRspParams.roamRssiRspParams));
@@ -17850,24 +12809,14 @@ WDI_ProcessGetRoamRssiRsp
   wdiGetRoamRssiRsp.ucSTAIdx   = halRoamRssiRspParams.roamRssiRspParams.staId;
   wdiGetRoamRssiRsp.rssi = halRoamRssiRspParams.roamRssiRspParams.rssi;
 
-  /*Notify UMAC*/
+  
   wdiGetRoamRssiRspCb( &wdiGetRoamRssiRsp, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessGetRoamRssiRsp*/
+}
 #endif
 
 
-/**
- @brief Process Update Cfg Rsp function (called when a response is
-        being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateCfgRsp
 (
@@ -17878,11 +12827,8 @@ WDI_ProcessUpdateCfgRsp
   WDI_Status           wdiStatus;
   eHalStatus           halStatus;
   WDI_UpdateCfgRspCb   wdiUpdateCfgRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17894,30 +12840,17 @@ WDI_ProcessUpdateCfgRsp
 
   wdiUpdateCfgRspCb = (WDI_UpdateCfgRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiUpdateCfgRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessUpdateCfgRsp*/
+}
 
 
 
-/**
- @brief Process Add BA Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessAddBARsp
 (
@@ -17930,11 +12863,8 @@ WDI_ProcessAddBARsp
   tAddBARspParams         halAddBARsp;
   WDI_AddBARspinfoType    wdiAddBARsp;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -17946,9 +12876,6 @@ WDI_ProcessAddBARsp
 
   wdiAddBARspCb = (WDI_AddBARspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halAddBARsp,
                   pEventData->pEventData,
                   sizeof(halAddBARsp));
@@ -17960,22 +12887,12 @@ WDI_ProcessAddBARsp
     wdiAddBARsp.ucBaDialogToken = halAddBARsp.baDialogToken;
   }
 
-  /*Notify UMAC*/
+  
   wdiAddBARspCb( &wdiAddBARsp, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessAddSessionBARsp*/
+}
 
-/**
- @brief Process Add BA Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessTriggerBARsp
 (
@@ -17992,11 +12909,8 @@ WDI_ProcessTriggerBARsp
   wpt_uint16                     index;
   wpt_uint16                     TidIndex;
   WDI_Status                     halTriggerBARspStatus;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18008,9 +12922,6 @@ WDI_ProcessTriggerBARsp
 
   wdiTriggerBARspCb = (WDI_TriggerBARspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halTriggerBARsp = (tTriggerBARspParams *)pEventData->pEventData;
 
   halTriggerBARspStatus = WDI_HAL_2_WDI_STATUS(halTriggerBARsp->status);
@@ -18071,23 +12982,13 @@ WDI_ProcessTriggerBARsp
 
   }
 
-  /*Notify UMAC*/
+  
   wdiTriggerBARspCb( wdiTriggerBARsp, pWDICtx->pRspCBUserData);
 
   wpalMemoryFree(wdiTriggerBARsp);
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessAddSessionBARsp*/
+}
 
-/**
- @brief Process Update Beacon Params Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateBeaconParamsRsp
 (
@@ -18098,11 +12999,8 @@ WDI_ProcessUpdateBeaconParamsRsp
   WDI_Status       wdiStatus;
   eHalStatus       halStatus;
   WDI_UpdateBeaconParamsRspCb   wdiUpdateBeaconParamsRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18114,31 +13012,18 @@ WDI_ProcessUpdateBeaconParamsRsp
 
   wdiUpdateBeaconParamsRspCb = (WDI_UpdateBeaconParamsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halStatus,
                   pEventData->pEventData,
                   sizeof(halStatus));
 
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiUpdateBeaconParamsRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessUpdateBeaconParamsRsp*/
+}
 
-/**
- @brief Process Send Beacon template Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSendBeaconParamsRsp
 (
@@ -18149,11 +13034,8 @@ WDI_ProcessSendBeaconParamsRsp
   WDI_Status       wdiStatus;
   eHalStatus       halStatus;
   WDI_SendBeaconParamsRspCb   wdiSendBeaconParamsRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18165,32 +13047,19 @@ WDI_ProcessSendBeaconParamsRsp
 
   wdiSendBeaconParamsRspCb = (WDI_SendBeaconParamsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halStatus,
                   pEventData->pEventData,
                   sizeof(halStatus));
 
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiSendBeaconParamsRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSendBeaconParamsRsp*/
+}
 
 
-/**
- @brief Process Update Probe Resp Template Rsp function (called
-        when a response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateProbeRspTemplateRsp
 (
@@ -18201,11 +13070,8 @@ WDI_ProcessUpdateProbeRspTemplateRsp
   WDI_Status       wdiStatus;
   eHalStatus       halStatus;
   WDI_UpdateProbeRspTemplateRspCb   wdiUpdProbeRspTemplRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18217,31 +13083,18 @@ WDI_ProcessUpdateProbeRspTemplateRsp
 
   wdiUpdProbeRspTemplRspCb = (WDI_UpdateProbeRspTemplateRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halStatus,
                   pEventData->pEventData,
                   sizeof(halStatus));
 
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiUpdProbeRspTemplRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessUpdateProbeRspTemplateRsp*/
+}
 
-  /**
- @brief Process Set Max Tx Power Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetMaxTxPowerRsp
 (
@@ -18254,11 +13107,8 @@ WDI_ProcessSetMaxTxPowerRsp
   WDI_SetMaxTxPowerRspMsg        wdiSetMaxTxPowerRspMsg;
 
   WDA_SetMaxTxPowerRspCb         wdiReqStatusCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18270,9 +13120,6 @@ WDI_ProcessSetMaxTxPowerRsp
 
   wdiReqStatusCb = (WDA_SetMaxTxPowerRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halTxpowerrsp.setMaxTxPwrRspParams,
                            pEventData->pEventData,
                            sizeof(halTxpowerrsp.setMaxTxPwrRspParams));
@@ -18288,22 +13135,12 @@ WDI_ProcessSetMaxTxPowerRsp
          WDI_HAL_2_WDI_STATUS(halTxpowerrsp.setMaxTxPwrRspParams.status);
   wdiSetMaxTxPowerRspMsg.ucPower  = halTxpowerrsp.setMaxTxPwrRspParams.power;
 
-  /*Notify UMAC*/
+  
   wdiReqStatusCb( &wdiSetMaxTxPowerRspMsg, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
 }
 
-  /**
- @brief Process Set Tx Power Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetTxPowerRsp
 (
@@ -18314,11 +13151,8 @@ WDI_ProcessSetTxPowerRsp
   tSetTxPwrRspMsg             halTxpowerrsp;
   WDI_SetTxPowerRspMsg        wdiSetTxPowerRspMsg;
   WDA_SetTxPowerRspCb         wdiReqStatusCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18330,9 +13164,6 @@ WDI_ProcessSetTxPowerRsp
 
   wdiReqStatusCb = (WDA_SetTxPowerRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy(&halTxpowerrsp.setTxPwrRspParams,
                  pEventData->pEventData,
                  sizeof(halTxpowerrsp.setTxPwrRspParams));
@@ -18348,22 +13179,12 @@ WDI_ProcessSetTxPowerRsp
   wdiSetTxPowerRspMsg.wdiStatus =
          WDI_HAL_2_WDI_STATUS(halTxpowerrsp.setTxPwrRspParams.status);
 
-  /*Notify UMAC*/
+  
   wdiReqStatusCb(&wdiSetTxPowerRspMsg, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
 }
 
-/**
- @brief Process Set Max Tx Power Per Band Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetMaxTxPowerPerBandRsp
 (
@@ -18374,11 +13195,8 @@ WDI_ProcessSetMaxTxPowerPerBandRsp
    tSetMaxTxPwrPerBandRspMsg      halMaxTxPowerPerBandRsp;
    WDI_SetMaxTxPowerPerBandRspMsg wdiSetTxPowerPerBandRspMsg;
    WDA_SetMaxTxPowerPerBandRspCb  wdiReqStatusCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-    -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -18390,9 +13208,6 @@ WDI_ProcessSetMaxTxPowerPerBandRsp
 
    wdiReqStatusCb = (WDA_SetMaxTxPowerPerBandRspCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    wpalMemoryCopy(&halMaxTxPowerPerBandRsp.setMaxTxPwrPerBandRspParams,
                   pEventData->pEventData,
                   sizeof(halMaxTxPowerPerBandRsp.setMaxTxPwrPerBandRspParams));
@@ -18409,23 +13224,13 @@ WDI_ProcessSetMaxTxPowerPerBandRsp
          WDI_HAL_2_WDI_STATUS(
          halMaxTxPowerPerBandRsp.setMaxTxPwrPerBandRspParams.status);
 
-   /* Notify UMAC */
+   
    wdiReqStatusCb(&wdiSetTxPowerPerBandRspMsg, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
 }
 
 #ifdef FEATURE_WLAN_TDLS
-/**
- @brief Process TDLS Link Establish Rsp function (called
-        when a response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessLinkEstablishReqRsp
 (
@@ -18438,11 +13243,8 @@ WDI_ProcessLinkEstablishReqRsp
   tTDLSLinkEstablishedRespMsg  halTdlsLinkEstablishedRespMsg;
   WDI_SetTdlsLinkEstablishReqResp    wdiSetTdlsLinkEstablishReqResp;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18452,18 +13254,12 @@ WDI_ProcessLinkEstablishReqRsp
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-  Extract indication and send it to UMAC
- -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halTdlsLinkEstablishedRespMsg.TDLSLinkEstablishedRespParams,
                   pEventData->pEventData,
                   sizeof(halTdlsLinkEstablishedRespMsg.TDLSLinkEstablishedRespParams) );
 
   wdiTDLSLinkEstablishReqParamsRspCb = (WDI_SetTDLSLinkEstablishReqParamsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halStatus,
                   pEventData->pEventData,
                   sizeof(halStatus));
@@ -18471,23 +13267,13 @@ WDI_ProcessLinkEstablishReqRsp
   wdiSetTdlsLinkEstablishReqResp.wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
   wdiSetTdlsLinkEstablishReqResp.uStaIdx   =   halTdlsLinkEstablishedRespMsg.TDLSLinkEstablishedRespParams.staIdx;
 
-  /*Notify UMAC*/
+  
   wdiTDLSLinkEstablishReqParamsRspCb( &wdiSetTdlsLinkEstablishReqResp, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessLinkEstablishReqRsp*/
+}
 #endif
 
-/**
- @brief Process P2P Group Owner Notice Of Absense Rsp function (called
-        when a response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessP2PGONOARsp
 (
@@ -18498,11 +13284,8 @@ WDI_ProcessP2PGONOARsp
   WDI_Status       wdiStatus;
   eHalStatus       halStatus;
   WDI_SetP2PGONOAReqParamsRspCb   wdiP2PGONOAReqParamsRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18514,30 +13297,17 @@ WDI_ProcessP2PGONOARsp
 
   wdiP2PGONOAReqParamsRspCb = (WDI_SetP2PGONOAReqParamsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halStatus,
                   pEventData->pEventData,
                   sizeof(halStatus));
 
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiP2PGONOAReqParamsRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessP2PGONOARsp*/
-/**
- @brief Process Enter IMPS Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
+}
 WDI_Status
 WDI_ProcessEnterImpsRsp
 (
@@ -18549,11 +13319,8 @@ WDI_ProcessEnterImpsRsp
   eHalStatus           halStatus;
   WDI_EnterImpsRspCb   wdiEnterImpsRspCb;
   wpt_status wptStatus;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18565,48 +13332,29 @@ WDI_ProcessEnterImpsRsp
 
   wdiEnterImpsRspCb = (WDI_EnterImpsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
 
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /* If IMPS req failed, riva is not power collapsed Put the DXE in FULL state. 
-   * Other module states are taken care by PMC.
-   * TODO: How do we take care of the case where IMPS is success, but riva power collapse fails??
-   */
   if (wdiStatus != WDI_STATUS_SUCCESS) {
 
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
                 "WDI Process Enter IMPS RSP failed With HAL Status Code: %d",
                 halStatus);
-     /* Call Back is not required as we are putting the DXE in FULL
-      * and riva is already in full (IMPS RSP Failed)*/
      wptStatus = WDTS_SetPowerState(pWDICtx, WDTS_POWER_STATE_FULL, NULL);
      
      if( eWLAN_PAL_STATUS_SUCCESS != wptStatus ) {
           WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
-                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Full Power state\n", wptStatus);
+                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Full Power state", wptStatus);
           WDI_ASSERT(0);
      }
   }
-  /*Notify UMAC*/
+  
   wdiEnterImpsRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessEnterImpsRsp*/
+}
 
-/**
- @brief Process Exit IMPS Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessExitImpsRsp
 (
@@ -18618,11 +13366,8 @@ WDI_ProcessExitImpsRsp
   eHalStatus           halStatus;
   WDI_ExitImpsRspCb    wdiExitImpsRspCb;
   wpt_status           wptStatus;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18634,9 +13379,6 @@ WDI_ProcessExitImpsRsp
 
   wdiExitImpsRspCb = (WDI_ExitImpsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
@@ -18644,30 +13386,20 @@ WDI_ProcessExitImpsRsp
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
                 "%s: Exit IMPS response is a failure with halStatus %d", __func__, halStatus);
 
-  // notify DTS that we are entering Full power
+  
   wptStatus = WDTS_SetPowerState(pWDICtx, WDTS_POWER_STATE_FULL, NULL);
   if( eWLAN_PAL_STATUS_SUCCESS != wptStatus ) 
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
-                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Full Power state\n", wptStatus);
+                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Full Power state", wptStatus);
     WDI_ASSERT(0);
   }
-  /*Notify UMAC*/
+  
   wdiExitImpsRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessExitImpsRsp*/
+}
 
-/**
- @brief Process Enter BMPS Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessEnterBmpsRsp
 (
@@ -18680,11 +13412,8 @@ WDI_ProcessEnterBmpsRsp
   WDI_EnterBmpsRspCb     wdiEnterBmpsRspCb;
   WDI_EnterBmpsRspParamsType wdiEnterBmpsRspparams;
   wpt_status             wptStatus;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18694,16 +13423,13 @@ WDI_ProcessEnterBmpsRsp
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
   if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
   {
         wpalMemoryCopy( &halEnterBmpsRsp,
                        pEventData->pEventData,
                        sizeof(halEnterBmpsRsp));
 
-        //Used to print debug message
+        
         halStatus = halEnterBmpsRsp.status;
         wdiEnterBmpsRspparams.wdiStatus = WDI_HAL_2_WDI_STATUS(halEnterBmpsRsp.status);
         wdiEnterBmpsRspparams.bssIdx = halEnterBmpsRsp.bssIdx;
@@ -18716,44 +13442,28 @@ WDI_ProcessEnterBmpsRsp
 
   wdiEnterBmpsRspCb = (WDI_EnterBmpsRspCb)pWDICtx->pfncRspCB;
 
-  /* If BMPS req failed, riva is not power collapsed put the DXE in FULL state. 
-   * Other module states are taken care by PMC.
-   * TODO: How do we take care of the case where BMPS is success, but riva power collapse fails??
-   */
    if (wdiEnterBmpsRspparams.wdiStatus != WDI_STATUS_SUCCESS) 
    {  
 
        WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
                   "WDI Process Enter BMPS RSP failed With HAL Status Code: %d",
                   halStatus); 
-       /* Call Back is not required as we are putting the DXE in FULL
-        * and riva is already in FULL (BMPS RSP Failed)*/
        wptStatus = WDTS_SetPowerState(pWDICtx, WDTS_POWER_STATE_FULL, NULL);
        if( eWLAN_PAL_STATUS_SUCCESS != wptStatus ) 
        {
            WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
-                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Full Power state\n", wptStatus);
+                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Full Power state", wptStatus);
            WDI_ASSERT(0);
        }
        pWDICtx->bInBmps = eWLAN_PAL_FALSE;
    }
   
-  /*Notify UMAC*/
+  
   wdiEnterBmpsRspCb( &wdiEnterBmpsRspparams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessEnterBmpsRsp*/
+}
 
-/**
- @brief Process Exit BMPS Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessExitBmpsRsp
 (
@@ -18766,11 +13476,8 @@ WDI_ProcessExitBmpsRsp
   tHalExitBmpsRspParams halExitBmpsRsp;
   WDI_ExitBmpsRspParamsType wdiExitBmpsRspParams;
   wpt_status                wptStatus;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18782,9 +13489,6 @@ WDI_ProcessExitBmpsRsp
 
   wdiExitBmpsRspCb = (WDI_ExitBmpsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   
   if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
   {
@@ -18801,32 +13505,22 @@ WDI_ProcessExitBmpsRsp
       wdiExitBmpsRspParams.wdiStatus =  WDI_HAL_2_WDI_STATUS(halStatus);
   }
 
-  // notify DTS that we are entering Full power
+  
   wptStatus = WDTS_SetPowerState(pWDICtx, WDTS_POWER_STATE_FULL, NULL);
   if( eWLAN_PAL_STATUS_SUCCESS != wptStatus ) 
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
-                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Full Power state\n", wptStatus);
+                "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Full Power state", wptStatus);
     WDI_ASSERT(0);
   }
   pWDICtx->bInBmps = eWLAN_PAL_FALSE;
 
-  /*Notify UMAC*/
+  
   wdiExitBmpsRspCb( &wdiExitBmpsRspParams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessExitBmpsRsp*/
+}
 
-/**
- @brief Process Enter UAPSD Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessEnterUapsdRsp
 (
@@ -18839,11 +13533,8 @@ WDI_ProcessEnterUapsdRsp
   WDI_EnterUapsdRspCb   wdiEnterUapsdRspCb;
   WDI_EnterUapsdRspParamsType wdiEnterUapsdRspParams;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18855,9 +13546,6 @@ WDI_ProcessEnterUapsdRsp
 
   wdiEnterUapsdRspCb = (WDI_EnterUapsdRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
   {
     wpalMemoryCopy( &halEnterUapsdRsp,
@@ -18875,34 +13563,24 @@ WDI_ProcessEnterUapsdRsp
 
   if(WDI_STATUS_SUCCESS == wdiEnterUapsdRspParams.wdiStatus)
   {
-   // Set the DPU routing flag to the FW WQ, all the TX frames would be now pushed
-   // from DPU to the FW-WQ (5) in UAPSD. FW would be in data path, monitoring
-   // the traffic to decide when to suspend the trigger frames when there is no traffic
-   // activity on the trigger enabled ACs
+   
+   
+   
+   
    pWDICtx->ucDpuRF = BMUWQ_FW_DPU_TX;
 
 #ifdef WLAN_PERF
-   // Increment the BD signature to refresh the fast path BD utilization
+   
    pWDICtx->uBdSigSerialNum++;
 #endif
   }
 
-  /*Notify UMAC*/
+  
   wdiEnterUapsdRspCb( &wdiEnterUapsdRspParams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessEnterUapsdRsp*/
+}
 
-/**
- @brief Process Exit UAPSD Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessExitUapsdRsp
 (
@@ -18914,11 +13592,8 @@ WDI_ProcessExitUapsdRsp
   WDI_ExitUapsdRspCb   wdiExitUapsdRspCb;
   tHalExitUapsdRspParams halExitUapsdRsp;
   WDI_ExitUapsdRspParamsType wdiExitUapsdRspParams; 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18930,9 +13605,6 @@ WDI_ProcessExitUapsdRsp
 
   wdiExitUapsdRspCb = (WDI_ExitUapsdRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
   {
     wpalMemoryCopy( &halExitUapsdRsp,
@@ -18947,31 +13619,21 @@ WDI_ProcessExitUapsdRsp
       halStatus = *((eHalStatus*)pEventData->pEventData);
       wdiExitUapsdRspParams.wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
   }
-   // Restore back the DPU routing flag in the TxBD, for DPU to push the TxBDs to BTQM
-   // directly instead of the FW WQ.
+   
+   
    pWDICtx->ucDpuRF = BMUWQ_BTQM_TX_MGMT;
 
 #ifdef WLAN_PERF
-   // Increment the BD signature to refresh the fast path BD utilization
+   
    pWDICtx->uBdSigSerialNum++;
 #endif
 
-  /*Notify UMAC*/
+  
   wdiExitUapsdRspCb( &wdiExitUapsdRspParams, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessExitUapsdRsp*/
+}
 
-/**
- @brief Process set UAPSD params Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetUapsdAcParamsRsp
 (
@@ -18982,11 +13644,8 @@ WDI_ProcessSetUapsdAcParamsRsp
   WDI_Status           wdiStatus;
   eHalStatus           halStatus;
   WDI_SetUapsdAcParamsCb   wdiSetUapsdAcParamsCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -18998,28 +13657,15 @@ WDI_ProcessSetUapsdAcParamsRsp
 
   wdiSetUapsdAcParamsCb = (WDI_SetUapsdAcParamsCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiSetUapsdAcParamsCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetUapsdAcParamsRsp*/
+}
 
-/**
- @brief Process update UAPSD params Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateUapsdParamsRsp
 (
@@ -19030,11 +13676,8 @@ WDI_ProcessUpdateUapsdParamsRsp
   WDI_Status           wdiStatus;
   eHalStatus           halStatus;
   WDI_UpdateUapsdParamsCb   wdiUpdateUapsdParamsCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -19046,28 +13689,15 @@ WDI_ProcessUpdateUapsdParamsRsp
 
   wdiUpdateUapsdParamsCb = (WDI_UpdateUapsdParamsCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiUpdateUapsdParamsCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessUpdateUapsdParamsRsp*/
+}
 
-/**
- @brief Process Configure RXP filter Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessConfigureRxpFilterRsp
 (
@@ -19078,11 +13708,8 @@ WDI_ProcessConfigureRxpFilterRsp
   WDI_Status           wdiStatus;
   eHalStatus           halStatus;
   WDI_ConfigureRxpFilterCb   wdiConfigureRxpFilterCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -19094,28 +13721,15 @@ WDI_ProcessConfigureRxpFilterRsp
 
   wdiConfigureRxpFilterCb = (WDI_ConfigureRxpFilterCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   wdiConfigureRxpFilterCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessConfigureRxpFilterRsp*/
+}
 
-/**
- @brief Process Set beacon filter Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetBeaconFilterRsp
 (
@@ -19126,11 +13740,8 @@ WDI_ProcessSetBeaconFilterRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    WDI_SetBeaconFilterCb   wdiBeaconFilterCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -19142,28 +13753,15 @@ WDI_ProcessSetBeaconFilterRsp
 
    wdiBeaconFilterCb = (WDI_SetBeaconFilterCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiBeaconFilterCb( wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetBeaconFilterRsp*/
+}
 
-/**
- @brief Process remove beacon filter Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessRemBeaconFilterRsp
 (
@@ -19174,11 +13772,8 @@ WDI_ProcessRemBeaconFilterRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    WDI_RemBeaconFilterCb   wdiBeaconFilterCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -19190,28 +13785,15 @@ WDI_ProcessRemBeaconFilterRsp
 
    wdiBeaconFilterCb = (WDI_RemBeaconFilterCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiBeaconFilterCb( wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessRemBeaconFilterRsp*/
+}
 
-/**
- @brief Process set RSSI thresholds Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetRSSIThresoldsRsp
 (
@@ -19222,11 +13804,8 @@ WDI_ProcessSetRSSIThresoldsRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    WDI_SetRSSIThresholdsCb   wdiRSSIThresholdsCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -19238,28 +13817,15 @@ WDI_ProcessSetRSSIThresoldsRsp
 
    wdiRSSIThresholdsCb = (WDI_SetRSSIThresholdsCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiRSSIThresholdsCb( wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetRSSIThresoldsRsp*/
+}
 
-/**
- @brief Process host offload Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessHostOffloadRsp
 (
@@ -19270,11 +13836,8 @@ WDI_ProcessHostOffloadRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    WDI_HostOffloadCb    wdiHostOffloadCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -19286,28 +13849,15 @@ WDI_ProcessHostOffloadRsp
 
    wdiHostOffloadCb = (WDI_HostOffloadCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiHostOffloadCb( wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessHostOffloadRsp*/
+}
 
-/**
- @brief Process keep alive Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessKeepAliveRsp
 (
@@ -19318,14 +13868,11 @@ WDI_ProcessKeepAliveRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    WDI_KeepAliveCb      wdiKeepAliveCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
    WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_ERROR,
                "Received WDI_ProcessKeepAliveRsp Callback from HAL");
 
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -19337,28 +13884,15 @@ WDI_ProcessKeepAliveRsp
 
    wdiKeepAliveCb = (WDI_KeepAliveCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiKeepAliveCb( wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessKeepAliveRsp*/
+}
 
-/**
- @brief Process wowl add ptrn Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessWowlAddBcPtrnRsp
 (
@@ -19371,11 +13905,8 @@ WDI_ProcessWowlAddBcPtrnRsp
    tHalAddWowlBcastPtrnRspParams halAddWowlBcastPtrRsp;
    WDI_WowlAddBcPtrnRspParamsType wdiWowlAddBcPtrRsp;
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -19387,9 +13918,6 @@ WDI_ProcessWowlAddBcPtrnRsp
 
    wdiWowlAddBcPtrnCb = (WDI_WowlAddBcPtrnCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
    {
      wpalMemoryCopy( &halAddWowlBcastPtrRsp,
@@ -19406,22 +13934,12 @@ WDI_ProcessWowlAddBcPtrnRsp
                           WDI_HAL_2_WDI_STATUS(halStatus);
    }
 
-   /*Notify UMAC*/
+   
    wdiWowlAddBcPtrnCb( &wdiWowlAddBcPtrRsp, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessWowlAddBcPtrnRsp*/
+}
 
-/**
- @brief Process wowl delete ptrn Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessWowlDelBcPtrnRsp
 (
@@ -19433,11 +13951,8 @@ WDI_ProcessWowlDelBcPtrnRsp
    WDI_WowlDelBcPtrnCb    wdiWowlDelBcPtrnCb;
    tHalDelWowlBcastPtrnRspParams halDelWowlBcastPtrRsp;
    WDI_WowlDelBcPtrnRspParamsType wdiWowlDelBcstPtrRsp;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -19449,9 +13964,6 @@ WDI_ProcessWowlDelBcPtrnRsp
 
    wdiWowlDelBcPtrnCb = (WDI_WowlDelBcPtrnCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
    {
         wpalMemoryCopy( &halDelWowlBcastPtrRsp,
@@ -19466,22 +13978,12 @@ WDI_ProcessWowlDelBcPtrnRsp
        halStatus = *((eHalStatus*)pEventData->pEventData);
        wdiWowlDelBcstPtrRsp.wdiStatus  =   WDI_HAL_2_WDI_STATUS(halStatus);
    }
-   /*Notify UMAC*/
+   
    wdiWowlDelBcPtrnCb( &wdiWowlDelBcstPtrRsp, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessWowlDelBcPtrnRsp*/
+}
 
-/**
- @brief Process wowl enter Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessWowlEnterRsp
 (
@@ -19493,11 +13995,8 @@ WDI_ProcessWowlEnterRsp
    WDI_WowlEnterReqCb   wdiWowlEnterCb;
    WDI_WowlEnterRspParamsType  wdiwowlEnterRsp;
    tHalEnterWowlRspParams  halEnterWowlRspParams;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -19509,9 +14008,6 @@ WDI_ProcessWowlEnterRsp
 
    wdiWowlEnterCb = (WDI_WowlEnterReqCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
    {
       wpalMemoryCopy( &halEnterWowlRspParams,
@@ -19527,22 +14023,12 @@ WDI_ProcessWowlEnterRsp
        halStatus = *((eHalStatus*)pEventData->pEventData);
        wdiwowlEnterRsp.status   =   WDI_HAL_2_WDI_STATUS(halStatus);
    }
-   /*Notify UMAC*/
+   
    wdiWowlEnterCb( &wdiwowlEnterRsp, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessWowlEnterRsp*/
+}
 
-/**
- @brief Process wowl exit Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessWowlExitRsp
 (
@@ -19555,11 +14041,8 @@ WDI_ProcessWowlExitRsp
    tHalExitWowlRspParams halExitWowlRspParams;
    WDI_WowlExitRspParamsType wdiWowlExitRsp;
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -19571,9 +14054,6 @@ WDI_ProcessWowlExitRsp
 
    wdiWowlExitCb = (WDI_WowlExitReqCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
     {
          wpalMemoryCopy( &halExitWowlRspParams,
@@ -19589,23 +14069,12 @@ WDI_ProcessWowlExitRsp
        halStatus = *((eHalStatus*)pEventData->pEventData);
        wdiWowlExitRsp.status  =   WDI_HAL_2_WDI_STATUS(halStatus);
    }
-   /*Notify UMAC*/
+   
    wdiWowlExitCb( &wdiWowlExitRsp, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessWowlExitRsp*/
+}
 
-/**
- @brief Process Configure Apps CPU wakeup State Rsp function
-        (called when a response is being received over the bus
-        from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessConfigureAppsCpuWakeupStateRsp
 (
@@ -19616,11 +14085,8 @@ WDI_ProcessConfigureAppsCpuWakeupStateRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    WDI_ConfigureAppsCpuWakeupStateCb   wdiConfigureAppsCpuWakeupStateCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -19632,29 +14098,16 @@ WDI_ProcessConfigureAppsCpuWakeupStateRsp
 
    wdiConfigureAppsCpuWakeupStateCb = (WDI_ConfigureAppsCpuWakeupStateCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiConfigureAppsCpuWakeupStateCb( wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessConfigureAppsCpuWakeupStateRsp*/
+}
 
 
-/**
- @brief Process Nv download(called when a response
-        is being received over the bus from HAL,will check if the responce is )
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessNvDownloadRsp
 (
@@ -19667,9 +14120,6 @@ WDI_ProcessNvDownloadRsp
   tHalNvImgDownloadRspParams halNvDownloadRsp;
   WDI_NvDownloadRspInfoType wdiNvDownloadRsp;
 
-  /*-------------------------------------------------------------------------
-   Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
     ( NULL == pEventData->pEventData))
   {
@@ -19679,9 +14129,6 @@ WDI_ProcessNvDownloadRsp
     return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halNvDownloadRsp,
                   pEventData->pEventData,
                   sizeof(halNvDownloadRsp));
@@ -19697,11 +14144,11 @@ WDI_ProcessNvDownloadRsp
   }
   else
   {
-    /*Reset the Nv related global information in WDI context information */
+    
     pWDICtx->wdiNvBlobInfo.usTotalFragment = 0;
     pWDICtx->wdiNvBlobInfo.usFragmentSize = 0;
     pWDICtx->wdiNvBlobInfo.usCurrentFragment = 0;
-    /*call WDA callback function for last fragment */
+    
     wdiNvDownloadRspCb = (WDI_NvDownloadRspCb)pWDICtx->pfncRspCB;
     wdiNvDownloadRspCb( &wdiNvDownloadRsp, pWDICtx->pRspCBUserData);
   }
@@ -19709,16 +14156,6 @@ WDI_ProcessNvDownloadRsp
   return WDI_STATUS_SUCCESS;
 }
 #ifdef WLAN_FEATURE_VOWIFI_11R
-/**
- @brief Process Add TSpec Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessAggrAddTSpecRsp
 (
@@ -19729,11 +14166,8 @@ WDI_ProcessAggrAddTSpecRsp
   WDI_Status            wdiStatus;
   tAggrAddTsRspParams   aggrAddTsRsp;
   WDI_AggrAddTsRspCb    wdiAggrAddTsRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -19745,33 +14179,20 @@ WDI_ProcessAggrAddTSpecRsp
 
   wdiAggrAddTsRspCb = (WDI_AddTsRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &aggrAddTsRsp,
                   pEventData->pEventData,
                   sizeof(aggrAddTsRsp));
 
-  /* What is the difference between status0 and status1? */
+  
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(aggrAddTsRsp.status0);
 
-  /*Notify UMAC*/
+  
   wdiAggrAddTsRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessAddTSpecRsp*/
-#endif /* WLAN_FEATURE_VOWIFI_11R */
+}
+#endif 
 
-/**
- @brief WDI_ProcessHostResumeRsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessHostResumeRsp
 (
@@ -19782,11 +14203,8 @@ WDI_ProcessHostResumeRsp
   WDI_SuspendResumeRspParamsType     wdiResumeRspParams;
   WDI_HostResumeEventRspCb           wdiHostResumeRspCb;
   tHalHostResumeRspParams            hostResumeRspMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-    -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -19798,9 +14216,6 @@ WDI_ProcessHostResumeRsp
 
   wdiHostResumeRspCb = (WDI_HostResumeEventRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-    -------------------------------------------------------------------------*/
 
   wpalMemoryCopy( &hostResumeRspMsg,
       (wpt_uint8*)pEventData->pEventData,
@@ -19809,22 +14224,12 @@ WDI_ProcessHostResumeRsp
   wdiResumeRspParams.wdiStatus   =
     WDI_HAL_2_WDI_STATUS(hostResumeRspMsg.status);
 
-  /*Notify UMAC*/
+  
   wdiHostResumeRspCb(&wdiResumeRspParams, (void*) pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
 }
 
-/**
- @brief Process Set Tx PER Rsp function (called when a response
-        is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetTxPerTrackingRsp
 (
@@ -19835,11 +14240,8 @@ WDI_ProcessSetTxPerTrackingRsp
   WDI_Status           wdiStatus;
   eHalStatus           halStatus;
   WDI_SetTxPerTrackingRspCb   pwdiSetTxPerTrackingRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -19851,32 +14253,15 @@ WDI_ProcessSetTxPerTrackingRsp
 
   pwdiSetTxPerTrackingRspCb = (WDI_SetTxPerTrackingRspCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Notify UMAC*/
+  
   pwdiSetTxPerTrackingRspCb( wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetTxPerTrackingRsp*/
+}
 
-/*==========================================================================
-                        Indications from HAL
- ==========================================================================*/
-/**
- @brief Process Low RSSI Indication function (called when an
-        indication of this kind is being received over the bus
-        from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessLowRSSIInd
 (
@@ -19886,11 +14271,8 @@ WDI_ProcessLowRSSIInd
 {
   WDI_LowLevelIndType  wdiInd;
   tHalRSSINotificationIndMsg   halRSSINotificationIndMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -19900,14 +14282,11 @@ WDI_ProcessLowRSSIInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( (void *)&halRSSINotificationIndMsg.rssiNotificationParams,
                   pEventData->pEventData,
                   sizeof(tHalRSSINotification));
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType = WDI_RSSI_NOTIFICATION_IND; 
   wdiInd.wdiIndicationData.wdiLowRSSIInfo.bRssiThres1PosCross =
      halRSSINotificationIndMsg.rssiNotificationParams.bRssiThres1PosCross;
@@ -19926,25 +14305,14 @@ WDI_ProcessLowRSSIInd
 
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC of indication*/
+    
     pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
   }
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessLowRSSIInd*/
+}
 
 
-/**
- @brief Process Missed Beacon Indication function (called when
-        an indication of this kind is being received over the
-        bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessMissedBeaconInd
 (
@@ -19956,11 +14324,8 @@ WDI_ProcessMissedBeaconInd
   eHalStatus           halStatus;
   WDI_LowLevelIndType  wdiInd;
   tpHalMissedBeaconIndParams halMissedBeaconIndParams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -19970,38 +14335,24 @@ WDI_ProcessMissedBeaconInd
      return WDI_STATUS_E_FAILURE;
   }
   halMissedBeaconIndParams = (tpHalMissedBeaconIndParams)pEventData->pEventData;
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
-  /*! TO DO: Parameters need to be unpacked according to HAL struct*/
+  
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType = WDI_MISSED_BEACON_IND;
   wdiInd.wdiIndicationData.wdiMissedBeaconInd.bssIdx =
                                        halMissedBeaconIndParams->bssIdx;
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
   }
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessMissedBeaconInd*/
+}
 
 
-/**
- @brief Process Unk Addr Frame Indication function (called when
-        an indication of this kind is being received over the
-        bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUnkAddrFrameInd
 (
@@ -20012,11 +14363,8 @@ WDI_ProcessUnkAddrFrameInd
   WDI_Status           wdiStatus;
   eHalStatus           halStatus;
   WDI_LowLevelIndType  wdiInd;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -20026,39 +14374,23 @@ WDI_ProcessUnkAddrFrameInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
-  /*! TO DO: Parameters need to be unpacked according to HAL struct*/
+  
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType = WDI_UNKNOWN_ADDR2_FRAME_RX_IND;
-  /* ! TO DO - fill in from HAL struct:
-    wdiInd.wdiIndicationData.wdiUnkAddr2FrmInfo*/
 
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
   }
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessUnkAddrFrameInd*/
+}
 
 
-/**
- @brief Process MIC Failure Indication function (called when an
-        indication of this kind is being received over the bus
-        from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessMicFailureInd
 (
@@ -20069,11 +14401,8 @@ WDI_ProcessMicFailureInd
   WDI_LowLevelIndType  wdiInd;
   tpSirMicFailureInd   pHalMicFailureInd;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -20084,11 +14413,8 @@ WDI_ProcessMicFailureInd
   }
 
   pHalMicFailureInd = (tpSirMicFailureInd)pEventData->pEventData;
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType = WDI_MIC_FAILURE_IND;
   wpalMemoryCopy(wdiInd.wdiIndicationData.wdiMICFailureInfo.bssId,
                  pHalMicFailureInd->bssId, WDI_MAC_ADDR_LEN);
@@ -20111,25 +14437,14 @@ WDI_ProcessMicFailureInd
 
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
   }
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessMicFailureInd*/
+}
 
 
-/**
- @brief Process Fatal Failure Indication function (called when
-        an indication of this kind is being received over the
-        bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessFatalErrorInd
 (
@@ -20140,11 +14455,8 @@ WDI_ProcessFatalErrorInd
   WDI_Status           wdiStatus;
   eHalStatus           halStatus;
   WDI_LowLevelIndType  wdiInd;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -20154,41 +14466,27 @@ WDI_ProcessFatalErrorInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
 
-  /*! TO DO: Parameters need to be unpacked according to HAL struct*/
+  
   halStatus = *((eHalStatus*)pEventData->pEventData);
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
   WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_ERROR,
               "Fatal failure received from device %d ", halStatus );
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType             = WDI_FATAL_ERROR_IND;
   wdiInd.wdiIndicationData.usErrorCode = WDI_ERR_DEV_INTERNAL_FAILURE;
 
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
   }
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessFatalErrorInd*/
+}
 
-/**
- @brief Process Delete STA Indication function (called when
-        an indication of this kind is being received over the
-        bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDelSTAInd
 (
@@ -20198,11 +14496,8 @@ WDI_ProcessDelSTAInd
 {
   tDeleteStaContextParams    halDelSTACtx;
   WDI_LowLevelIndType        wdiInd;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -20212,16 +14507,13 @@ WDI_ProcessDelSTAInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
 
-  /* Parameters need to be unpacked according to HAL struct*/
+  
   wpalMemoryCopy( &halDelSTACtx,
                   pEventData->pEventData,
                   sizeof(halDelSTACtx));
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType             = WDI_DEL_STA_IND;
 
   wpalMemoryCopy(wdiInd.wdiIndicationData.wdiDeleteSTAIndType.macADDR2,
@@ -20238,24 +14530,13 @@ WDI_ProcessDelSTAInd
 
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
   }
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessDelSTAInd*/
+}
 
-/**
-*@brief Process Coex Indication function (called when
-        an indication of this kind is being received over the
-        bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessCoexInd
 (
@@ -20266,11 +14547,8 @@ WDI_ProcessCoexInd
   WDI_LowLevelIndType  wdiInd;
   tCoexIndMsg          halCoexIndMsg;
   wpt_uint32           index;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ))
   {
@@ -20280,14 +14558,11 @@ WDI_ProcessCoexInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halCoexIndMsg.coexIndParams,
                   pEventData->pEventData,
                   sizeof(halCoexIndMsg.coexIndParams) );
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType = WDI_COEX_IND;
   wdiInd.wdiIndicationData.wdiCoexInfo.coexIndType = halCoexIndMsg.coexIndParams.coexIndType;
   for (index = 0; index < WDI_COEX_IND_DATA_SIZE; index++)
@@ -20295,7 +14570,7 @@ WDI_ProcessCoexInd
     wdiInd.wdiIndicationData.wdiCoexInfo.coexIndData[index] = halCoexIndMsg.coexIndParams.coexIndData[index];
   }
 
-  // DEBUG
+  
   WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_INFO,
               "[COEX WDI] Coex Ind Type (%x) data (%x %x %x %x)",
               wdiInd.wdiIndicationData.wdiCoexInfo.coexIndType,
@@ -20306,24 +14581,13 @@ WDI_ProcessCoexInd
 
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
   }
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessCoexInd*/
+}
 
-/**
-*@brief Process Tx Complete Indication function (called when
-        an indication of this kind is being received over the
-        bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessTxCompleteInd
 (
@@ -20333,11 +14597,8 @@ WDI_ProcessTxCompleteInd
 {
   WDI_LowLevelIndType  wdiInd;
   tTxComplIndMsg       halTxComplIndMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ))
   {
@@ -20347,38 +14608,24 @@ WDI_ProcessTxCompleteInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halTxComplIndMsg.txComplParams,
                   pEventData->pEventData,
                   sizeof(halTxComplIndMsg.txComplParams) );
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType = WDI_TX_COMPLETE_IND;
   wdiInd.wdiIndicationData.tx_complete_status
                                = halTxComplIndMsg.txComplParams.status;
 
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
   }
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessTxCompleteInd*/
+}
 #ifdef FEATURE_WLAN_TDLS
-/**
-*@brief Process TDLS Indication function (called when
-        an indication of this kind is being received over the
-        bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessTdlsInd
 (
@@ -20388,11 +14635,8 @@ WDI_ProcessTdlsInd
 {
   WDI_LowLevelIndType  wdiInd;
   tTdlsIndMsg       halTdlsIndMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-  Sanity check
- -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ))
   {
@@ -20402,14 +14646,11 @@ WDI_ProcessTdlsInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-  Extract indication and send it to UMAC
- -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halTdlsIndMsg.tdlsIndParams,
                   pEventData->pEventData,
                   sizeof(halTdlsIndMsg.tdlsIndParams) );
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType = WDI_TDLS_IND;
 
   wdiInd.wdiIndicationData.wdiTdlsIndInfo.status
@@ -20421,23 +14662,12 @@ WDI_ProcessTdlsInd
   wdiInd.wdiIndicationData.wdiTdlsIndInfo.reasonCode
                           = halTdlsIndMsg.tdlsIndParams.reasonCode;
 
-  /*Notify UMAC*/
+  
   pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessTdlsInd*/
+}
 #endif
-/**
-*@brief Process Noa Start Indication function (called when
-        an indication of this kind is being received over the
-        bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessP2pNoaStartInd
 (
@@ -20447,11 +14677,8 @@ WDI_ProcessP2pNoaStartInd
 {
   WDI_LowLevelIndType  wdiInd;
   tNoaStartIndMsg       halNoaStartIndMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-  Sanity check
- -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ))
   {
@@ -20461,14 +14688,11 @@ WDI_ProcessP2pNoaStartInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-  Extract indication and send it to UMAC
- -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halNoaStartIndMsg.noaStartIndParams,
                   pEventData->pEventData,
                   sizeof(halNoaStartIndMsg.noaStartIndParams) );
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType = WDI_P2P_NOA_START_IND;
 
   wdiInd.wdiIndicationData.wdiP2pNoaStartInfo.status
@@ -20477,23 +14701,12 @@ WDI_ProcessP2pNoaStartInd
   wdiInd.wdiIndicationData.wdiP2pNoaStartInfo.bssIdx
                           = halNoaStartIndMsg.noaStartIndParams.bssIdx;
 
-  /*Notify UMAC*/
+  
   pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessNoaAttrInd*/
+}
 
-/**
-*@brief Process Noa Attr Indication function (called when
-        an indication of this kind is being received over the
-        bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessP2pNoaAttrInd
 (
@@ -20503,11 +14716,8 @@ WDI_ProcessP2pNoaAttrInd
 {
   WDI_LowLevelIndType  wdiInd;
   tNoaAttrIndMsg       halNoaAttrIndMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ))
   {
@@ -20517,14 +14727,11 @@ WDI_ProcessP2pNoaAttrInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy( &halNoaAttrIndMsg.noaAttrIndParams,
                   pEventData->pEventData,
                   sizeof(halNoaAttrIndMsg.noaAttrIndParams) );
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType = WDI_P2P_NOA_ATTR_IND;
 
   wdiInd.wdiIndicationData.wdiP2pNoaAttrInfo.status
@@ -20557,24 +14764,13 @@ WDI_ProcessP2pNoaAttrInd
 
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
   }
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessNoaAttrInd*/
+}
 
-/**
- @brief Process Tx PER Hit Indication function (called when
-        an indication of this kind is being received over the
-        bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessTxPerHitInd
 (
@@ -20583,32 +14779,20 @@ WDI_ProcessTxPerHitInd
 )
 {
   WDI_LowLevelIndType  wdiInd;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType = WDI_TX_PER_HIT_IND;
 
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
   }
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessTxPerHitInd*/
+}
 
-/**
- @brief Process Periodic Tx Pattern Fw Indication function
-
- @param pWDICtx:         pointer to the WLAN DAL context
-        pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessPeriodicTxPtrnFwInd
 (
@@ -20618,9 +14802,6 @@ WDI_ProcessPeriodicTxPtrnFwInd
 {
   WDI_LowLevelIndType  wdiInd;
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if ((NULL == pWDICtx) || (NULL == pEventData) ||
       (NULL == pEventData->pEventData))
   {
@@ -20630,32 +14811,19 @@ WDI_ProcessPeriodicTxPtrnFwInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
   wpalMemoryCopy(&(wdiInd.wdiIndicationData.wdiPeriodicTxPtrnFwInd),
                  (tHalPeriodicTxPtrnFwInd *)pEventData->pEventData,
                  sizeof(tHalPeriodicTxPtrnFwInd));
 
   if (pWDICtx->wdiLowLevelIndCB)
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB(&wdiInd, pWDICtx->pIndUserData);
   }
 
   return WDI_STATUS_SUCCESS;
 }
 
-/**
- @brief WDI_ProcessFTMCommandReq
-        Process FTM Command, simply route to HAL
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessFTMCommandReq
 (
@@ -20667,9 +14835,6 @@ WDI_ProcessFTMCommandReq
   wpt_uint8              *ftmCommandBuffer = NULL;
   wpt_uint16              dataOffset;
   wpt_uint16              bufferSize;
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
 
@@ -20682,7 +14847,7 @@ WDI_ProcessFTMCommandReq
 
   ftmCommandReq = (WDI_FTMCommandReqType *)pEventData->pEventData;
 
-  /* Get MSG Buffer */
+  
   WDI_GetMessageBuffer(pWDICtx,
                        WDI_FTM_CMD_REQ,
                        ftmCommandReq->bodyLength,
@@ -20694,7 +14859,7 @@ WDI_ProcessFTMCommandReq
                  ftmCommandReq->FTMCommandBody,
                  ftmCommandReq->bodyLength);
 
-  /* Send MSG */
+  
   return WDI_SendMsg(pWDICtx,
                      ftmCommandBuffer,
                      bufferSize,
@@ -20703,16 +14868,6 @@ WDI_ProcessFTMCommandReq
                      WDI_FTM_CMD_RESP);
 }
 
-/**
- @brief WDI_ProcessFTMCommandRsp
-        Process FTM Command Response from HAL, simply route to HDD FTM
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessFTMCommandRsp
 (
@@ -20722,11 +14877,8 @@ WDI_ProcessFTMCommandRsp
 {
   WDI_FTMCommandRspCb   ftmCMDRspCb;
   tProcessPttRspParams *ftmCMDRspData = NULL;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -20744,21 +14896,11 @@ WDI_ProcessFTMCommandRsp
                  (void *)&ftmCMDRspData->pttMsgBuffer,
                  ftmCMDRspData->pttMsgBuffer.msgBodyLength);
 
-  /*Notify UMAC*/
+  
   ftmCMDRspCb((void *)pWDICtx->ucFTMCommandRspBuffer, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
 }
-/**
- @brief WDI_ProcessHalDumpCmdReq
-        Process hal dump Command, simply route to HAL
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessHALDumpCmdReq
 (
@@ -20773,9 +14915,6 @@ WDI_ProcessHALDumpCmdReq
   tHalDumpCmdReqMsg        halDumpCmdReqMsg;
   wpt_uint8*               pSendBuffer         = NULL;
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData) ||
       ( NULL == pEventData->pCBfnc ))
@@ -20789,7 +14928,7 @@ WDI_ProcessHALDumpCmdReq
   pwdiHALDumpCmdParams = (WDI_HALDumpCmdReqParamsType*)pEventData->pEventData;
   wdiHALDumpCmdRspCb   = (WDI_HALDumpCmdRspCb)pEventData->pCBfnc;
 
-  /* Copying the HAL DUMP Command Information HAL Structure*/
+  
   halDumpCmdReqMsg.dumpCmdReqParams.argument1 =
                 pwdiHALDumpCmdParams->wdiHALDumpCmdInfoType.command;
   halDumpCmdReqMsg.dumpCmdReqParams.argument2 =
@@ -20801,9 +14940,6 @@ WDI_ProcessHALDumpCmdReq
   halDumpCmdReqMsg.dumpCmdReqParams.argument5 =
                 pwdiHALDumpCmdParams->wdiHALDumpCmdInfoType.argument4;
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_HAL_DUMP_CMD_REQ,
                         sizeof(halDumpCmdReqMsg.dumpCmdReqParams),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -20824,24 +14960,11 @@ WDI_ProcessHALDumpCmdReq
   pWDICtx->wdiReqStatusCB     = pwdiHALDumpCmdParams->wdiReqStatusCB;
   pWDICtx->pReqStatusUserData = pwdiHALDumpCmdParams->pUserData;
 
-  /*-------------------------------------------------------------------------
-    Send Start Request to HAL
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiHALDumpCmdRspCb, pEventData->pUserData,
                         WDI_HAL_DUMP_CMD_RESP);
 }
 
-/**
- @brief WDI_ProcessHalDumpCmdRsp
-        Process hal Dump Command Response from HAL, simply route to HDD
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessHALDumpCmdRsp
 (
@@ -20853,9 +14976,6 @@ WDI_ProcessHALDumpCmdRsp
   tHalDumpCmdRspParams   halDumpCmdRspParams;
   WDI_HALDumpCmdRspParamsType wdiHALDumpCmdRsp;
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
   {
@@ -20867,7 +14987,7 @@ WDI_ProcessHALDumpCmdRsp
 
   wdiHALDumpCmdRspCb = (WDI_HALDumpCmdRspCb)pWDICtx->pfncRspCB;
 
-  /*Initialize the WDI Response structure */
+  
   wdiHALDumpCmdRsp.usBufferLen = 0;
   wdiHALDumpCmdRsp.pBuffer = NULL;
 
@@ -20881,7 +15001,7 @@ WDI_ProcessHALDumpCmdRsp
   if (( wdiHALDumpCmdRsp.wdiStatus  ==  WDI_STATUS_SUCCESS) &&
       (halDumpCmdRspParams.rspLength != 0))
   {
-      /* Copy the response data */
+      
       wdiHALDumpCmdRsp.usBufferLen = halDumpCmdRspParams.rspLength;
       wdiHALDumpCmdRsp.pBuffer = wpalMemoryAllocate(halDumpCmdRspParams.rspLength);
 
@@ -20890,38 +15010,17 @@ WDI_ProcessHALDumpCmdRsp
                   halDumpCmdRspParams.rspLength);
   }
 
-  /*Notify UMAC*/
+  
   wdiHALDumpCmdRspCb(&wdiHALDumpCmdRsp, pWDICtx->pRspCBUserData);
 
   if(wdiHALDumpCmdRsp.pBuffer != NULL)
   {
-    /* Free the allocated buffer */
+    
     wpalMemoryFree(wdiHALDumpCmdRsp.pBuffer);
   }
   return WDI_STATUS_SUCCESS;
 }
 
-/*==========================================================================
-                     CONTRL TRANSPORT INTERACTION
-
-    Callback function registered with the control transport - for receiving
-    notifications and packets
-==========================================================================*/
-/**
- @brief    This callback is invoked by the control transport
-   when it wishes to send up a notification like the ones
-   mentioned above.
-
- @param
-
-    wctsHandle:       handle to the control transport service
-    wctsEvent:        the event being notified
-    wctsNotifyCBData: the callback data of the user
-
- @see  WCTS_OpenTransport
-
- @return None
-*/
 void
 WDI_NotifyMsgCTSCB
 (
@@ -20931,7 +15030,7 @@ WDI_NotifyMsgCTSCB
 )
 {
   WDI_ControlBlockType*  pWDICtx = (WDI_ControlBlockType*)wctsNotifyCBData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   if (NULL == pWDICtx )
   {
@@ -20943,7 +15042,7 @@ WDI_NotifyMsgCTSCB
 
   if (WDI_CONTROL_BLOCK_MAGIC != pWDICtx->magic)
   {
-    /* callback presumably occurred after close */
+    
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
                 "%s: Invalid control block", __func__);
     return;
@@ -20951,50 +15050,28 @@ WDI_NotifyMsgCTSCB
 
   if ( WCTS_EVENT_OPEN == wctsEvent )
   {
-    /*Flag must be set atomically as it is checked from incoming request
-      functions*/
     wpalMutexAcquire(&pWDICtx->wptMutex);
     pWDICtx->bCTOpened   = eWLAN_PAL_TRUE;
 
-    /*Nothing to do - so try to dequeue any pending request that may have
-     occurred while we were trying to establish this*/
     WDI_DequeuePendingReq(pWDICtx);
     wpalMutexRelease(&pWDICtx->wptMutex);
   }
   else if  ( WCTS_EVENT_CLOSE == wctsEvent )
   {
-    /*Flag must be set atomically as it is checked from incoming request
-      functions*/
     wpalMutexAcquire(&pWDICtx->wptMutex);
     pWDICtx->bCTOpened   = eWLAN_PAL_FALSE;
 
-    /*No other request will be processed from now on - fail all*/
+    
     WDI_ClearPendingRequests(pWDICtx);
     wpalMutexRelease(&pWDICtx->wptMutex);
 
-    /*Notify that the Control Channel is closed */
+    
     wpalEventSet(&pWDICtx->wctsActionEvent);
   }
 
-}/*WDI_NotifyMsgCTSCB*/
+}
 
 
-/**
- @brief    This callback is invoked by the control transport
-           when it wishes to send up a packet received over the
-           bus.
-
- @param
-
-    wctsHandle:  handle to the control transport service
-    pMsg:        the packet
-    uLen:        the packet length
-    wctsRxMsgCBData: the callback data of the user
-
- @see  WCTS_OpenTransport
-
- @return None
-*/
 void
 WDI_RXMsgCTSCB
 (
@@ -21007,11 +15084,8 @@ WDI_RXMsgCTSCB
   tHalMsgHeader          *pHalMsgHeader;
   WDI_EventInfoType      wdiEventData;
   WDI_ControlBlockType*  pWDICtx = (WDI_ControlBlockType*)wctsRxMsgCBData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+  
 
-  /*------------------------------------------------------------------------
-    Sanity check
-  ------------------------------------------------------------------------*/
   if ((NULL == pWDICtx ) || ( NULL == pMsg ) ||
       ( uLen < sizeof(tHalMsgHeader)))
   {
@@ -21023,15 +15097,12 @@ WDI_RXMsgCTSCB
 
   if (WDI_CONTROL_BLOCK_MAGIC != pWDICtx->magic)
   {
-    /* callback presumably occurred after close */
+    
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
                 "%s: Invalid control block", __func__);
     return;
   }
 
-  /*The RX Callback is expected to be serialized in the proper control thread
-    context - so no serialization is necessary here
-    ! - revisit this assumption */
 
   pHalMsgHeader = (tHalMsgHeader *)pMsg;
 
@@ -21040,12 +15111,14 @@ WDI_RXMsgCTSCB
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
               "Invalid packet received from HAL - catastrophic failure");
     WDI_DetectedDeviceError( pWDICtx, WDI_ERR_INVALID_RSP_FMT);
+    wpalWlanReload();
+
     return;
   }
 
   wdiEventData.wdiResponse = HAL_2_WDI_RSP_TYPE( pHalMsgHeader->msgType );
 
-  /*The message itself starts after the header*/
+  
   wdiEventData.pEventData     = (wpt_uint8*)pMsg + sizeof(tHalMsgHeader);
   wdiEventData.uEventDataSize = pHalMsgHeader->msgLen - sizeof(tHalMsgHeader);
   wdiEventData.pCBfnc         = gWDICb.pfncRspCB;
@@ -21054,11 +15127,11 @@ WDI_RXMsgCTSCB
 
   if ( wdiEventData.wdiResponse ==  pWDICtx->wdiExpectedResponse )
   {
-    /*Stop the timer as the response was received */
-    /*!UT - check for potential race conditions between stop and response */
+    
+    
     wpalTimerStop(&pWDICtx->wptResponseTimer);
   }
-  /* Check if we receive a response message which is not expected */
+  
   else if ( wdiEventData.wdiResponse < WDI_HAL_IND_MIN )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
@@ -21076,7 +15149,7 @@ WDI_RXMsgCTSCB
        return;
     }
     wpalWcnssResetIntr();
-    /* if this timer fires, it means Riva did not receive the FIQ */
+    
     wpalTimerStart(&pWDICtx->ssrTimer, WDI_SSR_TIMEOUT);
 
     return;
@@ -21085,33 +15158,22 @@ WDI_RXMsgCTSCB
   WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_INFO,
            "Rx smth from HAL: %d", wdiEventData.wdiResponse);
 
-  /*Post response event to the state machine*/
+  
   WDI_PostMainEvent(pWDICtx, WDI_RESPONSE_EVENT, &wdiEventData);
 
-}/*WDI_RXMsgCTSCB*/
+}
 
 
-/*========================================================================
-         Internal Helper Routines
-========================================================================*/
 
-/**
- @brief WDI_CleanCB - internal helper routine used to clean the
-        WDI Main Control Block
-
- @param pWDICtx - pointer to the control block
-
- @return Result of the function call
-*/
 WPT_INLINE WDI_Status
 WDI_CleanCB
 (
   WDI_ControlBlockType*  pWDICtx
 )
 {
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+  
 
-  /*Clean the WDI Control Block*/
+  
   wpalMemoryZero( pWDICtx, sizeof(*pWDICtx));
 
   pWDICtx->uGlobalState  = WDI_MAX_ST;
@@ -21121,19 +15183,9 @@ WDI_CleanCB
   WDI_ResetAssocSessions( pWDICtx );
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_CleanCB*/
+}
 
 
-/**
- @brief Process request helper function
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WPT_INLINE WDI_Status
 WDI_ProcessRequest
 (
@@ -21141,10 +15193,8 @@ WDI_ProcessRequest
   WDI_EventInfoType*     pEventData
 )
 {
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*!! Skip sanity check as this is called from the FSM functionss which
-    already checked these pointers*/
 
   if (( pEventData->wdiRequest < WDI_MAX_UMAC_IND ) &&
       ( NULL != pfnReqProcTbl[pEventData->wdiRequest] ))
@@ -21162,26 +15212,9 @@ WDI_ProcessRequest
                pEventData->wdiRequest);
     return WDI_STATUS_E_NOT_IMPLEMENT;
   }
-}/*WDI_ProcessRequest*/
+}
 
 
-/**
- @brief Get message helper function - it allocates memory for a
-        message that is to be sent to HAL accross the bus and
-        prefixes it with a send message header
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         wdiReqType:      type of the request being sent
-         uBufferLen:      message buffer len
-         pMsgBuffer:      resulting allocated buffer
-         pusDataOffset:    offset in the buffer where the caller
-         can start copying its message data
-         puBufferSize:    the resulting buffer size (offset+buff
-         len)
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_GetMessageBuffer
 (
@@ -21194,14 +15227,9 @@ WDI_GetMessageBuffer
 )
 {
   tHalMsgHeader  halMsgHeader;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*!! No sanity check here as we trust the called - ! check this assumption
-    again*/
 
-  /*-------------------------------------------------------------------------
-     Try to allocate message buffer from PAL
-  -------------------------------------------------------------------------*/
   *pusBufferSize = sizeof(halMsgHeader) + usBufferLen;
   *pMsgBuffer   = (wpt_uint8*)wpalMemoryAllocate(*pusBufferSize);
   if ( NULL ==  *pMsgBuffer )
@@ -21214,11 +15242,8 @@ WDI_GetMessageBuffer
      return WDI_STATUS_MEM_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-     Fill in the message header
-  -------------------------------------------------------------------------*/
   halMsgHeader.msgType = WDI_2_HAL_REQ_TYPE(wdiReqType);
-  /* Fill msgVersion */
+  
 #ifdef WLAN_FEATURE_11AC
   if (WDI_getFwWlanFeatCaps(DOT11AC))
      halMsgHeader.msgVersion = WLAN_HAL_MSG_VERSION1; 
@@ -21231,28 +15256,9 @@ WDI_GetMessageBuffer
   wpalMemoryCopy(*pMsgBuffer, &halMsgHeader, sizeof(halMsgHeader));
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_GetMessageBuffer*/
+}
 
 
-/**
- @brief Send message helper function - sends a message over the
-        bus using the control tranport and saves some info in
-        the CB
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pSendBuffer:     buffer to be sent
-
-         usSendSize          size of the buffer to be sent
-         pRspCb:            response callback - save in the WDI
-         CB
-         pUserData:         user data associated with the
-         callback
-         wdiExpectedResponse: the code of the response that is
-         expected to be rx-ed for this request
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_SendMsg
 (
@@ -21266,34 +15272,26 @@ WDI_SendMsg
 {
   WDI_Status wdiStatus = WDI_STATUS_SUCCESS;
   wpt_uint32 ret;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+  
 
-  /*------------------------------------------------------------------------
-    Save needed info in the CB
-  ------------------------------------------------------------------------*/
   pWDICtx->pRspCBUserData      = pUserData;
   pWDICtx->pfncRspCB           = pRspCb;
   pWDICtx->wdiExpectedResponse = wdiExpectedResponse;
 
-   /*-----------------------------------------------------------------------
-     Call the CTS to send this message over - free message afterwards
-     - notify transport failure
-     Note: CTS is reponsible for freeing the message buffer.
-   -----------------------------------------------------------------------*/
    ret = WCTS_SendMessage(pWDICtx->wctsHandle, (void*)pSendBuffer, usSendSize);
    if ((eWLAN_PAL_STATUS_SUCCESS != ret) &&
        (eWLAN_PAL_STATUS_E_RESOURCES != ret))
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
-                "Failed to send message over the bus - catastrophic failure");
+                "Failed to send message with expected response %s (%d)"
+                " over the bus - catastrophic failure",
+                WDI_getRespMsgString(pWDICtx->wdiExpectedResponse),
+                pWDICtx->wdiExpectedResponse);
 
      wdiStatus = WDI_STATUS_E_FAILURE;
    }
    else
    {
-     /* even when message was placed in CTS deferred Q, we will treat it
-        success but log this info
-      */
      if (eWLAN_PAL_STATUS_E_RESOURCES == ret)
      {
        WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
@@ -21305,57 +15303,41 @@ WDI_SendMsg
      }
    }
 
-  /*Check if originator provided a request status callback*/
+  
    if ( NULL != pWDICtx->wdiReqStatusCB )
    {
-     /*Inform originator whether request went through or not*/
+     
      WDI_ReqStatusCb callback = pWDICtx->wdiReqStatusCB; 
      void *callbackContext = pWDICtx->pReqStatusUserData; 
      pWDICtx->wdiReqStatusCB = NULL;
      pWDICtx->pReqStatusUserData = NULL;
      callback(wdiStatus, callbackContext);
      
-     /*For WDI requests which have registered a request callback,
-     inform the WDA caller of the same via setting the return value
-     (wdiStatus) to WDI_STATUS_PENDING. This makes sure that WDA doesnt
-     end up repeating the functonality in the req callback  for the
-     WDI_STATUS_E_FAILURE case*/
      if (wdiStatus == WDI_STATUS_E_FAILURE)
        wdiStatus = WDI_STATUS_PENDING;
    }
 
   if ( wdiStatus == WDI_STATUS_SUCCESS )
   {
-   /*Start timer for the expected response */
+   
    wpalTimerStart(&pWDICtx->wptResponseTimer, WDI_RESPONSE_TIMEOUT);
 
-   /*cache current timestamp for debugging */
+   
    pWDICtx->uTimeStampRspTmrStart = wpalGetSystemTime();
+   pWDICtx->uArchTimeStampRspTmrStart = wpalGetArchCounterTime();
   }
   else
   {
-     /*Inform upper stack layers that a transport fatal error occurred*/
+     
      WDI_DetectedDeviceError(pWDICtx, WDI_ERR_TRANSPORT_FAILURE);
   }
 
   return wdiStatus;
 
-}/*WDI_SendMsg*/
+}
 
 
 
-/**
- @brief Send indication helper function - sends a message over
-        the bus using the control transport and saves some info
-        in the CB
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pSendBuffer:     buffer to be sent
-         usSendSize: size of the buffer to be sent
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_SendIndication
 (
@@ -21365,30 +15347,21 @@ WDI_SendIndication
 )
 {
    wpt_uint32 uStatus ;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+   
 
-   /*-----------------------------------------------------------------------
-     Call the CTS to send this message over
-     Note: CTS is reponsible for freeing the message buffer.
-   -----------------------------------------------------------------------*/
    uStatus = WCTS_SendMessage( pWDICtx->wctsHandle,
                                (void*)pSendBuffer, usSendSize );
 
-   /*Inform Upper MAC about the outcome of the request*/
+   
    if ( NULL != pWDICtx->wdiReqStatusCB )
    {
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
                 "Send indication status : %d", uStatus);
 
-      /* even if CTS placed indication into its deferred Q, we treat it
-       * as success and let CTS drain its queue as per smd interrupt to CTS
-       */
       pWDICtx->wdiReqStatusCB( ((uStatus != eWLAN_PAL_STATUS_SUCCESS) && (uStatus != eWLAN_PAL_STATUS_E_RESOURCES)) ? WDI_STATUS_E_FAILURE: WDI_STATUS_SUCCESS,
                                pWDICtx->pReqStatusUserData);
    }
 
-   /*If sending of the message failed - it is considered catastrophic and
-     indicates an error with the device*/
    if (( eWLAN_PAL_STATUS_SUCCESS != uStatus) &&
        ( eWLAN_PAL_STATUS_E_RESOURCES != uStatus))
 
@@ -21401,20 +15374,9 @@ WDI_SendIndication
    }
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_SendIndication*/
+}
 
 
-/**
- @brief WDI_DetectedDeviceError - called internally by DAL when
-        it has detected a failure in the device
-
- @param  pWDICtx:        pointer to the WLAN DAL context
-         usErrorCode:    error code detected by WDI or received
-                         from HAL
-
- @see
- @return None
-*/
 void
 WDI_DetectedDeviceError
 (
@@ -21423,11 +15385,13 @@ WDI_DetectedDeviceError
 )
 {
   WDI_LowLevelIndType  wdiInd;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+  
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
             "Device Error detected code: %d - transitioning to stopped state",
             usErrorCode);
+
+  pWDICtx->DeviceErrorReason = VOS_RETURN_ADDRESS;
 
   wpalMutexAcquire(&pWDICtx->wptMutex);
 
@@ -21435,22 +15399,17 @@ WDI_DetectedDeviceError
 
   WDI_ResetAssocSessions(pWDICtx);
 
-  /*Set the expected state transition to stopped - because the device
-  experienced a failure*/
   pWDICtx->ucExpectedStateTransition =  WDI_STOPPED_ST;
 
-  /*Transition to stopped to fail all incomming requests from this point on*/
+  
   WDI_STATE_TRANSITION( pWDICtx, WDI_STOPPED_ST);
 
   WDI_ClearPendingRequests(pWDICtx);
 
-  /*TO DO: -  there should be an attempt to reset the device here*/
+  
 
   wpalMutexRelease(&pWDICtx->wptMutex);
 
-  /*------------------------------------------------------------------------
-    Notify UMAC if a handler is registered
-  ------------------------------------------------------------------------*/
   if (pWDICtx->wdiLowLevelIndCB)
   {
      wdiInd.wdiIndicationType             = WDI_FATAL_ERROR_IND;
@@ -21458,20 +15417,8 @@ WDI_DetectedDeviceError
 
      pWDICtx->wdiLowLevelIndCB( &wdiInd,  pWDICtx->pIndUserData);
   }
-}/*WDI_DetectedDeviceError*/
+}
 
-/**
- @brief    This callback is invoked by the wpt when a timer that
-           we started on send message has expire - this should
-           never happen - it means device is stuck and cannot
-           reply - trigger catastrophic failure
- @param
-
-    pUserData: the callback data of the user (ptr to WDI CB)
-
- @see
- @return None
-*/
 void
 WDI_ResponseTimerCB
 (
@@ -21479,7 +15426,7 @@ WDI_ResponseTimerCB
 )
 {
   WDI_ControlBlockType*  pWDICtx = (WDI_ControlBlockType*)pUserData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   if (NULL == pWDICtx)
   {
@@ -21489,20 +15436,22 @@ WDI_ResponseTimerCB
     return;
   }
 
-  /*cache current timestamp for debugging */
+  
   pWDICtx->uTimeStampRspTmrExp = wpalGetSystemTime();
+  pWDICtx->uArchTimeStampRspTmrExp = wpalGetArchCounterTime();
 
-  /* If response timer is running at this time that means this timer
-   * event is not for the last request but rather last-to-last request and
-   * this timer event has come after we recevied respone for last-to-last
-   * message
-   */
   if (VOS_TIMER_STATE_RUNNING == wpalTimerGetCurStatus(&pWDICtx->wptResponseTimer))
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
                "WDI_ResponseTimerCB: timer in running state on timer event, "
                "ignore tmr event, timeStampTmrStart: %ld, timeStampTmrExp: %ld",
                pWDICtx->uTimeStampRspTmrStart, pWDICtx->uTimeStampRspTmrExp);
+    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+               "uArchTimeStampTmrStart: %llu seconds, "
+               "uArchTimeStampTmrExp: %llu seconds",
+               pWDICtx->uArchTimeStampRspTmrStart,
+               pWDICtx->uArchTimeStampRspTmrExp);
+
     return;
   }
 
@@ -21515,13 +15464,12 @@ WDI_ResponseTimerCB
             WDI_getRespMsgString(pWDICtx->wdiExpectedResponse),
             pWDICtx->wdiExpectedResponse, pWDICtx->uTimeStampRspTmrStart,
             pWDICtx->uTimeStampRspTmrExp);
+     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+                "uArchTimeStampTmrStart: %llu seconds, "
+                "uArchTimeStampTmrExp: %llu seconds",
+                pWDICtx->uArchTimeStampRspTmrStart,
+                pWDICtx->uArchTimeStampRspTmrExp);
 
-    /* WDI timeout means Riva is not responding or SMD communication to Riva
-     * is not happening. The only possible way to recover from this error
-     * is to initiate SSR from APPS.
-     * There is also an option to re-enable wifi, which will eventually
-     * trigger SSR
-     */
     if (gWDICb.bEnableSSR == false)
     {
        WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
@@ -21530,13 +15478,12 @@ WDI_ResponseTimerCB
        return;
     }
 #ifndef WDI_RE_ENABLE_WIFI_ON_WDI_TIMEOUT
-
     wpalWcnssResetIntr();
     if(wpalIsWDresetInProgress())
     {
         wpalDevicePanic();
     }
-    /* if this timer fires, it means Riva did not receive the FIQ */
+    
     wpalTimerStart(&pWDICtx->ssrTimer, WDI_SSR_TIMEOUT);
 #else
     WDI_DetectedDeviceError(pWDICtx, WDI_ERR_BASIC_OP_FAILURE);
@@ -21550,23 +15497,19 @@ WDI_ResponseTimerCB
                  "timeStampTmrStart: %ld, timeStampTmrExp: %ld",
                  pWDICtx->wdiExpectedResponse, pWDICtx->uTimeStampRspTmrStart,
                  pWDICtx->uTimeStampRspTmrExp);
+     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+                "uArchTimeStampTmrStart: %llu seconds, "
+                "uArchTimeStampTmrExp: %llu seconds",
+                pWDICtx->uArchTimeStampRspTmrStart,
+                pWDICtx->uArchTimeStampRspTmrExp);
+
   }
 
   return; 
 
-}/*WDI_ResponseTimerCB*/
+}
 
 
-/**
- @brief Process response helper function
-
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WPT_INLINE WDI_Status
 WDI_ProcessResponse
 (
@@ -21574,11 +15517,8 @@ WDI_ProcessResponse
   WDI_EventInfoType*     pEventData
 )
 {
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /* Skip sanity check as this is called from the FSM functions which
-    already checked these pointers
-    ! - revisit this assumption */
   if (( pEventData->wdiResponse < WDI_MAX_RESP ) &&
       ( NULL != pfnRspProcTbl[pEventData->wdiResponse] ))
   {
@@ -21595,25 +15535,10 @@ WDI_ProcessResponse
               pEventData->wdiResponse);
     return WDI_STATUS_E_NOT_IMPLEMENT;
   }
-}/*WDI_ProcessResponse*/
+}
 
 
-/*=========================================================================
-                   QUEUE SUPPORT UTILITY FUNCTIONS
-=========================================================================*/
 
-/**
- @brief    Utility function used by the DAL Core to help queue a
-           request that cannot be processed right away.
- @param
-
-    pWDICtx: - pointer to the WDI control block
-    pEventData: - pointer to the evnt info that needs to be
-    queued
-
- @see
- @return Result of the operation
-*/
 WDI_Status
 WDI_QueuePendingReq
 (
@@ -21624,7 +15549,7 @@ WDI_QueuePendingReq
   wpt_list_node*      pNode;
   WDI_EventInfoType*  pEventDataQueue = wpalMemoryAllocate(sizeof(*pEventData));
   void*               pEventInfo = NULL;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   if ( NULL ==  pEventDataQueue )
   {
@@ -21658,24 +15583,14 @@ WDI_QueuePendingReq
   }
   pEventDataQueue->pEventData = pEventInfo;
 
-  /*Send wpt a pointer to the node (this is the 1st element in the event data)*/
+  
   pNode = (wpt_list_node*)pEventDataQueue;
 
   wpal_list_insert_back(&(pWDICtx->wptPendingQueue), pNode);
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_QueuePendingReq*/
+}
 
-/**
- @brief    Callback function for serializing queued message
-           processing in the control context
- @param
-
-    pMsg - pointer to the message
-
- @see
- @return Result of the operation
-*/
 void
 WDI_PALCtrlMsgCB
 (
@@ -21687,7 +15602,7 @@ WDI_PALCtrlMsgCB
   WDI_Status             wdiStatus;
   WDI_ReqStatusCb        pfnReqStatusCB;
   void*                  pUserData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   if (( NULL == pMsg )||
       ( NULL == (pEventData = (WDI_EventInfoType*)pMsg->ptr)) ||
@@ -21699,17 +15614,9 @@ WDI_PALCtrlMsgCB
     return;
   }
 
-  /*Transition back to the state that we had before serialization
-  - serialization transitions us to BUSY to stop any incomming requests
-  ! TO DO L: possible race condition here if a request comes in between the
-   state transition and the post function*/
 
   WDI_STATE_TRANSITION( pWDICtx, pMsg->val);
 
-  /*-----------------------------------------------------------------------
-     Check to see what type of event we are serializing
-     - responses are never expected to come through here
-  -----------------------------------------------------------------------*/
   switch ( pEventData->wdiRequest )
   {
 
@@ -21718,8 +15625,8 @@ WDI_PALCtrlMsgCB
       break;
 
   case WDI_NV_DOWNLOAD_REQ:
-      // When WDI State is WDI_STARTED_ST, send WDI request message with event type WDI_REQUEST_EVENT.
-      // In this case, because this request is called from response process, we could call WDI_ProcessRequest() directly.
+      
+      
       if (pWDICtx->uGlobalState == WDI_STARTED_ST)  
       {
         WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
@@ -21736,7 +15643,7 @@ WDI_PALCtrlMsgCB
   default: 
     wdiStatus = WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, pEventData);
     break;
-  }/*switch ( pEventData->wdiRequest )*/
+  }
 
   if ( WDI_STATUS_SUCCESS != wdiStatus  )
   {
@@ -21744,12 +15651,12 @@ WDI_PALCtrlMsgCB
 
     if ( NULL != pfnReqStatusCB )
     {
-      /*Fail the request*/
+      
       pfnReqStatusCB( wdiStatus, pUserData);
     }
   }
 
-  /* Free data - that was allocated when queueing*/
+  
   if( pEventData != NULL )
   {
      if( pEventData->pEventData != NULL )
@@ -21764,20 +15671,8 @@ WDI_PALCtrlMsgCB
      wpalMemoryFree(pMsg);
   }
 
-}/*WDI_PALCtrlMsgCB*/
+}
 
-/**
- @brief    Utility function used by the DAL Core to help dequeue
-           and schedule for execution a pending request
- @param
-
-    pWDICtx: - pointer to the WDI control block
-    pEventData: - pointer to the evnt info that needs to be
-    queued
-
- @see
- @return Result of the operation
-*/
 WDI_Status
 WDI_DequeuePendingReq
 (
@@ -21787,7 +15682,7 @@ WDI_DequeuePendingReq
   wpt_list_node*      pNode      = NULL;
   WDI_EventInfoType*  pEventData;
   wpt_msg*            palMsg;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   wpal_list_remove_front(&(pWDICtx->wptPendingQueue), &pNode);
 
@@ -21798,13 +15693,8 @@ WDI_DequeuePendingReq
     return WDI_STATUS_SUCCESS;
   }
 
-  /*The node actually points to the 1st element inside the Event Data struct -
-    just cast it back to the struct*/
   pEventData = (WDI_EventInfoType*)pNode;
 
-  /*Serialize processing in the control thread
-     !TO DO: - check to see if these are all the messages params that need
-     to be filled in*/
   palMsg = wpalMemoryAllocate(sizeof(wpt_msg));
 
   if ( NULL ==  palMsg )
@@ -21818,32 +15708,19 @@ WDI_DequeuePendingReq
   palMsg->callback = WDI_PALCtrlMsgCB;
   palMsg->ptr      = pEventData;
 
-  /*Save the global state as we need it on the other side*/
+  
   palMsg->val      = pWDICtx->uGlobalState;
   palMsg->type     = 0;
 
-  /*Transition back to BUSY as we need to handle a queued request*/
+  
   WDI_STATE_TRANSITION( pWDICtx, WDI_BUSY_ST);
 
   wpalPostCtrlMsg(pWDICtx->pPALContext, palMsg);
 
   return WDI_STATUS_PENDING;
-}/*WDI_DequeuePendingReq*/
+}
 
 
-/**
- @brief    Utility function used by the DAL Core to help queue
-           an association request that cannot be processed right
-           away.- The assoc requests will be queued by BSSID
- @param
-
-    pWDICtx: - pointer to the WDI control block
-    pEventData: pointer to the evnt info that needs to be queued
-    macBSSID: bssid
-
- @see
- @return Result of the operation
-*/
 WDI_Status
 WDI_QueueNewAssocRequest
 (
@@ -21858,17 +15735,14 @@ WDI_QueueNewAssocRequest
   WDI_EventInfoType*      pEventDataQueue;
   void*                   pEventInfo;
   WDI_NextSessionIdType*  pSessionIdElement;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
 
-  /*------------------------------------------------------------------------
-      Search for a session that matches the BSSID
-    ------------------------------------------------------------------------*/
   for ( i = 0; i < WDI_MAX_BSS_SESSIONS; i++ )
   {
      if ( eWLAN_PAL_FALSE == pWDICtx->aBSSSessions[i].bInUse )
      {
-       /*Found an empty session*/
+       
        pSession = &pWDICtx->aBSSSessions[i];
        break;
      }
@@ -21876,19 +15750,13 @@ WDI_QueueNewAssocRequest
 
   if ( i >=  WDI_MAX_BSS_SESSIONS )
   {
-    /*Cannot find any empty sessions*/
+    
     return WDI_STATUS_E_FAILURE;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in the BSSID for this session and set the usage flag
-  ------------------------------------------------------------------------*/
   wpalMemoryCopy(pWDICtx->aBSSSessions[i].macBSSID, macBSSID, WDI_MAC_ADDR_LEN);
   pWDICtx->aBSSSessions[i].bInUse = eWLAN_PAL_TRUE;
 
-  /*------------------------------------------------------------------------
-    Allocate memory for this and place it in the queue
-  ------------------------------------------------------------------------*/
   pEventDataQueue = (WDI_EventInfoType*)wpalMemoryAllocate(sizeof(WDI_EventInfoType));
   if ( NULL == pEventDataQueue )
   {
@@ -21928,17 +15796,14 @@ WDI_QueueNewAssocRequest
   wpalMemoryCopy(pEventInfo, pEventData->pEventData, pEventData->uEventDataSize);
   pEventDataQueue->pEventData = pEventInfo;
 
-  /*Send wpt a pointer to the node (this is the 1st element in the event data)*/
+  
   pNode = (wpt_list_node*)pEventDataQueue;
 
-  /*This association is currently being queued*/
+  
   pSession->bAssocReqQueued = eWLAN_PAL_TRUE;
 
   wpal_list_insert_back(&(pSession->wptPendingQueue), pNode);
 
-  /*We need to maintain a separate list that keeps track of the order in which
-  the new assoc requests are being queued such that we can start processing
-  them in the order that they had arrived*/
   pSessionIdElement->ucIndex = i;
   pNode = (wpt_list_node*)pSessionIdElement;
 
@@ -21946,25 +15811,9 @@ WDI_QueueNewAssocRequest
        "Queueing up new assoc session : %d ", pSessionIdElement->ucIndex);
   wpal_list_insert_back(&pWDICtx->wptPendingAssocSessionIdQueue, pNode);
 
-  /*Return pending as this is what the status of the request is since it has
-    been queued*/
   return WDI_STATUS_PENDING;
-}/*WDI_QueueNewAssocRequest*/
+}
 
-/**
- @brief    Utility function used by the DAL Core to help queue
-           an association request that cannot be processed right
-           away.- The assoc requests will be queued by BSSID
- @param
-
-    pWDICtx: - pointer to the WDI control block
-    pSession: - session in which to queue
-    pEventData: pointer to the event info that needs to be
-    queued
-
- @see
- @return Result of the operation
-*/
 WDI_Status
 WDI_QueueAssocRequest
 (
@@ -21976,11 +15825,8 @@ WDI_QueueAssocRequest
   wpt_list_node*      pNode;
   WDI_EventInfoType*  pEventDataQueue;
   void*               pEventInfo;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-      Sanity check
-    ------------------------------------------------------------------------*/
   if (( NULL == pSession ) || ( NULL == pWDICtx ))
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -21989,9 +15835,6 @@ WDI_QueueAssocRequest
     return WDI_STATUS_E_FAILURE;
   }
 
-  /*------------------------------------------------------------------------
-    Allocate memory for this and place it in the queue
-  ------------------------------------------------------------------------*/
   pEventDataQueue = (WDI_EventInfoType*)wpalMemoryAllocate(sizeof(WDI_EventInfoType));
   if ( NULL ==  pEventDataQueue )
   {
@@ -22021,32 +15864,17 @@ WDI_QueueAssocRequest
 
   wpalMemoryCopy(pEventInfo, pEventData->pEventData, pEventData->uEventDataSize);
 
-  /*Send wpt a pointer to the node (this is the 1st element in the event data)*/
+  
   pNode = (wpt_list_node*)pEventDataQueue;
 
-  /*This association is currently being queued*/
+  
   pSession->bAssocReqQueued = eWLAN_PAL_TRUE;
 
   wpal_list_insert_back(&(pSession->wptPendingQueue), pNode);
 
-  /*The result of this operation is pending because the request has been
-    queued and it will be processed at a later moment in time */
   return WDI_STATUS_PENDING;
-}/*WDI_QueueAssocRequest*/
+}
 
-/**
- @brief    Utility function used by the DAL Core to help dequeue
-           an association request that was pending
-           The request will be queued up in front of the main
-           pending queue for imediate processing
- @param
-
-    pWDICtx: - pointer to the WDI control block
-
-
- @see
- @return Result of the operation
-*/
 WDI_Status
 WDI_DequeueAssocRequest
 (
@@ -22056,11 +15884,8 @@ WDI_DequeueAssocRequest
   wpt_list_node*          pNode = NULL;
   WDI_NextSessionIdType*  pSessionIdElement;
   WDI_BSSSessionType*     pSession;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*------------------------------------------------------------------------
-      Sanity check
-    ------------------------------------------------------------------------*/
   if ( NULL == pWDICtx )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -22069,15 +15894,6 @@ WDI_DequeueAssocRequest
     return WDI_STATUS_E_FAILURE;
   }
 
-  /*------------------------------------------------------------------------
-    An association has been completed => a new association can occur
-    Check to see if there are any pending associations ->
-    If so , transfer all the pending requests into the busy queue for
-    processing
-    These requests have arrived prior to the requests in the busy queue
-    (bc they needed to be processed in order to be placed in this queue)
-    => they will be placed at the front of the busy queue
-  ------------------------------------------------------------------------*/
   wpal_list_remove_front(&(pWDICtx->wptPendingAssocSessionIdQueue), &pNode);
 
   if ( NULL ==  pNode )
@@ -22087,8 +15903,6 @@ WDI_DequeueAssocRequest
     return WDI_STATUS_SUCCESS;
   }
 
-  /*The node actually points to the 1st element inside the Session Id struct -
-    just cast it back to the struct*/
   pSessionIdElement = (WDI_NextSessionIdType*)pNode;
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
@@ -22098,12 +15912,10 @@ WDI_DequeueAssocRequest
   {
       pSession = &pWDICtx->aBSSSessions[pSessionIdElement->ucIndex];
 
-      /*Transfer all the pending requests in this assoc queue to
-      the front of the main waiting queue for subsequent execution*/
       wpal_list_remove_back(&(pSession->wptPendingQueue), &pNode);
       while ( NULL !=  pNode )
       {
-        /*Place it in front of the main pending list*/
+        
         wpal_list_insert_front( &(pWDICtx->wptPendingQueue), &pNode);
         wpal_list_remove_back(&(pSession->wptPendingQueue), &pNode);
       }
@@ -22118,22 +15930,11 @@ WDI_DequeueAssocRequest
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*Clean this up as it is no longer needed in order to prevent memory leak*/
+  
   wpalMemoryFree(pSessionIdElement);
   return WDI_STATUS_SUCCESS;
-}/*WDI_DequeueAssocRequest*/
+}
 
-/**
- @brief    Utility function used by the DAL Core to clear any
-           pending requests - all req cb will be called with
-           failure and the queue will be emptied.
- @param
-
-    pWDICtx: - pointer to the WDI control block
-
- @see
- @return Result of the operation
-*/
 WDI_Status
 WDI_ClearPendingRequests
 (
@@ -22144,28 +15945,21 @@ WDI_ClearPendingRequests
   WDI_EventInfoType*  pEventDataQueue = NULL;
   WDI_ReqStatusCb     pfnReqStatusCB;
   void*               pUserData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   wpal_list_remove_front(&(pWDICtx->wptPendingQueue), &pNode);
 
-  /*------------------------------------------------------------------------
-    Go through all the requests and fail them - this will only be called
-    when device is being stopped or an error was detected - either case the
-    pending requests can no longer be sent down to HAL
-  ------------------------------------------------------------------------*/
   while( pNode )
   {
-      /*The node actually points to the 1st element inside the Event Data struct -
-    just cast it back to the struct*/
     pEventDataQueue = (WDI_EventInfoType*)pNode;
 
     WDI_ExtractRequestCBFromEvent(pEventDataQueue, &pfnReqStatusCB, &pUserData);
     if ( NULL != pfnReqStatusCB )
     {
-      /*Fail the request*/
+      
       pfnReqStatusCB( WDI_STATUS_E_FAILURE, pUserData);
     }
-    /* Free data - that was allocated when queueing */
+    
     if ( pEventDataQueue->pEventData != NULL )
     {
       wpalMemoryFree(pEventDataQueue->pEventData);
@@ -22179,16 +15973,8 @@ WDI_ClearPendingRequests
   }
 
   return WDI_STATUS_SUCCESS;
-}/*WDI_ClearPendingRequests*/
+}
 
-/**
- @brief Helper routine used to init the BSS Sessions in the WDI control block
-
-
- @param  pWDICtx:       pointer to the WLAN DAL context
-
- @see
-*/
 void
 WDI_ResetAssocSessions
 (
@@ -22196,11 +15982,8 @@ WDI_ResetAssocSessions
 )
 {
   wpt_uint8 i;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+  
 
-  /*-------------------------------------------------------------------------
-    No Sanity check
-  -------------------------------------------------------------------------*/
   for ( i = 0; i < WDI_MAX_BSS_SESSIONS; i++ )
   {
     wpalMemoryZero( &pWDICtx->aBSSSessions[i], sizeof(WDI_BSSSessionType) );
@@ -22208,19 +15991,8 @@ WDI_ResetAssocSessions
     pWDICtx->aBSSSessions[i].bcastStaIdx = WDI_STA_INVALID_IDX;
     pWDICtx->aBSSSessions[i].ucBSSIdx = WDI_BSS_INVALID_IDX;
   }
-}/*WDI_ResetAssocSessions*/
+}
 
-/**
- @brief Helper routine used to find a session based on the BSSID
-
-
- @param  pWDICtx:       pointer to the WLAN DAL context
-         macBSSID:      BSSID of the session
-         pSession:      pointer to the session (if found)
-
- @see
- @return Index of the session in the array
-*/
 wpt_uint8
 WDI_FindAssocSession
 (
@@ -22230,11 +16002,8 @@ WDI_FindAssocSession
 )
 {
   wpt_uint8 i;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if ( NULL == ppSession )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -22244,9 +16013,6 @@ WDI_FindAssocSession
 
   *ppSession = NULL;
 
-  /*------------------------------------------------------------------------
-      Search for a session that matches the BSSID
-    ------------------------------------------------------------------------*/
   for ( i = 0; i < WDI_MAX_BSS_SESSIONS; i++ )
   {
      if ( (pWDICtx->aBSSSessions[i].bInUse == eWLAN_PAL_TRUE) && 
@@ -22254,26 +16020,15 @@ WDI_FindAssocSession
                 wpalMemoryCompare(pWDICtx->aBSSSessions[i].macBSSID, macBSSID,
                 WDI_MAC_ADDR_LEN)) )
      {
-       /*Found the session*/
+       
        *ppSession = &pWDICtx->aBSSSessions[i];
        return i;
      }
   }
 
   return i;
-}/*WDI_FindAssocSession*/
+}
 
-/**
- @brief Helper routine used to find a session based on the BSSID
-
-
- @param  pWDICtx:   pointer to the WLAN DAL context
-         ucBSSIdx:  BSS Index of the session
-         ppSession: out pointer to the session (if found)
-
- @see
- @return Index of the session in the array
-*/
 wpt_uint8
 WDI_FindAssocSessionByBSSIdx
 (
@@ -22283,11 +16038,8 @@ WDI_FindAssocSessionByBSSIdx
 )
 {
   wpt_uint8 i;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if ( NULL == ppSession )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -22297,33 +16049,19 @@ WDI_FindAssocSessionByBSSIdx
 
   *ppSession = NULL;
 
-  /*------------------------------------------------------------------------
-      Search for a session that matches the BSSID
-    ------------------------------------------------------------------------*/
   for ( i = 0; i < WDI_MAX_BSS_SESSIONS; i++ )
   {
      if ( ucBSSIdx == pWDICtx->aBSSSessions[i].ucBSSIdx )
      {
-       /*Found the session*/
+       
        *ppSession = &pWDICtx->aBSSSessions[i];
        return i;
      }
   }
 
   return i;
-}/*WDI_FindAssocSessionByBSSIdx*/
+}
 
-/**
- @brief Helper routine used to find a session based on the BSSID
-
-
- @param  pWDICtx:   pointer to the WLAN DAL context
-         ucBSSIdx:  BSS Index of the session
-         ppSession: out pointer to the session (if found)
-
- @see
- @return Index of the session in the array
-*/
 wpt_uint8
 WDI_FindAssocSessionByIdx
 (
@@ -22332,11 +16070,8 @@ WDI_FindAssocSessionByIdx
   WDI_BSSSessionType**    ppSession
 )
 {
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+  
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if ( NULL == ppSession || usIdx >= WDI_MAX_BSS_SESSIONS )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -22344,24 +16079,13 @@ WDI_FindAssocSessionByIdx
      return WDI_MAX_BSS_SESSIONS;
   }
 
-  /*Found the session*/
+  
   *ppSession = &pWDICtx->aBSSSessions[usIdx];
 
   return usIdx;
 
-}/*WDI_FindAssocSessionByBSSIdx*/
+}
 
-/**
- @brief Helper routine used to find an empty session in the WDI
-        CB
-
-
- @param  pWDICtx:       pointer to the WLAN DAL context
-         pSession:      pointer to the session (if found)
-
- @see
- @return Index of the session in the array
-*/
 wpt_uint8
 WDI_FindEmptySession
 (
@@ -22370,10 +16094,7 @@ WDI_FindEmptySession
 )
 {
   wpt_uint8 i;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-   /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
+  
   if ( NULL == ppSession )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -22383,36 +16104,20 @@ WDI_FindEmptySession
 
   *ppSession = NULL;
 
-  /*------------------------------------------------------------------------
-      Search for a session that it is not in use
-    ------------------------------------------------------------------------*/
   for ( i = 0; i < WDI_MAX_BSS_SESSIONS; i++ )
   {
      if ( ! pWDICtx->aBSSSessions[i].bInUse )
      {
-       /*Found a session*/
+       
        *ppSession = &pWDICtx->aBSSSessions[i];
        return i;
      }
   }
 
   return i;
-}/*WDI_FindEmptySession*/
+}
 
 
-/**
- @brief Helper routine used to get the total count of active
-        sessions
-
-
- @param  pWDICtx:       pointer to the WLAN DAL context
-         macBSSID:      pointer to BSSID. If NULL, get all the session.
-                        If not NULL, count ActiveSession by excluding (TRUE) or including (FALSE) skipBSSID.
-         skipBSSID:     if TRUE, get all the sessions except matching to macBSSID. If FALSE, get all session.
-                        This argument is ignored if macBSSID is NULL.
- @see
- @return Number of sessions in use
-*/
 wpt_uint8
 WDI_GetActiveSessionsCount
 (
@@ -22422,11 +16127,8 @@ WDI_GetActiveSessionsCount
 )
 {
   wpt_uint8 i, ucCount = 0;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+  
 
-  /*------------------------------------------------------------------------
-      Count all sessions in use
-    ------------------------------------------------------------------------*/
   for ( i = 0; i < WDI_MAX_BSS_SESSIONS; i++ )
   {
     if ( macBSSID && skipBSSID &&
@@ -22443,19 +16145,8 @@ WDI_GetActiveSessionsCount
   }
 
   return ucCount;
-}/*WDI_GetActiveSessionsCount*/
+}
 
-/**
- @brief Helper routine used to delete session in the WDI
-        CB
-
-
- @param  pWDICtx:       pointer to the WLAN DAL context
-         pSession:      pointer to the session (if found)
-
- @see
- @return Index of the session in the array
-*/
 void
 WDI_DeleteSession
 (
@@ -22463,9 +16154,6 @@ WDI_DeleteSession
   WDI_BSSSessionType*     ppSession
 )
 {
-   /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if ( NULL == ppSession )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -22473,9 +16161,6 @@ WDI_DeleteSession
      return ;
   }
 
-  /*------------------------------------------------------------------------
-      Reset the entries int session
-    ------------------------------------------------------------------------*/
   wpal_list_destroy(&ppSession->wptPendingQueue);
   wpalMemoryZero(ppSession,  sizeof(*ppSession));
   ppSession->wdiAssocState = WDI_ASSOC_INIT_ST;
@@ -22483,19 +16168,8 @@ WDI_DeleteSession
   ppSession->wdiBssType    = WDI_INFRASTRUCTURE_MODE;
   wpal_list_init(&ppSession->wptPendingQueue);
 
-}/*WDI_DeleteSession*/
+}
 
-/**
- @brief    Utility function to add the broadcast STA to the the STA table.
- The bcast STA ID is assigned by HAL and must be valid.
- @param
-
-    WDI_AddStaParams: - pointer to the WDI Add STA params
-    usBcastStaIdx: - Broadcast STA index passed by HAL
-
- @see
- @return void
-*/
 void
 WDI_AddBcastSTAtoSTATable
 (
@@ -22506,11 +16180,8 @@ WDI_AddBcastSTAtoSTATable
 {
   WDI_AddStaParams              wdiAddSTAParam = {0};
   wpt_macAddr  bcastMacAddr = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+  
 
-  /*---------------------------------------------------------------------
-    Sanity check
-  ---------------------------------------------------------------------*/
   if ( NULL == staParams )
   {
     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -22538,16 +16209,6 @@ WDI_AddBcastSTAtoSTATable
   (void)WDI_STATableAddSta(pWDICtx,&wdiAddSTAParam);
 }
 
-/**
- @brief NV blob will be divided into fragments of size 4kb and
- Sent to HAL
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
- */
 
 WDI_Status WDI_SendNvBlobReq
 (
@@ -22569,30 +16230,27 @@ WDI_Status WDI_SendNvBlobReq
   WDI_ASSERT(NULL != wdiNvDownloadRspCb);
   pwdiNvDownloadReqParams = (WDI_NvDownloadReqParamsType*)pEventData->pEventData;
 
-  /* Sanity Check is done by the caller */
+  
   pSrcBuffer =(wpt_uint8 *) pwdiNvDownloadReqParams->wdiBlobInfo.pBlobAddress;
 
-  /* Update the current  Fragment Number */
+  
   pWDICtx->wdiNvBlobInfo.usCurrentFragment += 1;
 
-  /*Update the HAL REQ structure */
-  /*HAL maintaining the fragment count as 0,1,2...n where at WDI it is represented as 1,2,3.. n*/
+  
+  
   halNvImgDownloadParam.nvImageReqParams.fragNumber =
                                      pWDICtx->wdiNvBlobInfo.usCurrentFragment-1;
 
-  /*    Divide the NV Image to size of 'FRAGMENT_SIZE' fragments and send it to HAL.
-       If the size of the Image is less than 'FRAGMENT_SIZE' then in one iteration total
-       image will be sent to HAL*/
 
   if(pWDICtx->wdiNvBlobInfo.usTotalFragment
                          == pWDICtx->wdiNvBlobInfo.usCurrentFragment)
   {
-    /*     Taking care of boundry condition */
+    
     if( !(usCurrentFragmentSize =
                  pwdiNvDownloadReqParams->wdiBlobInfo.uBlobSize%FRAGMENT_SIZE ))
       usCurrentFragmentSize = FRAGMENT_SIZE;
 
-    /*Update the HAL REQ structure */
+    
     halNvImgDownloadParam.nvImageReqParams.isLastFragment = 1;
     halNvImgDownloadParam.nvImageReqParams.nvImgBufferSize= usCurrentFragmentSize;
 
@@ -22601,14 +16259,11 @@ WDI_Status WDI_SendNvBlobReq
   {
     usCurrentFragmentSize = FRAGMENT_SIZE;
 
-    /*Update the HAL REQ structure */
+    
     halNvImgDownloadParam.nvImageReqParams.isLastFragment =0;
     halNvImgDownloadParam.nvImageReqParams.nvImgBufferSize = usCurrentFragmentSize;
   }
 
-  /*-----------------------------------------------------------------------
-   Get message buffer
-   -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,WDI_NV_DOWNLOAD_REQ,
          sizeof(halNvImgDownloadParam.nvImageReqParams)+ usCurrentFragmentSize,
                     &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -22622,11 +16277,11 @@ WDI_Status WDI_SendNvBlobReq
     return WDI_STATUS_E_FAILURE;
   }
 
-  /* Copying the Hal NV download REQ structure */
+  
   wpalMemoryCopy(pSendBuffer + usDataOffset ,
     &halNvImgDownloadParam.nvImageReqParams ,sizeof(tHalNvImgDownloadReqParams));
 
-  /* Appending the NV image fragment */
+  
   wpalMemoryCopy(pSendBuffer + usDataOffset + sizeof(tHalNvImgDownloadReqParams),
         (void *)(pSrcBuffer + halNvImgDownloadParam.nvImageReqParams.fragNumber * FRAGMENT_SIZE),
                   usCurrentFragmentSize);
@@ -22639,17 +16294,6 @@ WDI_Status WDI_SendNvBlobReq
                            WDI_NV_DOWNLOAD_RESP);
 
 }
-/*============================================================================
-  Helper inline functions for
- ============================================================================*/
-/**
- @brief Helper routine used to find a session based on the BSSID
- @param  pContext:   pointer to the WLAN DAL context
- @param  pDPContext:   pointer to the Datapath context
-
- @see
- @return
-*/
 WPT_INLINE void
 WDI_DS_AssignDatapathContext (void *pContext, void *pDPContext)
 {
@@ -22659,31 +16303,12 @@ WDI_DS_AssignDatapathContext (void *pContext, void *pDPContext)
    return;
 }
 
-/**
- @brief Helper routine used to find a session based on the BSSID
-
-
- @param  pContext:   pointer to the WLAN DAL context
-
- @see
- @return pointer to Datapath context
-*/
 WPT_INLINE void *
 WDI_DS_GetDatapathContext (void *pContext)
 {
    WDI_ControlBlockType *pCB = (WDI_ControlBlockType *)pContext;
    return pCB->pDPContext;
 }
-/**
- @brief Helper routine used to find a session based on the BSSID
-
-
- @param  pContext:   pointer to the WLAN DAL context
- @param  pDTDriverContext:   pointer to the Transport Driver context
-
- @see
- @return void
-*/
 WPT_INLINE void
 WDT_AssignTransportDriverContext (void *pContext, void *pDTDriverContext)
 {
@@ -22693,15 +16318,6 @@ WDT_AssignTransportDriverContext (void *pContext, void *pDTDriverContext)
    return;
 }
 
-/**
- @brief Helper routine used to find a session based on the BSSID
-
-
- @param  pWDICtx:   pointer to the WLAN DAL context
-
- @see
- @return pointer to datapath context
-*/
 WPT_INLINE void *
 WDT_GetTransportDriverContext (void *pContext)
 {
@@ -22709,18 +16325,12 @@ WDT_GetTransportDriverContext (void *pContext)
    return(pCB->pDTDriverContext);
 }
 
-/*============================================================================
-  Helper inline converters
- ============================================================================*/
-/*Convert WDI driver type into HAL driver type*/
 WPT_STATIC WPT_INLINE WDI_Status
 WDI_HAL_2_WDI_STATUS
 (
   eHalStatus halStatus
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch(  halStatus )
   {
   case eHAL_STATUS_SUCCESS:
@@ -22731,24 +16341,19 @@ WDI_HAL_2_WDI_STATUS
     return WDI_STATUS_E_FAILURE;
   case eHAL_STATUS_FAILED_ALLOC:
     return WDI_STATUS_MEM_FAILURE;
-   /*The rest of the HAL error codes must be kept hidden from the UMAC as
-     they refer to specific internal modules of our device*/
   default:
     return WDI_STATUS_DEV_INTERNAL_FAILURE;
   }
 
   return WDI_STATUS_E_FAILURE;
-}/*WDI_HAL_2_WDI_STATUS*/
+}
 
-/*Convert WDI request type into HAL request type*/
 WPT_STATIC WPT_INLINE tHalHostMsgType
 WDI_2_HAL_REQ_TYPE
 (
   WDI_RequestEnumType    wdiReqType
 )
 {
-   /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch(  wdiReqType )
   {
   case WDI_START_REQ:
@@ -22784,7 +16389,7 @@ WDI_2_HAL_REQ_TYPE
   case WDI_SET_STA_BCAST_KEY_REQ:
     return WLAN_HAL_SET_BCASTKEY_REQ;
   case WDI_RMV_STA_BCAST_KEY_REQ:
-    //Some conflict in the old code - check this: return WLAN_HAL_RMV_BCASTKEY_REQ;
+    
     return WLAN_HAL_RMV_STAKEY_REQ;
   case WDI_ADD_TS_REQ:
     return WLAN_HAL_ADD_TS_REQ;
@@ -22877,7 +16482,7 @@ WDI_2_HAL_REQ_TYPE
 #ifdef WLAN_FEATURE_VOWIFI_11R
   case WDI_AGGR_ADD_TS_REQ:
      return WLAN_HAL_AGGR_ADD_TS_REQ;
-#endif /* WLAN_FEATURE_VOWIFI_11R */
+#endif 
   case WDI_FTM_CMD_REQ:
     return WLAN_HAL_PROCESS_PTT_REQ;
   case WDI_ADD_STA_SELF_REQ:
@@ -22887,7 +16492,7 @@ WDI_2_HAL_REQ_TYPE
 #ifdef FEATURE_OEM_DATA_SUPPORT
   case WDI_START_OEM_DATA_REQ:
     return WLAN_HAL_START_OEM_DATA_REQ;
-#endif /* FEATURE_OEM_DATA_SUPPORT */
+#endif 
   case WDI_HOST_RESUME_REQ:
     return WLAN_HAL_HOST_RESUME_REQ;
   case WDI_HOST_SUSPEND_IND:
@@ -22911,7 +16516,7 @@ WDI_2_HAL_REQ_TYPE
     return WLAN_HAL_SET_RSSI_FILTER_REQ;
   case WDI_UPDATE_SCAN_PARAMS_REQ:
     return WLAN_HAL_UPDATE_SCAN_PARAM_REQ;
-#endif // FEATURE_WLAN_SCAN_PNO
+#endif 
   case WDI_SET_TX_PER_TRACKING_REQ:
     return WLAN_HAL_SET_TX_PER_TRACKING_REQ;
 #ifdef WLAN_FEATURE_PACKET_FILTERING
@@ -22923,7 +16528,7 @@ WDI_2_HAL_REQ_TYPE
     return WLAN_HAL_PACKET_FILTER_MATCH_COUNT_REQ;
   case WDI_RECEIVE_FILTER_CLEAR_FILTER_REQ:
     return WLAN_HAL_CLEAR_PACKET_FILTER_REQ;
-#endif // WLAN_FEATURE_PACKET_FILTERING
+#endif 
   case WDI_HAL_DUMP_CMD_REQ:
     return WLAN_HAL_DUMP_COMMAND_REQ;
 #ifdef WLAN_FEATURE_GTK_OFFLOAD
@@ -22931,7 +16536,7 @@ WDI_2_HAL_REQ_TYPE
     return WLAN_HAL_GTK_OFFLOAD_REQ;
   case WDI_GTK_OFFLOAD_GETINFO_REQ:
     return WLAN_HAL_GTK_OFFLOAD_GETINFO_REQ;
-#endif /* WLAN_FEATURE_GTK_OFFLOAD */
+#endif 
 
   case WDI_INIT_SCAN_CON_REQ:
     return WLAN_HAL_INIT_SCAN_CON_REQ; 
@@ -22954,11 +16559,15 @@ WDI_2_HAL_REQ_TYPE
 #ifdef FEATURE_WLAN_LPHB
    case WDI_LPHB_CFG_REQ:
       return WLAN_HAL_LPHB_CFG_REQ;
-#endif /* FEATURE_WLAN_LPHB */
+#endif 
   case WDI_ADD_PERIODIC_TX_PATTERN_IND:
     return WLAN_HAL_ADD_PERIODIC_TX_PTRN_IND;
   case WDI_DEL_PERIODIC_TX_PATTERN_IND:
     return WLAN_HAL_DEL_PERIODIC_TX_PTRN_IND;
+  case WDI_RATE_UPDATE_IND:
+    return WLAN_HAL_RATE_UPDATE_IND;
+  case WDI_UPDATE_CHAN_REQ:
+    return WLAN_HAL_UPDATE_CHANNEL_LIST_REQ;
 
 #ifdef FEATURE_WLAN_BATCH_SCAN
   case WDI_SET_BATCH_SCAN_REQ:
@@ -22968,24 +16577,23 @@ WDI_2_HAL_REQ_TYPE
   case WDI_TRIGGER_BATCH_SCAN_RESULT_IND:
        return WLAN_HAL_BATCHSCAN_TRIGGER_RESULT_IND;
 #endif
-  case WDI_UPDATE_CHAN_REQ:
-    return WLAN_HAL_UPDATE_CHANNEL_LIST_REQ;
+  case WDI_GET_BCN_MISS_RATE_REQ:
+    return WLAN_HAL_GET_BCN_MISS_RATE_REQ;
 
+  case WDI_CH_SWITCH_REQ_V1:
+       return WLAN_HAL_CH_SWITCH_V1_REQ;
   default:
     return WLAN_HAL_MSG_MAX;
   }
 
-}/*WDI_2_HAL_REQ_TYPE*/
+}
 
-/*Convert WDI response type into HAL response type*/
 WPT_STATIC WPT_INLINE WDI_ResponseEnumType
 HAL_2_WDI_RSP_TYPE
 (
   tHalHostMsgType halMsg
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch(  halMsg )
   {
   case WLAN_HAL_START_RSP:
@@ -23022,8 +16630,8 @@ HAL_2_WDI_RSP_TYPE
     return WDI_RMV_STA_KEY_RESP;
   case WLAN_HAL_SET_BCASTKEY_RSP:
     return WDI_SET_STA_BCAST_KEY_RESP;
-  //Some conflict in the old code - check this: case WLAN_HAL_RMV_BCASTKEY_RSP:
-  //  return WDI_RMV_STA_BCAST_KEY_RESP;
+  
+  
   case WLAN_HAL_ADD_TS_RSP:
     return WDI_ADD_TS_RESP;
   case WLAN_HAL_DEL_TS_RSP:
@@ -23056,7 +16664,7 @@ HAL_2_WDI_RSP_TYPE
     return WDI_SND_BCON_RESP;
   case WLAN_HAL_UPDATE_PROBE_RSP_TEMPLATE_RSP:
     return WDI_UPD_PROBE_RSP_TEMPLATE_RESP;
-  /*Indications*/
+  
   case WLAN_HAL_RSSI_NOTIFICATION_IND:
     return WDI_HAL_RSSI_NOTIFICATION_IND;
   case WLAN_HAL_MISSED_BEACON_IND:
@@ -23144,7 +16752,7 @@ case WLAN_HAL_DEL_STA_SELF_RSP:
 #ifdef FEATURE_OEM_DATA_SUPPORT
   case WLAN_HAL_START_OEM_DATA_RSP:
     return WDI_START_OEM_DATA_RESP;
-#endif /* FEATURE_OEM_DATA_SUPPORT */
+#endif 
   case WLAN_HAL_HOST_RESUME_RSP:
     return WDI_HOST_RESUME_RESP;
   case WLAN_HAL_KEEP_ALIVE_RSP:
@@ -23158,7 +16766,7 @@ case WLAN_HAL_DEL_STA_SELF_RSP:
     return WDI_UPDATE_SCAN_PARAMS_RESP;
   case WLAN_HAL_PREF_NETW_FOUND_IND:
     return WDI_HAL_PREF_NETWORK_FOUND_IND;
-#endif // FEATURE_WLAN_SCAN_PNO
+#endif 
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
   case WLAN_ROAM_SCAN_OFFLOAD_RSP:
     return WDI_ROAM_SCAN_OFFLOAD_RESP;
@@ -23174,7 +16782,7 @@ case WLAN_HAL_DEL_STA_SELF_RSP:
     return WDI_PACKET_COALESCING_FILTER_MATCH_COUNT_RESP;
   case WLAN_HAL_CLEAR_PACKET_FILTER_RSP:
     return WDI_RECEIVE_FILTER_CLEAR_FILTER_RESP;
-#endif // WLAN_FEATURE_PACKET_FILTERING
+#endif 
 
   case WLAN_HAL_DUMP_COMMAND_RSP:
     return WDI_HAL_DUMP_CMD_RESP;
@@ -23190,11 +16798,11 @@ case WLAN_HAL_DEL_STA_SELF_RSP:
     return WDI_GTK_OFFLOAD_RESP;
   case WLAN_HAL_GTK_OFFLOAD_GETINFO_RSP:
     return WDI_GTK_OFFLOAD_GETINFO_RESP;
-#endif /* WLAN_FEATURE_GTK_OFFLOAD */
+#endif 
 #ifdef WLAN_WAKEUP_EVENTS
   case WLAN_HAL_WAKE_REASON_IND:
     return WDI_HAL_WAKE_REASON_IND;
-#endif // WLAN_WAKEUP_EVENTS
+#endif 
 
   case WLAN_HAL_SET_THERMAL_MITIGATION_RSP:
     return WDI_SET_TM_LEVEL_RESP;
@@ -23211,41 +16819,52 @@ case WLAN_HAL_DEL_STA_SELF_RSP:
 
 #ifdef FEATURE_WLAN_LPHB
   case WLAN_HAL_LPHB_IND:
-    return WDI_HAL_LPHB_WAIT_TIMEOUT_IND;
+    return WDI_HAL_LPHB_IND;
   case WLAN_HAL_LPHB_CFG_RSP:
     return WDI_LPHB_CFG_RESP;
-#endif /* FEATURE_WLAN_LPHB */
+#endif 
 
   case WLAN_HAL_IBSS_PEER_INACTIVITY_IND:
     return WDI_HAL_IBSS_PEER_INACTIVITY_IND;
   case WLAN_HAL_PERIODIC_TX_PTRN_FW_IND:
     return WDI_HAL_PERIODIC_TX_PTRN_FW_IND;
 
-  case WLAN_HAL_UPDATE_CHANNEL_LIST_RSP:
-    return WDI_UPDATE_CHAN_RESP;
 #ifdef FEATURE_WLAN_BATCH_SCAN
   case WLAN_HAL_BATCHSCAN_SET_RSP:
     return WDI_SET_BATCH_SCAN_RESP;
   case WLAN_HAL_BATCHSCAN_RESULT_IND:
     return WDI_BATCHSCAN_RESULT_IND;
-#endif // FEATURE_WLAN_BATCH_SCAN
+#endif 
 
+#ifdef FEATURE_WLAN_CH_AVOID
+  case WLAN_HAL_AVOID_FREQ_RANGE_IND:
+    return WDI_HAL_CH_AVOID_IND;
+#endif 
+
+  case WLAN_HAL_UPDATE_CHANNEL_LIST_RSP:
+    return WDI_UPDATE_CHAN_RESP;
+
+  case WLAN_HAL_PRINT_REG_INFO_IND:
+    return  WDI_PRINT_REG_INFO_IND;
+
+  case WLAN_HAL_CH_SWITCH_V1_RSP:
+    return WDI_CH_SWITCH_RESP_V1;
+
+  case WLAN_HAL_GET_BCN_MISS_RATE_RSP:
+    return WDI_GET_BCN_MISS_RATE_RSP;
   default:
     return eDRIVER_TYPE_MAX;
   }
 
-}/*HAL_2_WDI_RSP_TYPE*/
+}
 
 
-/*Convert WDI driver type into HAL driver type*/
 WPT_STATIC WPT_INLINE tDriverType
 WDI_2_HAL_DRV_TYPE
 (
   WDI_DriverType wdiDriverType
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch(  wdiDriverType )
   {
   case WDI_DRIVER_TYPE_PRODUCTION:
@@ -23257,18 +16876,15 @@ WDI_2_HAL_DRV_TYPE
   }
 
   return eDRIVER_TYPE_MAX;
-}/*WDI_2_HAL_DRV_TYPE*/
+}
 
 
-/*Convert WDI stop reason into HAL stop reason*/
 WPT_STATIC WPT_INLINE tHalStopType
 WDI_2_HAL_STOP_REASON
 (
   WDI_StopType wdiDriverType
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch(  wdiDriverType )
   {
   case WDI_STOP_TYPE_SYS_RESET:
@@ -23280,18 +16896,15 @@ WDI_2_HAL_STOP_REASON
   }
 
   return HAL_STOP_TYPE_MAX;
-}/*WDI_2_HAL_STOP_REASON*/
+}
 
 
-/*Convert WDI scan mode type into HAL scan mode type*/
 WPT_STATIC WPT_INLINE eHalSysMode
 WDI_2_HAL_SCAN_MODE
 (
   WDI_ScanMode wdiScanMode
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch(  wdiScanMode )
   {
   case WDI_SCAN_MODE_NORMAL:
@@ -23311,17 +16924,14 @@ WDI_2_HAL_SCAN_MODE
   }
 
   return eHAL_SYS_MODE_MAX;
-}/*WDI_2_HAL_SCAN_MODE*/
+}
 
-/*Convert WDI sec ch offset into HAL sec ch offset type*/
 WPT_STATIC WPT_INLINE ePhyChanBondState
 WDI_2_HAL_SEC_CH_OFFSET
 (
   WDI_HTSecondaryChannelOffset wdiSecChOffset
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch(  wdiSecChOffset )
   {
   case WDI_SECONDARY_CHANNEL_OFFSET_NONE:
@@ -23351,17 +16961,14 @@ WDI_2_HAL_SEC_CH_OFFSET
   }
 
   return PHY_CHANNEL_BONDING_STATE_MAX; 
-}/*WDI_2_HAL_SEC_CH_OFFSET*/
+}
 
-/*Convert WDI BSS type into HAL BSS type*/
 WPT_STATIC WPT_INLINE tSirBssType
 WDI_2_HAL_BSS_TYPE
 (
   WDI_BssType wdiBSSType
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch(  wdiBSSType )
   {
   case WDI_INFRASTRUCTURE_MODE:
@@ -23379,17 +16986,14 @@ WDI_2_HAL_BSS_TYPE
   }
 
   return eSIR_DONOT_USE_BSS_TYPE;
-}/*WDI_2_HAL_BSS_TYPE*/
+}
 
-/*Convert WDI NW type into HAL NW type*/
 WPT_STATIC WPT_INLINE tSirNwType
 WDI_2_HAL_NW_TYPE
 (
   WDI_NwType wdiNWType
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch(  wdiNWType )
   {
   case WDI_11A_NW_TYPE:
@@ -23403,17 +17007,14 @@ WDI_2_HAL_NW_TYPE
   }
 
   return eSIR_DONOT_USE_NW_TYPE;
-}/*WDI_2_HAL_NW_TYPE*/
+}
 
-/*Convert WDI chanel bonding type into HAL cb type*/
 WPT_STATIC WPT_INLINE ePhyChanBondState
 WDI_2_HAL_CB_STATE
 (
   WDI_PhyChanBondState wdiCbState
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch ( wdiCbState )
   {
   case WDI_PHY_SINGLE_CHANNEL_CENTERED:
@@ -23446,17 +17047,14 @@ WDI_2_HAL_CB_STATE
   }
 
   return PHY_CHANNEL_BONDING_STATE_MAX;
-}/*WDI_2_HAL_CB_STATE*/
+}
 
-/*Convert WDI chanel bonding type into HAL cb type*/
 WPT_STATIC WPT_INLINE tSirMacHTOperatingMode
 WDI_2_HAL_HT_OPER_MODE
 (
   WDI_HTOperatingMode wdiHTOperMode
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch ( wdiHTOperMode )
   {
   case WDI_HT_OP_MODE_PURE:
@@ -23470,17 +17068,14 @@ WDI_2_HAL_HT_OPER_MODE
   }
 
   return eSIR_HT_OP_MODE_MAX;
-}/*WDI_2_HAL_HT_OPER_MODE*/
+}
 
-/*Convert WDI mimo PS type into HAL mimo PS type*/
 WPT_STATIC WPT_INLINE tSirMacHTMIMOPowerSaveState
 WDI_2_HAL_MIMO_PS
 (
   WDI_HTMIMOPowerSaveState wdiHTOperMode
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch ( wdiHTOperMode )
   {
   case WDI_HT_MIMO_PS_STATIC:
@@ -23494,17 +17089,14 @@ WDI_2_HAL_MIMO_PS
   }
 
   return eSIR_HT_MIMO_PS_MAX;
-}/*WDI_2_HAL_MIMO_PS*/
+}
 
-/*Convert WDI ENC type into HAL ENC type*/
 WPT_STATIC WPT_INLINE tAniEdType
 WDI_2_HAL_ENC_TYPE
 (
   WDI_EncryptType wdiEncType
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch ( wdiEncType )
   {
   case WDI_ENCR_NONE:
@@ -23532,17 +17124,14 @@ WDI_2_HAL_ENC_TYPE
     return eSIR_ED_NOT_IMPLEMENTED;
   }
 
-}/*WDI_2_HAL_ENC_TYPE*/
+}
 
-/*Convert WDI WEP type into HAL WEP type*/
 WPT_STATIC WPT_INLINE tAniWepType
 WDI_2_HAL_WEP_TYPE
 (
   WDI_WepType  wdiWEPType
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch ( wdiWEPType )
   {
   case WDI_WEP_STATIC:
@@ -23553,7 +17142,7 @@ WDI_2_HAL_WEP_TYPE
   }
 
   return eSIR_WEP_MAX;
-}/*WDI_2_HAL_WEP_TYPE*/
+}
 
 WPT_STATIC WPT_INLINE tSirLinkState
 WDI_2_HAL_LINK_STATE
@@ -23561,8 +17150,6 @@ WDI_2_HAL_LINK_STATE
   WDI_LinkStateType  wdiLinkState
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
   switch ( wdiLinkState )
   {
   case WDI_LINK_IDLE_STATE:
@@ -23618,7 +17205,6 @@ WDI_2_HAL_LINK_STATE
   }
 }
 
-/*Translate a STA Context from WDI into HAL*/
 WPT_STATIC WPT_INLINE
 void
 WDI_CopyWDIStaCtxToHALStaCtx
@@ -23629,15 +17215,13 @@ WDI_CopyWDIStaCtxToHALStaCtx
 {
    wpt_uint8 i;
 #ifdef WLAN_FEATURE_11AC
-   /* Get the Version 1 Handler */
+   
    tConfigStaParams_V1* phalConfigSta_V1 = NULL;
    if (WDI_getFwWlanFeatCaps(DOT11AC))
    {
       phalConfigSta_V1 = (tConfigStaParams_V1*)phalConfigSta;
    }
 #endif
-   /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
 
   wpalMemoryCopy(phalConfigSta->bssId,
                   pwdiConfigSta->macBSSID, WDI_MAC_ADDR_LEN);
@@ -23721,9 +17305,8 @@ WDI_CopyWDIStaCtxToHALStaCtx
 
   }
 #endif
-}/*WDI_CopyWDIStaCtxToHALStaCtx*/;
+};
 
-/*Translate a Rate set info from WDI into HAL*/
 WPT_STATIC WPT_INLINE void
 WDI_CopyWDIRateSetToHALRateSet
 (
@@ -23732,7 +17315,7 @@ WDI_CopyWDIRateSetToHALRateSet
 )
 {
   wpt_uint8 i;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   pHalRateSet->numRates = ( pwdiRateSet->ucNumRates <= SIR_MAC_RATESET_EID_MAX )?
                             pwdiRateSet->ucNumRates:SIR_MAC_RATESET_EID_MAX;
@@ -23742,10 +17325,9 @@ WDI_CopyWDIRateSetToHALRateSet
     pHalRateSet->rate[i] = pwdiRateSet->aRates[i];
   }
 
-}/*WDI_CopyWDIRateSetToHALRateSet*/
+}
 
 
-/*Translate an EDCA Parameter Record from WDI into HAL*/
 WPT_STATIC WPT_INLINE void
 WDI_CopyWDIEDCAParamsToHALEDCAParams
 (
@@ -23753,8 +17335,6 @@ WDI_CopyWDIEDCAParamsToHALEDCAParams
   WDI_EdcaParamRecord*    pWDIEdcaParam
 )
 {
-  /*Lightweight function - no sanity checks and no unecessary code to increase
-    the chances of getting inlined*/
 
   phalEdcaParam->aci.rsvd   = pWDIEdcaParam->wdiACI.rsvd;
   phalEdcaParam->aci.aci    = pWDIEdcaParam->wdiACI.aci;
@@ -23764,10 +17344,9 @@ WDI_CopyWDIEDCAParamsToHALEDCAParams
   phalEdcaParam->cw.max     = pWDIEdcaParam->wdiCW.max;
   phalEdcaParam->cw.min     = pWDIEdcaParam->wdiCW.min;
   phalEdcaParam->txoplimit  = pWDIEdcaParam->usTXOPLimit;
-}/*WDI_CopyWDIEDCAParamsToHALEDCAParams*/
+}
 
 
-/*Copy a management frame header from WDI fmt into HAL fmt*/
 WPT_STATIC WPT_INLINE void
 WDI_CopyWDIMgmFrameHdrToHALMgmFrameHdr
 (
@@ -23801,10 +17380,9 @@ WDI_CopyWDIMgmFrameHdrToHALMgmFrameHdr
   pmacMgmtHdr->seqControl.seqNumLo =  pwdiMacMgmtHdr->seqControl.seqNumLo;
   pmacMgmtHdr->seqControl.seqNumHi =  pwdiMacMgmtHdr->seqControl.seqNumHi;
 
-}/*WDI_CopyWDIMgmFrameHdrToHALMgmFrameHdr*/
+}
 
 
-/*Copy config bss parameters from WDI fmt into HAL fmt*/
 WPT_STATIC WPT_INLINE void
 WDI_CopyWDIConfigBSSToHALConfigBSS
 (
@@ -23815,7 +17393,7 @@ WDI_CopyWDIConfigBSSToHALConfigBSS
 
   wpt_uint8 keyIndex = 0;
 #ifdef WLAN_FEATURE_11AC
-  /* Get the Version 1 Handler */
+  
   tConfigBssParams_V1* phalConfigBSS_V1 = NULL;
   if (WDI_getFwWlanFeatCaps(DOT11AC))
      phalConfigBSS_V1 = (tConfigBssParams_V1*)phalConfigBSS;
@@ -23868,8 +17446,6 @@ WDI_CopyWDIConfigBSSToHALConfigBSS
   phalConfigBSS->maxTxPower               = pwdiConfigBSS->cMaxTxPower;
 #endif
 
-  /*! Used 32 as magic number because that is how the ssid is declared inside the
-   hal header - hal needs a macro for it */
   phalConfigBSS->ssId.length =
     (pwdiConfigBSS->wdiSSID.ucLength <= 32)?
     pwdiConfigBSS->wdiSSID.ucLength : 32;
@@ -23908,9 +17484,6 @@ WDI_CopyWDIConfigBSSToHALConfigBSS
 
   if( phalConfigBSS->extSetStaKeyParamValid )
   {
-     /*-----------------------------------------------------------------------
-       Copy the STA Key parameters into the HAL message
-     -----------------------------------------------------------------------*/
      phalConfigBSS->extSetStaKeyParam.encType =
         WDI_2_HAL_ENC_TYPE (pwdiConfigBSS->wdiExtSetKeyParam.wdiEncType);
 
@@ -23944,13 +17517,13 @@ WDI_CopyWDIConfigBSSToHALConfigBSS
                        WDI_MAX_KEY_LENGTH);
      }
   }
-  else/* phalConfigBSS->extSetStaKeyParamValid is not set */
+  else
   {
      wpalMemoryZero( &phalConfigBSS->extSetStaKeyParam,
                      sizeof(phalConfigBSS->extSetStaKeyParam) );
   }
 
-#endif /*WLAN_FEATURE_VOWIFI_11R*/
+#endif 
 
 #ifdef WLAN_FEATURE_11AC
   if(phalConfigBSS_V1 != NULL)
@@ -23960,11 +17533,9 @@ WDI_CopyWDIConfigBSSToHALConfigBSS
   }
 #endif
 
-}/*WDI_CopyWDIConfigBSSToHALConfigBSS*/
+}
 
 
-/*Extract the request CB function and user data from a request structure
-  pointed to by user data */
 WPT_STATIC WPT_INLINE void
 WDI_ExtractRequestCBFromEvent
 (
@@ -23973,7 +17544,7 @@ WDI_ExtractRequestCBFromEvent
   void**             ppUserData
 )
 {
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
   switch ( pEvent->wdiRequest )
   {
   case WDI_START_REQ:
@@ -24070,6 +17641,10 @@ WDI_ExtractRequestCBFromEvent
   case WDI_CH_SWITCH_REQ:
     *ppfnReqCB   =  ((WDI_SwitchChReqParamsType*)pEvent->pEventData)->wdiReqStatusCB;
     *ppUserData  =  ((WDI_SwitchChReqParamsType*)pEvent->pEventData)->pUserData;
+    break;
+  case WDI_CH_SWITCH_REQ_V1:
+    *ppfnReqCB   =  ((WDI_SwitchChReqParamsType_V1*)pEvent->pEventData)->wdiReqStatusCB;
+    *ppUserData  =  ((WDI_SwitchChReqParamsType_V1*)pEvent->pEventData)->pUserData;
     break;
   case WDI_CONFIG_STA_REQ:
     *ppfnReqCB   =  ((WDI_ConfigSTAReqParamsType*)pEvent->pEventData)->wdiReqStatusCB;
@@ -24245,31 +17820,15 @@ WDI_ExtractRequestCBFromEvent
     *ppUserData  =  NULL;
       break;
   }
-}/*WDI_ExtractRequestCBFromEvent*/
+}
 
 
-/**
- @brief WDI_IsHwFrameTxTranslationCapable checks to see if HW
-        frame xtl is enabled for a particular STA.
-
- WDI_PostAssocReq must have been called.
-
- @param uSTAIdx: STA index
-
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 wpt_boolean
 WDI_IsHwFrameTxTranslationCapable
 (
   wpt_uint8 uSTAIdx
 )
 {
-  /*!! FIX ME - this must eventually be per station - for now just feedback
-    uma value*/
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -24289,24 +17848,26 @@ WDI_IsHwFrameTxTranslationCapable
 #endif
 
   return gWDICb.bFrameTransEnabled;
-}/*WDI_IsHwFrameTxTranslationCapable*/
+}
+
+
+wpt_boolean WDI_IsSelfSTA(  void*  pWDICtx, wpt_uint8 ucSTAIdx )
+{
+   wpt_uint8              ucSTAType;
+
+   if( WDI_STATableGetStaType( (WDI_ControlBlockType*)pWDICtx,
+                                ucSTAIdx,&ucSTAType) == WDI_STATUS_SUCCESS)
+   {
+        if( ucSTAType == WDI_STA_ENTRY_SELF )
+           return eWLAN_PAL_TRUE;
+   }
+
+  return eWLAN_PAL_FALSE;
+}
+
+
 
 #ifdef FEATURE_WLAN_SCAN_PNO
-/**
- @brief WDI_SetPreferredNetworkList
-
- @param pwdiPNOScanReqParams: the Set PNO as specified
-                      by the Device Interface
-
-        wdiPNOScanCb: callback for passing back the response
-        of the Set PNO operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetPreferredNetworkReq
 (
@@ -24316,11 +17877,8 @@ WDI_SetPreferredNetworkReq
 )
 {
    WDI_EventInfoType      wdiEventData = {{0}};
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -24329,9 +17887,6 @@ WDI_SetPreferredNetworkReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_SET_PREF_NETWORK_REQ;
    wdiEventData.pEventData      = pwdiPNOScanReqParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiPNOScanReqParams);
@@ -24342,21 +17897,6 @@ WDI_SetPreferredNetworkReq
 }
 
 
-/**
- @brief WDI_SetRssiFilterReq
-
- @param pwdiRssiFilterReqParams: the Set RSSI Filter as
-                      specified by the Device Interface
-
-        wdiRssiFilterCb: callback for passing back the response
-        of the Set RSSI Filter operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetRssiFilterReq
 (
@@ -24366,11 +17906,8 @@ WDI_SetRssiFilterReq
 )
 {
    WDI_EventInfoType      wdiEventData = {{0}};
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -24379,9 +17916,6 @@ WDI_SetRssiFilterReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_SET_RSSI_FILTER_REQ;
    wdiEventData.pEventData      = pwdiRssiFilterReqParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiRssiFilterReqParams);
@@ -24389,23 +17923,8 @@ WDI_SetRssiFilterReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_SetRssiFilterReq*/
+}
 
-/**
- @brief WDI_UpdateScanParamsReq
-
- @param pwdiUpdateScanParamsInfoType: the Update Scan Params as specified
-                      by the Device Interface
-
-        wdiUpdateScanParamsCb: callback for passing back the response
-        of the Set PNO operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_UpdateScanParamsReq
 (
@@ -24415,11 +17934,8 @@ WDI_UpdateScanParamsReq
 )
 {
    WDI_EventInfoType      wdiEventData = {{0}};
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -24428,9 +17944,6 @@ WDI_UpdateScanParamsReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_UPDATE_SCAN_PARAMS_REQ;
    wdiEventData.pEventData      = pwdiUpdateScanParamsInfoType;
    wdiEventData.uEventDataSize  = sizeof(*pwdiUpdateScanParamsInfoType);
@@ -24440,18 +17953,6 @@ WDI_UpdateScanParamsReq
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-/**
- @brief Helper function to pack Set Preferred Network List
-        Request parameters
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pwdiPNOScanReqParams:      pointer to the info received
-         from upper layers
-         ppSendBuffer, pSize - out pointers of the packed buffer
-         and its size
-
- @return Result of the function call
-*/
 
 WDI_Status
 WDI_PackPreferredNetworkList
@@ -24467,9 +17968,6 @@ WDI_PackPreferredNetworkList
    wpt_uint16                 usSendSize            = 0;
    tpPrefNetwListParams       pPrefNetwListParams   = NULL;
    wpt_uint8 i;
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_PREF_NETWORK_REQ,
                          sizeof(tPrefNetwListParams),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -24484,9 +17982,6 @@ WDI_PackPreferredNetworkList
 
    pPrefNetwListParams = (tpPrefNetwListParams)(pSendBuffer + usDataOffset);
 
-   /*-------------------------------------------------------------------------
-     Fill prefNetwListParams from pwdiPNOScanReqParams->wdiPNOScanInfo
-   -------------------------------------------------------------------------*/
    pPrefNetwListParams->enable  = 
      pwdiPNOScanReqParams->wdiPNOScanInfo.bEnable;
    pPrefNetwListParams->modePNO = 
@@ -24506,7 +18001,7 @@ WDI_PackPreferredNetworkList
 
    for ( i = 0; i < pPrefNetwListParams->ucNetworksCount; i++ )
    {
-     /*SSID of the BSS*/
+     
      pPrefNetwListParams->aNetworks[i].ssId.length
         = pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].ssId.ucLength;
 
@@ -24514,16 +18009,14 @@ WDI_PackPreferredNetworkList
           pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].ssId.sSSID,
           pPrefNetwListParams->aNetworks[i].ssId.length);
 
-     /*Authentication type for the network*/
+     
      pPrefNetwListParams->aNetworks[i].authentication = 
        (tAuthType)pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].wdiAuth;
 
-     /*Encryption type for the network*/
+     
      pPrefNetwListParams->aNetworks[i].encryption = 
        (tEdType)pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].wdiEncryption;
 
-     /*Indicate the channel on which the Network can be found
-       0 - if all channels */
      pPrefNetwListParams->aNetworks[i].ucChannelCount =
        (pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].ucChannelCount <
         WLAN_HAL_PNO_MAX_NETW_CHANNELS)?
@@ -24534,7 +18027,7 @@ WDI_PackPreferredNetworkList
                     pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].aChannels,
                     pPrefNetwListParams->aNetworks[i].ucChannelCount);
 
-     /*Indicates the RSSI threshold for the network to be considered*/
+     
      pPrefNetwListParams->aNetworks[i].rssiThreshold =
        pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].rssiThreshold;
 
@@ -24564,7 +18057,7 @@ WDI_PackPreferredNetworkList
        pwdiPNOScanReqParams->wdiPNOScanInfo.scanTimers.aTimerValues[i].uTimerRepeat;
    }
 
-   /*Copy the probe template*/
+   
    pPrefNetwListParams->us24GProbeSize = 
      (pwdiPNOScanReqParams->wdiPNOScanInfo.us24GProbeSize<
      WLAN_HAL_PNO_MAX_PROBE_SIZE)?
@@ -24585,25 +18078,13 @@ WDI_PackPreferredNetworkList
                   pwdiPNOScanReqParams->wdiPNOScanInfo.a5GProbeTemplate,
                   pPrefNetwListParams->us5GProbeSize); 
 
-   /*Set the output values*/
+   
    *ppSendBuffer = pSendBuffer;
    *pSize        = usSendSize;
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_PackPreferredNetworkList*/
+}
 
-/**
- @brief Helper function to pack Set Preferred Network List
-        Request parameters
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pwdiPNOScanReqParams:      pointer to the info received
-         from upper layers
-         ppSendBuffer, pSize - out pointers of the packed buffer
-         and its size
-
- @return Result of the function call
-*/
 
 WDI_Status
 WDI_PackPreferredNetworkListNew
@@ -24620,9 +18101,6 @@ WDI_PackPreferredNetworkListNew
    tpPrefNetwListParamsNew    pPrefNetwListParams;
    wpt_uint8 i;
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_PREF_NETWORK_REQ,
                          sizeof(tPrefNetwListParamsNew),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -24637,9 +18115,6 @@ WDI_PackPreferredNetworkListNew
 
    pPrefNetwListParams = (tpPrefNetwListParamsNew)(pSendBuffer + usDataOffset);
 
-   /*-------------------------------------------------------------------------
-     Fill prefNetwListParams from pwdiPNOScanReqParams->wdiPNOScanInfo
-   -------------------------------------------------------------------------*/
    pPrefNetwListParams->enable  = 
      pwdiPNOScanReqParams->wdiPNOScanInfo.bEnable;
    pPrefNetwListParams->modePNO = 
@@ -24659,7 +18134,7 @@ WDI_PackPreferredNetworkListNew
 
    for ( i = 0; i < pPrefNetwListParams->ucNetworksCount; i++ )
    {
-     /*SSID of the BSS*/
+     
      pPrefNetwListParams->aNetworks[i].ssId.length
         = pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].ssId.ucLength;
 
@@ -24667,20 +18142,18 @@ WDI_PackPreferredNetworkListNew
           pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].ssId.sSSID,
           pPrefNetwListParams->aNetworks[i].ssId.length);
 
-     /*Authentication type for the network*/
+     
      pPrefNetwListParams->aNetworks[i].authentication = 
        (tAuthType)pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].wdiAuth;
 
-     /*Encryption type for the network*/
+     
      pPrefNetwListParams->aNetworks[i].encryption = 
        (tEdType)pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].wdiEncryption;
 
-     /*SSID bcast type for the network*/
+     
      pPrefNetwListParams->aNetworks[i].bcastNetworkType = 
        (tSSIDBcastType)pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].wdiBcastNetworkType;
 
-     /*Indicate the channel on which the Network can be found
-       0 - if all channels */
      pPrefNetwListParams->aNetworks[i].ucChannelCount = 
        pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].ucChannelCount;
 
@@ -24688,7 +18161,7 @@ WDI_PackPreferredNetworkListNew
                     pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].aChannels,
                     pPrefNetwListParams->aNetworks[i].ucChannelCount);
 
-     /*Indicates the RSSI threshold for the network to be considered*/
+     
      pPrefNetwListParams->aNetworks[i].rssiThreshold =
        pwdiPNOScanReqParams->wdiPNOScanInfo.aNetworks[i].rssiThreshold;
 
@@ -24718,7 +18191,7 @@ WDI_PackPreferredNetworkListNew
        pwdiPNOScanReqParams->wdiPNOScanInfo.scanTimers.aTimerValues[i].uTimerRepeat;
    }
 
-   /*Copy the probe template*/
+   
    pPrefNetwListParams->us24GProbeSize = 
      (pwdiPNOScanReqParams->wdiPNOScanInfo.us24GProbeSize<
      WLAN_HAL_PNO_MAX_PROBE_SIZE)?
@@ -24740,21 +18213,13 @@ WDI_PackPreferredNetworkListNew
                   pPrefNetwListParams->us5GProbeSize); 
 
 
-   /*Set the output values*/
+   
    *ppSendBuffer = pSendBuffer;
    *pSize        = usSendSize;
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_PackPreferredNetworkListNew*/
+}
 
-/**
- @brief Process Set Preferred Network List Request function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetPreferredNetworkReq
 (
@@ -24768,9 +18233,6 @@ WDI_ProcessSetPreferredNetworkReq
    wpt_uint16                 usSendSize            = 0;
    WDI_Status                 wdiStatus;
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiPNOScanReqParams = (WDI_PNOScanReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiPNOScanCb   = (WDI_PNOScanCb)pEventData->pCBfnc)))
@@ -24781,9 +18243,15 @@ WDI_ProcessSetPreferredNetworkReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-------------------------------------------------------------------------
-     Pack the PNO request structure based on version
-   -------------------------------------------------------------------------*/
+   if ( (pwdiPNOScanReqParams->wdiPNOScanInfo.bEnable &&
+        WDI_GetActiveSessionsCount(pWDICtx, NULL, eWLAN_PAL_FALSE)) )
+   {
+     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+               "%s:(Active/Ongoing Session) - Fail request", __func__);
+
+     return WDI_STATUS_E_FAILURE;
+   }
+
    if ( pWDICtx->wdiPNOVersion > 0 )
    {
      WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
@@ -24815,22 +18283,10 @@ WDI_ProcessSetPreferredNetworkReq
    pWDICtx->wdiReqStatusCB     = pwdiPNOScanReqParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiPNOScanReqParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                wdiPNOScanCb, pEventData->pUserData, WDI_SET_PREF_NETWORK_RESP);
 }
 
-/**
- @brief Process Set RSSI Filter Request function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetRssiFilterReq
 (
@@ -24845,9 +18301,6 @@ WDI_ProcessSetRssiFilterReq
    wpt_uint16                      usSendSize              = 0;
    wpt_uint8                       ucRssiThreshold;
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiRssiFilterReqParams = (WDI_SetRssiFilterReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiRssiFilterCb   = (WDI_RssiFilterCb)pEventData->pCBfnc)))
@@ -24858,9 +18311,6 @@ WDI_ProcessSetRssiFilterReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_PREF_NETWORK_REQ,
                          sizeof(ucRssiThreshold),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -24882,27 +18332,10 @@ WDI_ProcessSetRssiFilterReq
    pWDICtx->wdiReqStatusCB     = pwdiRssiFilterReqParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiRssiFilterReqParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiRssiFilterCb, pEventData->pUserData, WDI_SET_RSSI_FILTER_RESP);
 }
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
-/**
- @brief WDI_RoamScanOffloadReq
-
- @param pwdiRoamScanOffloadReqParams: the  LookupReq as specified
-                      by the Device Interface
-
-        wdiRoamOffloadScancb: callback for passing back the response
-        of the Roam Candidate Lookup Req operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
- @return Result of the function call
-*/
 WDI_Status
 WDI_RoamScanOffloadReq
 (
@@ -24912,11 +18345,8 @@ WDI_RoamScanOffloadReq
 )
 {
    WDI_EventInfoType      wdiEventData = {{0}};
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -24925,9 +18355,6 @@ WDI_RoamScanOffloadReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_ROAM_SCAN_OFFLOAD_REQ;
    wdiEventData.pEventData      = pwdiRoamScanOffloadReqParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiRoamScanOffloadReqParams);
@@ -24974,18 +18401,6 @@ WDI_wdiEdTypeEncToEdTypeEnc(tEdType *EdType, WDI_EdType wdiEdType)
      }
 }
 
-/**
- @brief Helper function to pack Start Roam Candidate Lookup
-        Request parameters
-
- @param  pWDICtx:                               pointer to the WLAN DAL context
-         pwdiRoamScanOffloadReqParams:      pointer to the info received
-         from upper layers
-         ppSendBuffer, pSize - out pointers of the packed buffer
-         and its size
-
- @return Result of the function call
-*/
 
 WDI_Status
 WDI_PackRoamScanOffloadParams
@@ -25001,9 +18416,6 @@ WDI_PackRoamScanOffloadParams
    wpt_uint16                 usSendSize                 = 0;
    tpRoamCandidateListParams  pRoamCandidateListParams   = NULL;
    wpt_uint8 i;
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_ROAM_SCAN_OFFLOAD_REQ,
                          sizeof(tRoamCandidateListParams),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -25060,7 +18472,7 @@ WDI_PackRoamScanOffloadParams
               "NeighborRoamScanRefreshPeriod=%d,NeighborScanChannelMinTime=%d,"
               "NeighborScanChannelMaxTime = %d,EmptyRefreshScanPeriod=%d,"
               "mdiePresent=%d,MDID=%d, auth=%d, uce=%d, mce=%d, nProbes=%d,"
-              "HomeAwayTime=%d\n",
+              "HomeAwayTime=%d",
               pRoamCandidateListParams->ConnectedNetwork.ssId.ssId,
               pRoamCandidateListParams->RoamScanOffloadEnabled,
               pRoamCandidateListParams->Command,
@@ -25106,20 +18518,12 @@ WDI_PackRoamScanOffloadParams
    }
 
 
-   /*Set the output values*/
+   
    *ppSendBuffer = pSendBuffer;
    *pSize        = usSendSize;
    return WDI_STATUS_SUCCESS;
-}/*WDI_PackRoamScanOffloadParams*/
+}
 
-/**
- @brief Process Start Roam Candidate Lookup Request function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessRoamScanOffloadReq
 (
@@ -25132,9 +18536,6 @@ WDI_ProcessRoamScanOffloadReq
    wpt_uint8*                            pSendBuffer           = NULL;
    wpt_uint16                            usSendSize            = 0;
    WDI_Status                            wdiStatus;
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiRoamScanOffloadReqParams = (WDI_RoamScanOffloadReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiRoamOffloadScancb   = (WDI_RoamOffloadScanCb)pEventData->pCBfnc)))
@@ -25145,9 +18546,6 @@ WDI_ProcessRoamScanOffloadReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-------------------------------------------------------------------------
-     Pack the Start Roam Candidate Lookup request structure based on version
-   -------------------------------------------------------------------------*/
      WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
                   "%s: Packing Roam Candidate Lookup request ", __func__);
 
@@ -25166,23 +18564,10 @@ WDI_ProcessRoamScanOffloadReq
    pWDICtx->wdiReqStatusCB     = pwdiRoamScanOffloadReqParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiRoamScanOffloadReqParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send WDI_ROAM_SCAN_OFFLOAD_REQ to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                wdiRoamOffloadScancb, pEventData->pUserData, WDI_ROAM_SCAN_OFFLOAD_RESP);
 }
 
-/**
- @brief Process Start Roam Candidate Lookup Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessRoamScanOffloadRsp
 (
@@ -25194,11 +18579,8 @@ WDI_ProcessRoamScanOffloadRsp
    eHalStatus                   halStatus;
    WDI_RoamOffloadScanCb        wdiRoamOffloadScancb = NULL;
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
@@ -25210,28 +18592,16 @@ WDI_ProcessRoamScanOffloadRsp
 
    wdiRoamOffloadScancb = (WDI_RoamOffloadScanCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiRoamOffloadScancb(wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/* WDI_ProcessRoamScanOffloadRsp  */
+}
 #endif
 
-/**
- @brief Process Update Scan Params function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_PackUpdateScanParamsReq
 (
@@ -25249,9 +18619,6 @@ WDI_PackUpdateScanParamsReq
 
    WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_INFO,
                "Begin WDI Update Scan Parameters Old Style Params");
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_UPDATE_SCAN_PARAMS_REQ,
                          sizeof(updateScanParams),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -25264,9 +18631,9 @@ WDI_PackUpdateScanParamsReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   //
-   // Fill updateScanParams from pwdiUpdateScanParams->wdiUpdateScanParamsInfo
-   //
+   
+   
+   
 
    updateScanParams.b11dEnabled    = pwdiUpdateScanParams->wdiUpdateScanParamsInfo.b11dEnabled;
    updateScanParams.b11dResolved   = pwdiUpdateScanParams->wdiUpdateScanParamsInfo.b11dResolved;
@@ -25298,22 +18665,13 @@ WDI_PackUpdateScanParamsReq
    WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_INFO,
                "End Update Scan Parameters Old Style");
 
-   /*Set the output values*/
+   
    *ppSendBuffer = pSendBuffer;
    *pSize        = usSendSize;
 
    return WDI_STATUS_SUCCESS;
 }
 
-/**
- @brief Process Update Scan Params function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_PackUpdateScanParamsReqEx
 (
@@ -25329,9 +18687,6 @@ WDI_PackUpdateScanParamsReqEx
    tUpdateScanParamsEx           updateScanParams = {0};
 
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_UPDATE_SCAN_PARAMS_REQ,
                          sizeof(updateScanParams),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -25344,9 +18699,9 @@ WDI_PackUpdateScanParamsReqEx
       return WDI_STATUS_E_FAILURE;
    }
 
-   //
-   // Fill updateScanParams from pwdiUpdateScanParams->wdiUpdateScanParamsInfo
-   //
+   
+   
+   
 
    updateScanParams.b11dEnabled    = pwdiUpdateScanParams->wdiUpdateScanParamsInfo.b11dEnabled;
    updateScanParams.b11dResolved   = pwdiUpdateScanParams->wdiUpdateScanParamsInfo.b11dResolved;
@@ -25375,22 +18730,13 @@ WDI_PackUpdateScanParamsReqEx
    pWDICtx->wdiReqStatusCB     = pwdiUpdateScanParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiUpdateScanParams->pUserData;
 
-   /*Set the output values*/
+   
    *ppSendBuffer = pSendBuffer;
    *pSize        = usSendSize;
 
    return WDI_STATUS_SUCCESS;
 }
 
-/**
- @brief Process Update Scan Params function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateScanParamsReq
 (
@@ -25404,9 +18750,6 @@ WDI_ProcessUpdateScanParamsReq
    wpt_uint16                    usSendSize            = 0;
    WDI_Status                    wdiStatus;
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiUpdateScanParams = (WDI_UpdateScanParamsInfoType*)pEventData->pEventData)) ||
        ( NULL == (wdiUpdateScanParamsCb   = (WDI_UpdateScanParamsCb)pEventData->pCBfnc)))
@@ -25420,9 +18763,9 @@ WDI_ProcessUpdateScanParamsReq
    WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_INFO,
                "Begin WDI Update Scan Parameters");
 
-   //
-   // Fill updateScanParams from pwdiUpdateScanParams->wdiUpdateScanParamsInfo
-   //
+   
+   
+   
    if ( pWDICtx->wlanVersion.revision < 1 ) 
    {
      wdiStatus = WDI_PackUpdateScanParamsReq( pWDICtx, pwdiUpdateScanParams,
@@ -25436,74 +18779,15 @@ WDI_ProcessUpdateScanParamsReq
    
    if(WDI_STATUS_SUCCESS != wdiStatus)
    {
-        //memory allocation failed
+        
         return WDI_STATUS_E_FAILURE;
    }
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiUpdateScanParamsCb, pEventData->pUserData, 
                         WDI_UPDATE_SCAN_PARAMS_RESP);
 }
 
-/**
- @brief Process Update Channel Rsp function (called when a response is
-        being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
-WDI_Status
-WDI_ProcessUpdateChanRsp
-(
-  WDI_ControlBlockType*  pWDICtx,
-  WDI_EventInfoType*     pEventData
-)
-{
-  WDI_Status           wdiStatus;
-  eHalStatus           halStatus;
-  WDI_UpdateChannelRspCb   wdiUpdateChanRspCb;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
-  if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
-      ( NULL == pEventData->pEventData))
-  {
-     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
-                 "%s: Invalid parameters", __func__);
-     WDI_ASSERT(0);
-     return WDI_STATUS_E_FAILURE;
-  }
-
-  wdiUpdateChanRspCb = (WDI_UpdateChannelRspCb)pWDICtx->pfncRspCB;
-
-  /*-------------------------------------------------------------------------
-    Extract response and send it to UMAC
-  -------------------------------------------------------------------------*/
-  halStatus = *((eHalStatus*)pEventData->pEventData);
-  wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
-
-  wdiUpdateChanRspCb( wdiStatus, pWDICtx->pRspCBUserData);
-
-  return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessUpdateChanRsp*/
-
-/**
- @brief Process Update Channel Params function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateChannelParamsReq
 (
@@ -25520,9 +18804,6 @@ WDI_ProcessUpdateChannelParamsReq
    wpt_uint32                    usUpdateChanParamSize;
    wpt_uint8                     num_channels = 0;
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiUpdateChanListParams = (WDI_UpdateChReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiUpdateChanParamsCb = (WDI_UpdateChannelRspCb)pEventData->pCBfnc)))
@@ -25537,16 +18818,13 @@ WDI_ProcessUpdateChannelParamsReq
            ((WLAN_HAL_ROAM_SCAN_MAX_CHANNELS - num_channels) *
            sizeof(tUpdateChannelParam)));
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                    WDI_UPDATE_CHAN_REQ, usUpdateChanParamSize,
                    &pSendBuffer, &usDataOffset, &usSendSize))||
        ( usSendSize < (usDataOffset + usUpdateChanParamSize)))
    {
       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
-                  "Unable to get send buffer in Update Channel Params req %x",
+                  "Unable to get send buffer in Update Channel Params req %p",
                    pwdiUpdateChanListParams);
       WDI_ASSERT(0);
       return WDI_STATUS_E_FAILURE;
@@ -25561,23 +18839,11 @@ WDI_ProcessUpdateChannelParamsReq
    pWDICtx->wdiReqStatusCB     = pwdiUpdateChanListParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiUpdateChanListParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Update channel request to fw
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg(pWDICtx, pSendBuffer, usSendSize,
                         wdiUpdateChanParamsCb, pEventData->pUserData,
                         WDI_UPDATE_CHAN_RESP);
 }
 
-/**
- @brief Process Preferred Network Found Indication function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessPrefNetworkFoundInd
 (
@@ -25590,9 +18856,6 @@ WDI_ProcessPrefNetworkFoundInd
   wpt_uint32 msgsize;
 
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ))
   {
@@ -25602,9 +18865,6 @@ WDI_ProcessPrefNetworkFoundInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
   pNetwFoundParams = (tpPrefNetwFoundParams)(pEventData->pEventData);
 
   msgsize = sizeof(tPrefNetwFoundParams) + pNetwFoundParams->frameLength;
@@ -25631,10 +18891,10 @@ WDI_ProcessPrefNetworkFoundInd
       (wpt_uint8 *)pEventData->pEventData + sizeof(tPrefNetwFoundParams),
       pNetwFoundParams->frameLength);
 
-  /*Fill in the indication parameters*/
+  
   wdiInd.wdiIndicationType = WDI_PREF_NETWORK_FOUND_IND;
 
-  // DEBUG
+  
   WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_FATAL,
               "[PNO WDI] PREF_NETWORK_FOUND_IND Type (%x) data (SSID=%.*s, LENGTH=%u,  RSSI=%u)",
               wdiInd.wdiIndicationType,
@@ -25645,23 +18905,13 @@ WDI_ProcessPrefNetworkFoundInd
 
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
   }
 
   return WDI_STATUS_SUCCESS;
 }
 
-/**
- @brief Process PNO Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetPreferredNetworkRsp
 (
@@ -25672,11 +18922,8 @@ WDI_ProcessSetPreferredNetworkRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    WDI_PNOScanCb       wdiPNOScanCb   = NULL;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
@@ -25689,28 +18936,15 @@ WDI_ProcessSetPreferredNetworkRsp
 
    wdiPNOScanCb = (WDI_PNOScanCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiPNOScanCb(wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetPreferredNetworkRsp*/
+}
 
-/**
- @brief Process RSSI Filter Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetRssiFilterRsp
 (
@@ -25721,11 +18955,8 @@ WDI_ProcessSetRssiFilterRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    WDI_RssiFilterCb     wdiRssiFilterCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
@@ -25737,28 +18968,15 @@ WDI_ProcessSetRssiFilterRsp
 
    wdiRssiFilterCb = (WDI_RssiFilterCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiRssiFilterCb(wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetRssiFilterRsp*/
+}
 
-/**
- @brief Process Update Scan Params Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessUpdateScanParamsRsp
 (
@@ -25770,11 +18988,8 @@ WDI_ProcessUpdateScanParamsRsp
    tUpdateScanParamsResp  halUpdScanParams;
    WDI_UpdateScanParamsCb wdiUpdateScanParamsCb   = NULL;
    wpt_uint32             uStatus;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
@@ -25789,19 +19004,16 @@ WDI_ProcessUpdateScanParamsRsp
 
   wdiUpdateScanParamsCb = (WDI_UpdateScanParamsCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
   wpalMemoryCopy( (void *)&halUpdScanParams.status,
                   pEventData->pEventData,
                   sizeof(halUpdScanParams.status));
 
   uStatus  = halUpdScanParams.status;
 
-  /*Extract PNO version - 1st bit of the status */
+  
   pWDICtx->wdiPNOVersion = (uStatus & WDI_PNO_VERSION_MASK)? 1:0;
 
-  /*Remove version bit*/
+  
   uStatus = uStatus & ( ~(WDI_PNO_VERSION_MASK));
 
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(uStatus);
@@ -25810,12 +19022,12 @@ WDI_ProcessUpdateScanParamsRsp
               "UPD Scan Parameters rsp with status: %d",
               halUpdScanParams.status);
 
-  /*Notify UMAC*/
+  
   wdiUpdateScanParamsCb(wdiStatus, pWDICtx->pRspCBUserData);
 
   return WDI_STATUS_SUCCESS;
 }
-#endif // FEATURE_WLAN_SCAN_PNO
+#endif 
 
 #ifdef WLAN_FEATURE_PACKET_FILTERING
 WDI_Status
@@ -25827,14 +19039,11 @@ WDI_8023MulticastListReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
              "%s", __func__);
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -25843,9 +19052,6 @@ WDI_8023MulticastListReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_8023_MULTICAST_LIST_REQ;
    wdiEventData.pEventData      = pwdiRcvFltPktSetMcListReqInfo;
    wdiEventData.uEventDataSize  = sizeof(*pwdiRcvFltPktSetMcListReqInfo);
@@ -25864,14 +19070,11 @@ WDI_ReceiveFilterSetFilterReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
              "%s",__func__);
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -25880,9 +19083,6 @@ WDI_ReceiveFilterSetFilterReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_RECEIVE_FILTER_SET_FILTER_REQ;
    wdiEventData.pEventData      = pwdiSetRcvPktFilterReqInfo;
    wdiEventData.uEventDataSize  = sizeof(*pwdiSetRcvPktFilterReqInfo) +
@@ -25904,14 +19104,11 @@ WDI_FilterMatchCountReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
              "%s",__func__);
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -25920,9 +19117,6 @@ WDI_FilterMatchCountReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_PACKET_COALESCING_FILTER_MATCH_COUNT_REQ;
    wdiEventData.pEventData      = pwdiRcvFltPktMatchCntReqInfo;
    wdiEventData.uEventDataSize  = sizeof(*pwdiRcvFltPktMatchCntReqInfo);
@@ -25942,14 +19136,11 @@ WDI_ReceiveFilterClearFilterReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
              "%s",__func__);
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -25958,9 +19149,6 @@ WDI_ReceiveFilterClearFilterReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_RECEIVE_FILTER_CLEAR_FILTER_REQ;
    wdiEventData.pEventData      = pwdiRcvFltPktClearReqInfo;
    wdiEventData.uEventDataSize  = sizeof(*pwdiRcvFltPktClearReqInfo);
@@ -25971,15 +19159,6 @@ WDI_ReceiveFilterClearFilterReq
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-/**
- @brief Process 8023 Multicast List Request function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_Process8023MulticastListReq
 (
@@ -26008,9 +19187,6 @@ WDI_Process8023MulticastListReq
      return WDI_STATUS_E_FAILURE; 
    }
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiFltPktSetMcListReqParamsType =
        (WDI_RcvFltPktSetMcListReqParamsType*)pEventData->pEventData)) ||
@@ -26035,9 +19211,6 @@ WDI_Process8023MulticastListReq
        return WDI_STATUS_E_FAILURE; 
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                          WDI_8023_MULTICAST_LIST_REQ,
                          sizeof(tHalRcvFltMcAddrListType),
@@ -26073,23 +19246,11 @@ WDI_Process8023MulticastListReq
 
 
    wpalMemoryFree(pRcvFltMcAddrListType);
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdi8023MulticastListCb, pEventData->pUserData,
                         WDI_8023_MULTICAST_LIST_RESP);
 }
 
-/**
- @brief Process Receive Filter Set Filter Request function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessReceiveFilterSetFilterReq
 (
@@ -26113,9 +19274,6 @@ WDI_ProcessReceiveFilterSetFilterReq
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
              "%s",__func__);
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiSetRcvPktFilterReqInfo =
        (WDI_SetRcvPktFilterReqParamsType*)pEventData->pEventData)) ||
@@ -26160,9 +19318,6 @@ WDI_ProcessReceiveFilterSetFilterReq
 
        wpalMemoryZero(pSessRcvPktFilterCfg, usSessRcvPktFilterCfgSize);
        
-        /*-----------------------------------------------------------------------
-          Get message buffer
-        -----------------------------------------------------------------------*/
 
        if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_RECEIVE_FILTER_SET_FILTER_REQ,
                               usSessRcvPktFilterCfgSize,
@@ -26216,17 +19371,17 @@ WDI_ProcessReceiveFilterSetFilterReq
                          8);
        
            WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
-                "Out:Proto %d Comp Flag %d \n",
+                "Out:Proto %d Comp Flag %d",
                 pSessRcvPktFilterCfg->paramsData[i].protocolLayer,
                 pSessRcvPktFilterCfg->paramsData[i].cmpFlag);
 
            WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
-                "Data Offset %d Data Len %d\n",
+                "Data Offset %d Data Len %d",
                 pSessRcvPktFilterCfg->paramsData[i].dataOffset,
                 pSessRcvPktFilterCfg->paramsData[i].dataLength);
        
            WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
-                "CData: %d:%d:%d:%d:%d:%d\n",
+                "CData: %d:%d:%d:%d:%d:%d",
                 pSessRcvPktFilterCfg->paramsData[i].compareData[0],
                 pSessRcvPktFilterCfg->paramsData[i].compareData[1],
                 pSessRcvPktFilterCfg->paramsData[i].compareData[2],
@@ -26235,7 +19390,7 @@ WDI_ProcessReceiveFilterSetFilterReq
                 pSessRcvPktFilterCfg->paramsData[i].compareData[5]);
        
            WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
-                "MData: %d:%d:%d:%d:%d:%d\n",
+                "MData: %d:%d:%d:%d:%d:%d",
                 pSessRcvPktFilterCfg->paramsData[i].dataMask[0],
                 pSessRcvPktFilterCfg->paramsData[i].dataMask[1],
                 pSessRcvPktFilterCfg->paramsData[i].dataMask[2],
@@ -26255,7 +19410,7 @@ WDI_ProcessReceiveFilterSetFilterReq
         wpalMemoryFree(pSessRcvPktFilterCfg);
 
    }
-   /*If SLM_SESSIONIZATION is not supported then do this */
+   
    else
    {
        usRcvPktFilterCfgSize = sizeof(tHalRcvPktFilterCfgType) + 
@@ -26277,9 +19432,6 @@ WDI_ProcessReceiveFilterSetFilterReq
 
       wpalMemoryZero(pRcvPktFilterCfg, usRcvPktFilterCfgSize);
 
-       /*-----------------------------------------------------------------------
-         Get message buffer
-       -----------------------------------------------------------------------*/
         if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_RECEIVE_FILTER_SET_FILTER_REQ,
                          usRcvPktFilterCfgSize,
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -26330,17 +19482,17 @@ WDI_ProcessReceiveFilterSetFilterReq
                     8);
 
           WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
-           "Out:Proto %d Comp Flag %d \n",
+           "Out:Proto %d Comp Flag %d",
            pRcvPktFilterCfg->paramsData[i].protocolLayer,
            pRcvPktFilterCfg->paramsData[i].cmpFlag);
 
           WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
-               "Data Offset %d Data Len %d\n",
+               "Data Offset %d Data Len %d",
                pRcvPktFilterCfg->paramsData[i].dataOffset,
                pRcvPktFilterCfg->paramsData[i].dataLength);
 
           WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
-               "CData: %d:%d:%d:%d:%d:%d\n",
+               "CData: %d:%d:%d:%d:%d:%d",
                pRcvPktFilterCfg->paramsData[i].compareData[0],
                pRcvPktFilterCfg->paramsData[i].compareData[1],
                pRcvPktFilterCfg->paramsData[i].compareData[2],
@@ -26349,7 +19501,7 @@ WDI_ProcessReceiveFilterSetFilterReq
                pRcvPktFilterCfg->paramsData[i].compareData[5]);
 
           WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
-               "MData: %d:%d:%d:%d:%d:%d\n",
+               "MData: %d:%d:%d:%d:%d:%d",
                pRcvPktFilterCfg->paramsData[i].dataMask[0],
                pRcvPktFilterCfg->paramsData[i].dataMask[1],
                pRcvPktFilterCfg->paramsData[i].dataMask[2],
@@ -26370,23 +19522,11 @@ WDI_ProcessReceiveFilterSetFilterReq
                  "%s",__func__);
        wpalMemoryFree(pRcvPktFilterCfg);
   }
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiReceiveFilterSetFilterCb, pEventData->pUserData,
                         WDI_RECEIVE_FILTER_SET_FILTER_RESP);
 }
 
-/**
- @brief Process Packet Filter Match Count Request function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessFilterMatchCountReq
 (
@@ -26408,9 +19548,6 @@ WDI_ProcessFilterMatchCountReq
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
              "%s",__func__);
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiRcvFltPktMatchCntReqParamsType =
        (WDI_RcvFltPktMatchCntReqParamsType*)pEventData->pEventData)) ||
@@ -26433,9 +19570,6 @@ WDI_ProcessFilterMatchCountReq
           return WDI_STATUS_E_FAILURE; 
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                          WDI_PACKET_COALESCING_FILTER_MATCH_COUNT_REQ,
                          sizeof(tHalRcvFltPktMatchCntReqParams),
@@ -26456,31 +19590,19 @@ WDI_ProcessFilterMatchCountReq
                    &rcvFltPktMatchCntReqParam,
                    sizeof(rcvFltPktMatchCntReqParam));
 
-   //
-   // Don't need to fill send buffer other than header
-   //
+   
+   
+   
    pWDICtx->wdiReqStatusCB     = pwdiRcvFltPktMatchCntReqParamsType->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiRcvFltPktMatchCntReqParamsType->pUserData;
 
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiFilterMatchCountCb,
                         pEventData->pUserData,
                         WDI_PACKET_COALESCING_FILTER_MATCH_COUNT_RESP);
 }
 
-/**
- @brief Process Receive Filter Clear Filter Request function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessReceiveFilterClearFilterReq
 (
@@ -26500,9 +19622,6 @@ WDI_ProcessReceiveFilterClearFilterReq
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
              "%s",__func__);
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiRcvFltPktClearReqParamsType =
        (WDI_RcvFltPktClearReqParamsType*)pEventData->pEventData)) ||
@@ -26525,9 +19644,6 @@ WDI_ProcessReceiveFilterClearFilterReq
        return WDI_STATUS_E_FAILURE; 
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                          WDI_RECEIVE_FILTER_CLEAR_FILTER_REQ,
                          sizeof(tHalRcvFltPktClearParam),
@@ -26558,23 +19674,11 @@ WDI_ProcessReceiveFilterClearFilterReq
    pWDICtx->pReqStatusUserData = pwdiRcvFltPktClearReqParamsType->pUserData;
 
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiRcvFltPktClearFilterCb, pEventData->pUserData,
                         WDI_RECEIVE_FILTER_CLEAR_FILTER_RESP);
 }
 
-/**
- @brief Process 8023 Multicast List Response function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_Process8023MulticastListRsp
 (
@@ -26586,14 +19690,11 @@ WDI_Process8023MulticastListRsp
    WDI_8023MulticastListCb wdi8023MulticastListCb;
    tHalRcvFltPktSetMcListRspType halRcvFltPktSetMcListRsp;
    WDI_RcvFltPktSetMcListRspParamsType  wdiRcvFltPktSetMcListRspInfo;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
              "%s",__func__);
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
@@ -26605,9 +19706,6 @@ WDI_Process8023MulticastListRsp
 
    wdi8023MulticastListCb = (WDI_8023MulticastListCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
    {
         wpalMemoryCopy( &halRcvFltPktSetMcListRsp,
@@ -26625,22 +19723,12 @@ WDI_Process8023MulticastListRsp
        wdiRcvFltPktSetMcListRspInfo.wdiStatus = WDI_HAL_2_WDI_STATUS(halStatus);
    }
 
-   /*Notify UMAC*/
+   
    wdi8023MulticastListCb(&wdiRcvFltPktSetMcListRspInfo, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
 }
 
-/**
- @brief Process Set Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessReceiveFilterSetFilterRsp
 (
@@ -26652,14 +19740,11 @@ WDI_ProcessReceiveFilterSetFilterRsp
    WDI_ReceiveFilterSetFilterCb wdiReceiveFilterSetFilterCb;
    tHalSetPktFilterRspParams    halSetPktFilterRspParams;
    WDI_SetRcvPktFilterRspParamsType wdiSetRcvPktFilterRspInfo;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
           "%s",__func__);
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
@@ -26672,9 +19757,6 @@ WDI_ProcessReceiveFilterSetFilterRsp
    wdiReceiveFilterSetFilterCb = (WDI_ReceiveFilterSetFilterCb)pWDICtx->
                                                                    pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
    {
         wpalMemoryCopy( &halSetPktFilterRspParams,
@@ -26689,21 +19771,12 @@ WDI_ProcessReceiveFilterSetFilterRsp
        halStatus = *((eHalStatus*)pEventData->pEventData);
        wdiSetRcvPktFilterRspInfo.wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
     }
-   /*Notify UMAC*/
+   
    wdiReceiveFilterSetFilterCb(&wdiSetRcvPktFilterRspInfo, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
 }
 
-/**
- @brief Process Packet Filter Match Count Response function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessFilterMatchCountRsp
 (
@@ -26716,14 +19789,11 @@ WDI_ProcessFilterMatchCountRsp
    tHalRcvFltPktMatchRspParams  halRcvFltrPktMatachRsp;
    WDI_RcvFltPktMatchCntRspParamsType wdiRcvFltPktMatchRspParams;
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
              "%s",__func__);
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
@@ -26735,9 +19805,6 @@ WDI_ProcessFilterMatchCountRsp
 
    wdiFilterMatchCountCb = (WDI_FilterMatchCountCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
    {
         wpalMemoryCopy( &halRcvFltrPktMatachRsp,
@@ -26753,21 +19820,12 @@ WDI_ProcessFilterMatchCountRsp
        wdiRcvFltPktMatchRspParams.wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
    }
 
-   /*Notify UMAC*/
+   
    wdiFilterMatchCountCb(&wdiRcvFltPktMatchRspParams, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
 }
 
-/**
- @brief Process Receive Filter Clear Filter Response function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessReceiveFilterClearFilterRsp
 (
@@ -26779,14 +19837,11 @@ WDI_ProcessReceiveFilterClearFilterRsp
    WDI_ReceiveFilterClearFilterCb wdiReceiveFilterClearFilterCb;
    tHalRcvFltPktClearParam  halRcvFltPktClearRspMsg;
    WDI_RcvFltPktClearRspParamsType wdiRcvFltPktClearRspParamsType;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
              "%s",__func__);
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
@@ -26799,9 +19854,6 @@ WDI_ProcessReceiveFilterClearFilterRsp
    wdiReceiveFilterClearFilterCb = (WDI_ReceiveFilterClearFilterCb)pWDICtx->
                                                                  pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
    {
        wpalMemoryCopy( &halRcvFltPktClearRspMsg,
@@ -26819,24 +19871,13 @@ WDI_ProcessReceiveFilterClearFilterRsp
        wdiRcvFltPktClearRspParamsType.wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
     }
 
-   /*Notify UMAC*/
+   
    wdiReceiveFilterClearFilterCb(&wdiRcvFltPktClearRspParamsType, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
 }
-#endif // WLAN_FEATURE_PACKET_FILTERING
+#endif 
 
-/**
- @brief Process Shutdown Rsp function
-        There is no shutdown response comming from HAL
-        - function just kept for simmetry
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessShutdownRsp
 (
@@ -26844,27 +19885,10 @@ WDI_ProcessShutdownRsp
   WDI_EventInfoType*     pEventData
 )
 {
-  /*There is no shutdown response comming from HAL - function just kept for
-  simmetry */
   WDI_ASSERT(0);
   return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessShutdownRsp*/
+}
 
-/**
- @brief WDI_SetPowerParamsReq
-
- @param pwdiPowerParamsReqParams: the Set Power Params as
-                      specified by the Device Interface
-
-        wdiPowerParamsCb: callback for passing back the response
-        of the Set Power Params operation received from the
-        device
-
-        pUserData: user data will be passed back with the
-        callback
-
- @return Result of the function call
-*/
 WDI_Status
 WDI_SetPowerParamsReq
 (
@@ -26874,11 +19898,8 @@ WDI_SetPowerParamsReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -26887,9 +19908,6 @@ WDI_SetPowerParamsReq
      return WDI_STATUS_E_NOT_ALLOWED;
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_SET_POWER_PARAMS_REQ;
    wdiEventData.pEventData      = pwdiPowerParamsReqParams;
    wdiEventData.uEventDataSize  = sizeof(*pwdiPowerParamsReqParams);
@@ -26897,17 +19915,8 @@ WDI_SetPowerParamsReq
    wdiEventData.pUserData       = pUserData;
 
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
-}/*WDI_SetPowerParamsReq*/
+}
 
-/**
- @brief Process Set Power Params Request function
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetPowerParamsReq
 (
@@ -26922,9 +19931,6 @@ WDI_ProcessSetPowerParamsReq
    wpt_uint16                       usSendSize               = 0;
    tSetPowerParamsType              powerParams;
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiPowerParamsReqParams = (WDI_SetPowerParamsReqParamsType*)pEventData->pEventData)) ||
        ( NULL == (wdiPowerParamsCb   = (WDI_SetPowerParamsCb)pEventData->pCBfnc)))
@@ -26935,9 +19941,6 @@ WDI_ProcessSetPowerParamsReq
       return WDI_STATUS_E_FAILURE;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_POWER_PARAMS_REQ,
                          sizeof(powerParams),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -26950,31 +19953,31 @@ WDI_ProcessSetPowerParamsReq
       return WDI_STATUS_E_FAILURE;
    }
 
-  /*  Ignore DTIM */
+  
   powerParams.uIgnoreDTIM =
     pwdiPowerParamsReqParams->wdiSetPowerParamsInfo.uIgnoreDTIM;
 
-  /*DTIM Period*/
+  
   powerParams.uDTIMPeriod =
     pwdiPowerParamsReqParams->wdiSetPowerParamsInfo.uDTIMPeriod;
 
-  /* Listen Interval */
+  
   powerParams.uListenInterval=
     pwdiPowerParamsReqParams->wdiSetPowerParamsInfo.uListenInterval;
 
-  /* Broadcast Multicas Filter  */
+  
   powerParams.uBcastMcastFilter =
     pwdiPowerParamsReqParams->wdiSetPowerParamsInfo.uBcastMcastFilter;
 
-  /* Beacon Early Termination */
+  
   powerParams.uEnableBET =
     pwdiPowerParamsReqParams->wdiSetPowerParamsInfo.uEnableBET;
 
-  /* Beacon Early Termination Interval */
+  
   powerParams.uBETInterval =
     pwdiPowerParamsReqParams->wdiSetPowerParamsInfo.uBETInterval;
 
-  /* MAX LI for modulated DTIM */
+  
   powerParams.uMaxLIModulatedDTIM =
   pwdiPowerParamsReqParams->wdiSetPowerParamsInfo.uMaxLIModulatedDTIM;
 
@@ -26985,23 +19988,10 @@ WDI_ProcessSetPowerParamsReq
    pWDICtx->wdiReqStatusCB     = pwdiPowerParamsReqParams->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiPowerParamsReqParams->pUserData;
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize,
                         wdiPowerParamsCb, pEventData->pUserData, WDI_SET_POWER_PARAMS_RESP);
 }
 
-/**
- @brief Process Power Params Rsp function (called when a
-        response is being received over the bus from HAL)
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetPowerParamsRsp
 (
@@ -27012,11 +20002,8 @@ WDI_ProcessSetPowerParamsRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    WDI_SetPowerParamsCb             wdiPowerParamsCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
@@ -27028,27 +20015,15 @@ WDI_ProcessSetPowerParamsRsp
 
    wdiPowerParamsCb = (WDI_SetPowerParamsCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiPowerParamsCb(wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetPowerParamsRsp*/
+}
 
-/**
- @brief WDI_dhcpStartInd
-        Host will send an event to the FW when DHCP is initiated
-
- @param
-        WDI_DHCPInd: DHCP Indication
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_dhcpStartInd
 (
@@ -27057,9 +20032,6 @@ WDI_dhcpStartInd
 {
    WDI_EventInfoType   wdiEventData;
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -27070,7 +20042,7 @@ WDI_dhcpStartInd
 
    wdiEventData.wdiRequest      = WDI_DHCP_START_IND;
    wdiEventData.pEventData      = wdiDHCPInd;
-   wdiEventData.uEventDataSize  = sizeof(wdiDHCPInd);
+   wdiEventData.uEventDataSize  = sizeof(WDI_DHCPInd);
    wdiEventData.pCBfnc          = NULL;
    wdiEventData.pUserData       = NULL;
 
@@ -27078,15 +20050,6 @@ WDI_dhcpStartInd
 }
 
 
-/**
- @brief WDI_dhcpStopInd
-        Host will send an event to the FW when DHCP is completed
-
- @param
-        WDI_DHCPInd: DHCP Indication
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_dhcpStopInd
 (
@@ -27095,9 +20058,6 @@ WDI_dhcpStopInd
 {
    WDI_EventInfoType   wdiEventData;
 
-   /*------------------------------------------------------------------------
-     Sanity Check
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -27108,7 +20068,7 @@ WDI_dhcpStopInd
 
    wdiEventData.wdiRequest      = WDI_DHCP_STOP_IND;
    wdiEventData.pEventData      = wdiDHCPInd;
-   wdiEventData.uEventDataSize  = sizeof(wdiDHCPInd);
+   wdiEventData.uEventDataSize  = sizeof(WDI_DHCPInd);
    wdiEventData.pCBfnc          = NULL;
    wdiEventData.pUserData       = NULL;
 
@@ -27116,15 +20076,6 @@ WDI_dhcpStopInd
 }
 
 
-/**
- @brief Process DHCP Start Indication message and post it to HAL
-
- @param  pWDICtx:    pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDHCPStartInd
 (
@@ -27138,15 +20089,14 @@ WDI_ProcessDHCPStartInd
   wpt_uint16              usLen              = 0;
   WDI_DHCPInd*            pwdiDHCPInd        = NULL;
   tDHCPInfo*              pDHCPInfo;
+  WDI_Status              wdiStatus;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
          "%s", __func__);
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ))
   {
      WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
@@ -27155,9 +20105,6 @@ WDI_ProcessDHCPStartInd
      return WDI_STATUS_E_FAILURE;
   }
   pwdiDHCPInd = (WDI_DHCPInd*)pEventData->pEventData;
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
 
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                         WDI_DHCP_START_IND,
@@ -27172,7 +20119,7 @@ WDI_ProcessDHCPStartInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  pDHCPInfo = (tDHCPInfo*)pSendBuffer+usDataOffset;
+  pDHCPInfo = (tDHCPInfo*)(pSendBuffer+usDataOffset);
   pDHCPInfo->device_mode = pwdiDHCPInd->device_mode;
   wpalMemoryCopy(pDHCPInfo->macAddr, pwdiDHCPInd->macAddr,
                                         WDI_MAC_ADDR_LEN);
@@ -27180,22 +20127,10 @@ WDI_ProcessDHCPStartInd
   pWDICtx->pReqStatusUserData = NULL;
   pWDICtx->pfncRspCB = NULL;
 
- /*-------------------------------------------------------------------------
-    Send DHCP Start Indication to HAL
-  -------------------------------------------------------------------------*/
-  return  WDI_SendIndication( pWDICtx, pSendBuffer, usSendSize);
+  wdiStatus = WDI_SendIndication( pWDICtx, pSendBuffer, usSendSize);
+  return (wdiStatus != WDI_STATUS_SUCCESS) ? wdiStatus:WDI_STATUS_SUCCESS_SYNC;
+}
 
-}/*WDI_ProcessDHCPStartInd*/
-
-/**
- @brief Process DHCP Stop indication message and post it to HAL
-
- @param  pWDICtx:    pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessDHCPStopInd
 (
@@ -27209,15 +20144,13 @@ WDI_ProcessDHCPStopInd
   wpt_uint16              usLen              = 0;
   WDI_DHCPInd*            pwdiDHCPInd        = NULL;
   tDHCPInfo*              pDHCPInfo;
+  WDI_Status              wdiStatus;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
          "%s", __func__);
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
 
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ))
   {
@@ -27227,9 +20160,6 @@ WDI_ProcessDHCPStopInd
      return WDI_STATUS_E_FAILURE;
   }
   pwdiDHCPInd = (WDI_DHCPInd*)pEventData->pEventData;
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
 
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                         WDI_DHCP_STOP_IND,
@@ -27244,46 +20174,20 @@ WDI_ProcessDHCPStopInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  pDHCPInfo = (tDHCPInfo*)pSendBuffer+usDataOffset;
+  pDHCPInfo = (tDHCPInfo*)(pSendBuffer+usDataOffset);
   pDHCPInfo->device_mode = pwdiDHCPInd->device_mode;
   wpalMemoryCopy(pDHCPInfo->macAddr, pwdiDHCPInd->macAddr,
                                         WDI_MAC_ADDR_LEN);
 
   pWDICtx->pReqStatusUserData = NULL;
   pWDICtx->pfncRspCB = NULL;
- /*-------------------------------------------------------------------------
-    Send DHCP Stop indication to HAL
-  -------------------------------------------------------------------------*/
-  return  WDI_SendIndication( pWDICtx, pSendBuffer, usSendSize);
+  wdiStatus = WDI_SendIndication( pWDICtx, pSendBuffer, usSendSize);
+  return (wdiStatus != WDI_STATUS_SUCCESS) ? wdiStatus:WDI_STATUS_SUCCESS_SYNC;
 
-}/*WDI_ProcessDHCPStopInd*/
+}
 
 
 #ifdef WLAN_FEATURE_GTK_OFFLOAD
-/**
- @brief WDI_GTKOffloadReq will be called when the upper MAC 
-        wants to set GTK Rekey Counter while in power save. Upon
-        the call of this API the WLAN DAL will pack and send a
-        HAL GTK offload request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state. 
-
- WDI_PostAssocReq must have been called.
-
- @param pwdiGtkOffloadParams: the GTK offload as specified 
-                      by the Device Interface
-  
-        wdiGtkOffloadCb: callback for passing back the response
-        of the GTK offload operation received from the device
-  
-        pUserData: user data will be passed back with the
-        callback 
-  
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status 
 WDI_GTKOffloadReq
 (
@@ -27293,11 +20197,8 @@ WDI_GTKOffloadReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check 
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -27306,9 +20207,6 @@ WDI_GTKOffloadReq
      return WDI_STATUS_E_NOT_ALLOWED; 
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_GTK_OFFLOAD_REQ;
    wdiEventData.pEventData      = pwdiGtkOffloadReqMsg; 
    wdiEventData.uEventDataSize  = sizeof(*pwdiGtkOffloadReqMsg);
@@ -27319,32 +20217,6 @@ WDI_GTKOffloadReq
 }
 
 
-/**
- @brief WDI_GTKOffloadGetInfoReq will be called when the upper 
-          MAC wants to get GTK Rekey Counter while in power save.
-          Upon the call of this API the WLAN DAL will pack and
-          send a HAL GTK offload request message to the lower RIVA
-        sub-system if DAL is in state STARTED.
-
-        In state BUSY this request will be queued. Request won't
-        be allowed in any other state. 
-
- WDI_PostAssocReq must have been called.
-
- @param pwdiGtkOffloadGetInfoReqMsg: the GTK Offload 
-                        Information Message as specified by the
-                        Device Interface
-  
-          wdiGtkOffloadGetInfoCb: callback for passing back the
-          response of the GTK offload operation received from the
-          device
-  
-        pUserData: user data will be passed back with the
-        callback 
-  
- @see WDI_PostAssocReq
- @return Result of the function call
-*/
 WDI_Status 
 WDI_GTKOffloadGetInfoReq
 (
@@ -27354,11 +20226,8 @@ WDI_GTKOffloadGetInfoReq
 )
 {
    WDI_EventInfoType      wdiEventData;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*------------------------------------------------------------------------
-     Sanity Check 
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
      WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -27367,9 +20236,6 @@ WDI_GTKOffloadGetInfoReq
      return WDI_STATUS_E_NOT_ALLOWED; 
    }
 
-   /*------------------------------------------------------------------------
-     Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    wdiEventData.wdiRequest      = WDI_GTK_OFFLOAD_GETINFO_REQ;
    wdiEventData.pEventData      = pwdiGtkOffloadGetInfoReqMsg; 
    wdiEventData.uEventDataSize  = sizeof(*pwdiGtkOffloadGetInfoReqMsg);
@@ -27380,15 +20246,6 @@ WDI_GTKOffloadGetInfoReq
 }
 
 
-/**
- @brief Process set GTK Offload Request function 
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         pEventData:      pointer to the event information structure 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessGTKOffloadReq
 ( 
@@ -27405,11 +20262,8 @@ WDI_ProcessGTKOffloadReq
    wpt_uint8                ucCurrentSessionId = 0;
    WDI_BSSSessionType*      pBSSSes = NULL;
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check 
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiGtkOffloadReqMsg = (WDI_GtkOffloadReqMsg*)pEventData->pEventData)) ||
        ( NULL == (wdiGtkOffloadCb   = (WDI_GtkOffloadCb)pEventData->pCBfnc)))
@@ -27420,9 +20274,6 @@ WDI_ProcessGTKOffloadReq
       goto failRequest;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_GTK_OFFLOAD_REQ, 
                          sizeof(gtkOffloadReqParams),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -27435,9 +20286,9 @@ WDI_ProcessGTKOffloadReq
       goto failRequest;
    }
 
-   //
-   // Fill gtkOffloadReqParams from pwdiGtkOffloadReqMsg->gtkOffloadReqParams
-   //
+   
+   
+   
    ucCurrentSessionId = WDI_FindAssocSession( pWDICtx, 
                                pwdiGtkOffloadReqMsg->gtkOffloadReqParams.bssId, 
                                &pBSSSes);  
@@ -27451,11 +20302,11 @@ WDI_ProcessGTKOffloadReq
    gtkOffloadReqParams.bssIdx = pBSSSes->ucBSSIdx;
    
    gtkOffloadReqParams.ulFlags = pwdiGtkOffloadReqMsg->gtkOffloadReqParams.ulFlags;
-   // Copy KCK
+   
    wpalMemoryCopy(&(gtkOffloadReqParams.aKCK[0]), &(pwdiGtkOffloadReqMsg->gtkOffloadReqParams.aKCK[0]), 16);
-   // Copy KEK
+   
    wpalMemoryCopy(&(gtkOffloadReqParams.aKEK[0]), &(pwdiGtkOffloadReqMsg->gtkOffloadReqParams.aKEK[0]), 16);
-   // Copy KeyReplayCounter
+   
    wpalMemoryCopy(&(gtkOffloadReqParams.ullKeyReplayCounter), &(pwdiGtkOffloadReqMsg->gtkOffloadReqParams.ullKeyReplayCounter), sizeof(v_U64_t));
 
    wpalMemoryCopy( pSendBuffer+usDataOffset, 
@@ -27465,31 +20316,19 @@ WDI_ProcessGTKOffloadReq
    pWDICtx->wdiReqStatusCB     = pwdiGtkOffloadReqMsg->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiGtkOffloadReqMsg->pUserData; 
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL 
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize, 
                         wdiGtkOffloadCb, pEventData->pUserData, WDI_GTK_OFFLOAD_RESP); 
 
 fail:
-   // Release the message buffer so we don't leak
+   
    wpalMemoryFree(pSendBuffer);
 
 failRequest:
-   //WDA should have failure check to avoid the memory leak
+   
    return WDI_STATUS_E_FAILURE;
 }
 
 
-/**
- @brief Process GTK Offload Get Information Request function
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         pEventData:      pointer to the event information structure 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessGTKOffloadGetInfoReq
 ( 
@@ -27506,9 +20345,6 @@ WDI_ProcessGTKOffloadGetInfoReq
    wpt_uint8                        ucCurrentSessionId = 0;
    WDI_BSSSessionType*              pBSSSes = NULL;
 
-   /*-------------------------------------------------------------------------
-     Sanity check 
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiGtkOffloadGetInfoReqMsg = (WDI_GtkOffloadGetInfoReqMsg*)pEventData->pEventData)) ||
        ( NULL == (wdiGtkOffloadGetInfoCb = (WDI_GtkOffloadGetInfoCb)pEventData->pCBfnc)))
@@ -27519,9 +20355,6 @@ WDI_ProcessGTKOffloadGetInfoReq
       goto failRequest;
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_GTK_OFFLOAD_GETINFO_REQ, 
                          sizeof(halGtkOffloadGetInfoReqParams),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -27544,9 +20377,9 @@ WDI_ProcessGTKOffloadGetInfoReq
    }
    halGtkOffloadGetInfoReqParams.bssIdx = pBSSSes->ucBSSIdx;
 
-   //
-   // Don't need to fill send buffer other than header
-   //
+   
+   
+   
    wpalMemoryCopy( pSendBuffer+usDataOffset, 
                    &halGtkOffloadGetInfoReqParams, 
                    sizeof(halGtkOffloadGetInfoReqParams)); 
@@ -27554,30 +20387,17 @@ WDI_ProcessGTKOffloadGetInfoReq
    pWDICtx->wdiReqStatusCB     = pwdiGtkOffloadGetInfoReqMsg->wdiReqStatusCB;
    pWDICtx->pReqStatusUserData = pwdiGtkOffloadGetInfoReqMsg->pUserData; 
 
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL 
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize, 
                         wdiGtkOffloadGetInfoCb, pEventData->pUserData, WDI_GTK_OFFLOAD_GETINFO_RESP); 
 fail:
-   // Release the message buffer so we don't leak
+   
    wpalMemoryFree(pSendBuffer);
 
 failRequest:
-   //WDA should have failure check to avoid the memory leak
+   
    return WDI_STATUS_E_FAILURE;
 }
 
-/**
- @brief Process host offload Rsp function (called when a
-        response is being received over the bus from HAL)
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         pEventData:      pointer to the event information structure 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessGtkOffloadRsp
 ( 
@@ -27590,9 +20410,6 @@ WDI_ProcessGtkOffloadRsp
    tHalGtkOffloadRspParams halGtkOffloadRspParams;
    WDI_GtkOffloadRspParams  wdiGtkOffloadRsparams;
 
-   /*-------------------------------------------------------------------------
-     Sanity check 
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -27604,9 +20421,6 @@ WDI_ProcessGtkOffloadRsp
 
    wdiGtkOffloadCb = (WDI_GtkOffloadCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
    {
         wpalMemoryCopy( &halGtkOffloadRspParams,
@@ -27624,21 +20438,12 @@ WDI_ProcessGtkOffloadRsp
        wdiGtkOffloadRsparams.ulStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
    }
 
-   /*Notify UMAC*/
+   
    wdiGtkOffloadCb( &wdiGtkOffloadRsparams, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS; 
 }
 
-/**
- @brief Process GTK Offload Get Information Response function
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         pEventData:      pointer to the event information structure 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessGTKOffloadGetInfoRsp
 ( 
@@ -27653,9 +20458,6 @@ WDI_ProcessGTKOffloadGetInfoRsp
    WDI_BSSSessionType*              pBSSSes = NULL;
 
 
-   /*-------------------------------------------------------------------------
-     Sanity check 
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
@@ -27667,9 +20469,6 @@ WDI_ProcessGTKOffloadGetInfoRsp
 
    wdiGtkOffloadGetInfoCb = (WDI_GtkOffloadGetInfoCb)pWDICtx->pfncRspCB;
 
-  /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    if(WDI_getFwWlanFeatCaps(SLM_SESSIONIZATION))
    {
        wpalMemoryCopy( &halGtkOffloadGetInfoRspParams,
@@ -27709,14 +20508,14 @@ WDI_ProcessGTKOffloadGetInfoRsp
        halStatus = *((eHalStatus*)pEventData->pEventData);
        wdiGtkOffloadGetInfoRsparams.ulStatus   =   WDI_HAL_2_WDI_STATUS(halStatus); 
     }
-   /*Notify UMAC*/
-   //wdiUpdateScanParamsCb(wdiStatus, pWDICtx->pRspCBUserData);
-   //wdiReceiveFilterClearFilterCb(wdiStatus, pWDICtx->pRspCBUserData);
+   
+   
+   
    wdiGtkOffloadGetInfoCb(&wdiGtkOffloadGetInfoRsparams, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS; 
 }
-#endif // WLAN_FEATURE_GTK_OFFLOAD
+#endif 
 
 #ifdef WLAN_WAKEUP_EVENTS
 WDI_Status
@@ -27733,9 +20532,6 @@ WDI_ProcessWakeReasonInd
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
             "+%s", __func__);
 
-  /*-------------------------------------------------------------------------
-    Sanity check 
-  -------------------------------------------------------------------------*/
   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ))
   {
@@ -27745,14 +20541,11 @@ WDI_ProcessWakeReasonInd
      return WDI_STATUS_E_FAILURE; 
   }
 
-  /*-------------------------------------------------------------------------
-    Extract indication and send it to UMAC
-  -------------------------------------------------------------------------*/
   pWakeReasonParams = (tpWakeReasonParams)(pEventData->pEventData);
   
   allocSize = sizeof(WDI_LowLevelIndType) + (pWakeReasonParams->ulStoredDataLen - 1);
 
-  //Allocate memory for WDI_WakeReasonIndType structure
+  
   pWdiInd = wpalMemoryAllocate(allocSize) ;
 
   if(NULL == pWdiInd)
@@ -27766,8 +20559,8 @@ WDI_ProcessWakeReasonInd
 
   wpalMemoryZero(pWdiInd, allocSize);
 
-  /* Fill in the indication parameters*/
-  // Fill wdiInd.wdiIndicationData.wakeReasonInd structure from wakeReasonInd.wakeReasonParams
+  
+  
   pWdiInd->wdiIndicationType = WDI_WAKE_REASON_IND; 
   pWdiInd->wdiIndicationData.wdiWakeReasonInd.ulReason = pWakeReasonParams->ulReason;
   pWdiInd->wdiIndicationData.wdiWakeReasonInd.ulReasonArg = pWakeReasonParams->ulReasonArg;
@@ -27780,11 +20573,11 @@ WDI_ProcessWakeReasonInd
 
   if ( pWDICtx->wdiLowLevelIndCB )
   {
-    /*Notify UMAC*/
+    
     pWDICtx->wdiLowLevelIndCB( pWdiInd, pWDICtx->pIndUserData );
   }
   
-  //Free memory allocated for WDI_WakeReasonIndType structure
+  
   wpalMemoryFree(pWdiInd);
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
@@ -27792,7 +20585,7 @@ WDI_ProcessWakeReasonInd
 
   return WDI_STATUS_SUCCESS; 
 }
-#endif // WLAN_WAKEUP_EVENTS
+#endif 
 
 void WDI_GetWcnssCompiledApiVersion
 (
@@ -27805,16 +20598,6 @@ void WDI_GetWcnssCompiledApiVersion
     pWcnssApiVersion->revision = WLAN_HAL_VER_REVISION;
 }
 
-/**
- @brief Process Set TM Level Rsp function (called when a
-        response is being received over the bus from HAL)
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         pEventData:      pointer to the event information structure 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetTmLevelRsp
 ( 
@@ -27825,11 +20608,8 @@ WDI_ProcessSetTmLevelRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    WDI_SetTmLevelCb     wdiSetTmLevelCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check 
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
@@ -27841,27 +20621,15 @@ WDI_ProcessSetTmLevelRsp
 
    wdiSetTmLevelCb = (WDI_SetPowerParamsCb)pWDICtx->pfncRspCB; 
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus); 
 
-   /*Notify UMAC*/
+   
    wdiSetTmLevelCb(wdiStatus, pWDICtx->pRspCBUserData);
 
    return WDI_STATUS_SUCCESS; 
-}/*WDI_ProcessSetTmLevelRsp*/
+}
 
-/**
- @brief Process Set Thermal Mitigation level Changed request
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         pEventData:      pointer to the event information structure 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetTmLevelReq
 (
@@ -27876,9 +20644,6 @@ WDI_ProcessSetTmLevelReq
    wpt_uint16                       usSendSize        = 0;
    tSetThermalMitgationType         halTmMsg;
 
-   /*-------------------------------------------------------------------------
-     Sanity check 
-   -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiSetTmLevelReq = (WDI_SetTmLevelReqType*)pEventData->pEventData)) ||
        ( NULL == (wdiSetTmLevelCb   = (WDI_SetTmLevelCb)pEventData->pCBfnc)))
@@ -27889,9 +20654,6 @@ WDI_ProcessSetTmLevelReq
       return WDI_STATUS_E_FAILURE; 
    }
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_SET_TM_LEVEL_REQ, 
                          sizeof(halTmMsg),
                          &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -27913,16 +20675,10 @@ WDI_ProcessSetTmLevelReq
 
    pWDICtx->pReqStatusUserData = pwdiSetTmLevelReq->pUserData; 
    pWDICtx->pfncRspCB = NULL;
-   /*-------------------------------------------------------------------------
-     Send Get STA Request to HAL 
-   -------------------------------------------------------------------------*/
    return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize, 
                         wdiSetTmLevelCb, pEventData->pUserData, WDI_SET_TM_LEVEL_RESP); 
 }
 
-/* Fill the value from the global features enabled array to the global capabilities
- * bitmap struct 
- */
 static void 
 FillAllFeatureCaps(tWlanFeatCaps *fCaps, placeHolderInCapBitmap *enabledFeat, wpt_int8 len)
 {
@@ -27933,24 +20689,6 @@ FillAllFeatureCaps(tWlanFeatCaps *fCaps, placeHolderInCapBitmap *enabledFeat, wp
    }
 }
 
-/**
- @brief WDI_featureCapsExchangeReq
-        Post feature capability bitmap exchange event.
-        Host will send its own capability to FW in this req and 
-        expect FW to send its capability back as a bitmap in Response
- 
- @param 
-  
-        wdiFeatureCapsExchangeCb: callback called on getting the response.
-        It is kept to mantain similarity between WDI reqs and if needed, can
-        be used in future. Currently, It is set to NULL
-  
-        pUserData: user data will be passed back with the
-        callback 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_featureCapsExchangeReq
 (
@@ -27961,9 +20699,6 @@ WDI_featureCapsExchangeReq
    WDI_EventInfoType   wdiEventData;
    wpt_int32           fCapsStructSize;
    
-   /*------------------------------------------------------------------------
-     Sanity Check 
-   ------------------------------------------------------------------------*/
    if ( eWLAN_PAL_FALSE == gWDIInitialized )
    {
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -27972,26 +20707,23 @@ WDI_featureCapsExchangeReq
       return WDI_STATUS_E_NOT_ALLOWED; 
    }
 
-   /* Allocate memory separately for global variable carrying FW caps */
+   
    fCapsStructSize = sizeof(tWlanFeatCaps);
    gpHostWlanFeatCaps = wpalMemoryAllocate(fCapsStructSize);
    if ( NULL ==  gpHostWlanFeatCaps )
    {
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
-               "Cannot allocate memory for host capability info\n"); 
+               "Cannot allocate memory for host capability info");
       WDI_ASSERT(0);
       return WDI_STATUS_MEM_FAILURE;
    }
 
    wpalMemoryZero(gpHostWlanFeatCaps, fCapsStructSize);
    
-   /*------------------------------------------------------------------------
-   Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
    FillAllFeatureCaps(gpHostWlanFeatCaps, supportEnabledFeatures,
       (sizeof(supportEnabledFeatures)/sizeof(supportEnabledFeatures[0])));
    WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_ERROR,
-      "Host caps %x %x %x %x\n",
+      "Host caps %x %x %x %x",
       gpHostWlanFeatCaps->featCaps[0],
       gpHostWlanFeatCaps->featCaps[1],
       gpHostWlanFeatCaps->featCaps[2],
@@ -28008,13 +20740,6 @@ WDI_featureCapsExchangeReq
    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-/**
- @brief Disable Active mode offload in Host
- 
- @param  void
- @see
- @return void
-*/
 void
 WDI_disableCapablityFeature(wpt_uint8 feature_index)
 {
@@ -28022,15 +20747,6 @@ WDI_disableCapablityFeature(wpt_uint8 feature_index)
    return;
 }
 
-/**
- @brief Process Host-FW Capability Exchange Request function
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         pEventData:      pointer to the event information structure 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessFeatureCapsExchangeReq
 ( 
@@ -28043,15 +20759,12 @@ WDI_ProcessFeatureCapsExchangeReq
   wpt_uint16              usSendSize         = 0;
   wpt_uint16              usLen              = 0; 
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
          "%s", __func__);
 
-  /*-------------------------------------------------------------------------
-    Sanity check 
-  -------------------------------------------------------------------------*/
-  /* Call back function is NULL since not required for cap exchange req */
+  
   if (( NULL == pEventData ) ||
       ( NULL == (tWlanFeatCaps *)pEventData->pEventData))
   {
@@ -28061,9 +20774,6 @@ WDI_ProcessFeatureCapsExchangeReq
      return WDI_STATUS_E_FAILURE; 
   }
 
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   usLen = sizeof(tWlanFeatCaps);
 
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
@@ -28080,36 +20790,24 @@ WDI_ProcessFeatureCapsExchangeReq
   }
 
   WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_INFO,
-       "Host Caps - %x %x %x %x\n",
+       "Host Caps - %x %x %x %x",
       ((tWlanFeatCaps *)pEventData->pEventData)->featCaps[0],
       ((tWlanFeatCaps *)pEventData->pEventData)->featCaps[1],
       ((tWlanFeatCaps *)pEventData->pEventData)->featCaps[2],
       ((tWlanFeatCaps *)pEventData->pEventData)->featCaps[3]
     );
 
-  /* Copy host caps after the offset in the send buffer */  
+    
   wpalMemoryCopy( pSendBuffer+usDataOffset, 
                   (tWlanFeatCaps *)pEventData->pEventData, 
                   usLen); 
 
-  /*-------------------------------------------------------------------------
-    Send Start Request to HAL 
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize, 
                        (WDI_StartRspCb)pEventData->pCBfnc,
                        pEventData->pUserData, WDI_FEATURE_CAPS_EXCHANGE_RESP);
   
-}/*WDI_ProcessFeatureCapsExchangeReq*/
+}
 
-/**
- @brief Process Host-FW Capability Exchange Response function
- 
- @param  pWDICtx:         pointer to the WLAN DAL context 
-         pEventData:      pointer to the event information structure 
-  
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessFeatureCapsExchangeRsp
 ( 
@@ -28119,47 +20817,38 @@ WDI_ProcessFeatureCapsExchangeRsp
 {
    WDI_featureCapsExchangeCb    wdiFeatureCapsExchangeCb;   
    wpt_int32                   fCapsStructSize;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
           "%s", __func__);
 
-   /*-------------------------------------------------------------------------
-     Sanity check 
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData ))
    {
-      /* It will go here when riva is old (doesn't understand this msg) and host is new */
+      
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
                   "%s: Invalid parameters", __func__);
       WDI_ASSERT(0);
       return WDI_STATUS_E_FAILURE; 
    }
 
-   /* Allocate memory separately for global variable carrying FW caps */
+   
    fCapsStructSize = sizeof(tWlanFeatCaps);
    gpFwWlanFeatCaps = wpalMemoryAllocate(fCapsStructSize);   
    if ( NULL ==  gpFwWlanFeatCaps )
    {
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
-               "Cannot allocate memory for host capability info\n"); 
+               "Cannot allocate memory for host capability info");
       WDI_ASSERT(0);
       return WDI_STATUS_MEM_FAILURE;
    }
 
-   /*-------------------------------------------------------------------------
-     Unpack HAL Response Message - the header was already extracted by the
-     main Response Handling procedure 
-   -------------------------------------------------------------------------*/   
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
+   
 
    wpalMemoryCopy(gpFwWlanFeatCaps,(tWlanFeatCaps *) pEventData -> pEventData,
                     fCapsStructSize);
    WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_ERROR,
-      "FW caps %x %x %x %x\n",
+      "FW caps %x %x %x %x",
       gpFwWlanFeatCaps->featCaps[0],
       gpFwWlanFeatCaps->featCaps[1],
       gpFwWlanFeatCaps->featCaps[2],
@@ -28169,7 +20858,7 @@ WDI_ProcessFeatureCapsExchangeRsp
    WDI_TraceHostFWCapabilities(gpFwWlanFeatCaps->featCaps);
    wdiFeatureCapsExchangeCb = (WDI_featureCapsExchangeCb) pWDICtx -> pfncRspCB; 
 
-   /*Notify UMAC - there is no callback right now but can be used in future if reqd */
+   
    if (wdiFeatureCapsExchangeCb != NULL)
       wdiFeatureCapsExchangeCb(NULL, NULL);
 
@@ -28188,11 +20877,8 @@ WDI_ProcessUpdateVHTOpModeRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
        ( NULL == pEventData->pEventData))
    {
@@ -28203,35 +20889,15 @@ WDI_ProcessUpdateVHTOpModeRsp
    }
    wdiVHTOpModeCb = (WDI_UpdateVHTOpModeCb)pEventData->pCBfnc;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
 
-   /*Notify UMAC*/
+   
    wdiVHTOpModeCb( wdiStatus, pEventData->pUserData);
 
    return WDI_STATUS_SUCCESS; 
 }
 #endif
-/**
- @brief WDI_getHostWlanFeatCaps
-        WDI API that returns whether the feature passed to it as enum value in
-        "placeHolderInCapBitmap" is supported by Host or not. It uses WDI global
-        variable storing host capability bitmap to find this. This can be used by
-        other moduels to decide certain things like call different APIs based on
-        whether a particular feature is supported.
- 
- @param 
-  
-        feat_enum_value: enum value for the feature as in placeHolderInCapBitmap in wlan_hal_msg.h.
-
- @see
- @return 
-        0 - if the feature is NOT supported in host
-        any non-zero value - if the feature is SUPPORTED in host.
-*/
 wpt_uint8 WDI_getHostWlanFeatCaps(wpt_uint8 feat_enum_value)
 {
    wpt_uint8 featSupported = 0;
@@ -28247,24 +20913,6 @@ wpt_uint8 WDI_getHostWlanFeatCaps(wpt_uint8 feat_enum_value)
    return featSupported;
 }
 
-/**
- @brief WDI_getFwWlanFeatCaps
-        WDI API that returns whether the feature passed to it as enum value in
-        "placeHolderInCapBitmap" is supported by FW or not. It uses WDI global
-        variable storing host capability bitmap to find this. This can be used by
-        other moduels to decide certain things like call different APIs based on
-        whether a particular feature is supported.
- 
- @param 
-  
-        feat_enum_value: enum value for the feature as in placeHolderInCapBitmap
-                                    in wlan_hal_msg.h.
-
- @see
- @return 
-        0 - if the feature is NOT supported in FW
-        any non-zero value - if the feature is SUPPORTED in FW.
-*/
 wpt_uint8 WDI_getFwWlanFeatCaps(wpt_uint8 feat_enum_value)
 {
     wpt_uint8 featSupported = 0;
@@ -28294,14 +20942,11 @@ WDI_ProcessUpdateVHTOpModeReq
   wpt_uint16              usDataOffset       = 0;
   wpt_uint16              usSendSize         = 0;
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
          "%s", __func__);
 
-  /*-------------------------------------------------------------------------
-    Sanity check 
-  -------------------------------------------------------------------------*/
    if (( NULL == pEventData ) ||
        ( NULL == (pwdiVHTOpModeParams = (WDI_UpdateVHTOpMode*)pEventData->pEventData)) ||
        ( NULL == (wdiVHTOpModeCb   = (WDI_UpdateVHTOpModeCb)pEventData->pCBfnc)))
@@ -28312,9 +20957,6 @@ WDI_ProcessUpdateVHTOpModeReq
       return WDI_STATUS_E_FAILURE;
    }
   
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx, WDI_UPDATE_VHT_OP_MODE_REQ,
                         sizeof(WDI_UpdateVHTOpMode),
                         &pSendBuffer, &usDataOffset, &usSendSize))||
@@ -28327,14 +20969,11 @@ WDI_ProcessUpdateVHTOpModeReq
   }
 
   WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
-            "pwdiVHTOpModeParams->opMode=%d, pwdiVHTOpModeParams->staId=%d\n", pwdiVHTOpModeParams->opMode, pwdiVHTOpModeParams->staId);
+            "pwdiVHTOpModeParams->opMode=%d, pwdiVHTOpModeParams->staId=%d", pwdiVHTOpModeParams->opMode, pwdiVHTOpModeParams->staId);
 
   wpalMemoryCopy( pSendBuffer+usDataOffset, pwdiVHTOpModeParams,
                   sizeof(WDI_UpdateVHTOpMode));
 
-  /*-------------------------------------------------------------------------
-    Send Start Request to HAL 
-  -------------------------------------------------------------------------*/
   return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize, 
                        wdiVHTOpModeCb,
                        pEventData->pUserData, WDI_UPDATE_VHT_OP_MODE_RESP);
@@ -28351,9 +20990,6 @@ WDI_UpdateVHTOpModeReq
 {
   WDI_EventInfoType      wdiEventData;
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if ( eWLAN_PAL_FALSE == gWDIInitialized )
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -28362,9 +20998,6 @@ WDI_UpdateVHTOpModeReq
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_UPDATE_VHT_OP_MODE_REQ;
   wdiEventData.pEventData      = pData;
   wdiEventData.uEventDataSize  = sizeof(WDI_UpdateVHTOpMode); 
@@ -28372,45 +21005,22 @@ WDI_UpdateVHTOpModeReq
   wdiEventData.pUserData       = pUserData;
   
   WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
-            "pData->opMode=%d, pData->staId=%d\n", pData->opMode, pData->staId);
+            "pData->opMode=%d, pData->staId=%d", pData->opMode, pData->staId);
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 
 } 
 #endif
 
-/**
- @brief WDI_TransportChannelDebug -
-    Display DXE Channel debugging information
-    User may request to display DXE channel snapshot
-    Or if host driver detects any abnormal stcuk may display
-        
- @param  displaySnapshot : Display DXE snapshot option
- @param  enableStallDetect : Enable stall detect feature
-                        This feature will take effect to data performance
-                        Not integrate till fully verification
- @see
- @return none
-*/
 void WDI_TransportChannelDebug
 (
    wpt_boolean  displaySnapshot,
-   wpt_boolean  toggleStallDetect
+   wpt_uint8    debugFlags
 )
 {
-   WDTS_ChannelDebug(displaySnapshot, toggleStallDetect);
+   WDTS_ChannelDebug(displaySnapshot, debugFlags);
    return;
 }
-/**
- @brief WDI_SsrTimerCB
-    Callback function for SSR timer, if this is called then the graceful
-    shutdown for Riva did not happen.
-
- @param  pUserData : user data to timer
-
- @see
- @return none
-*/
 void
 WDI_SsrTimerCB
 (
@@ -28418,7 +21028,7 @@ WDI_SsrTimerCB
 )
 {
   WDI_ControlBlockType*  pWDICtx = (WDI_ControlBlockType*)pUserData;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   if (NULL == pWDICtx )
   {
@@ -28431,17 +21041,8 @@ WDI_SsrTimerCB
 
   return;
 
-}/*WDI_SsrTimerCB*/
+}
 
-/**
- @brief WDI_SetEnableSSR -
-    This API is called to enable/disable SSR on WDI timeout.
-
- @param  enableSSR : enable/disable SSR
-
- @see
- @return none
-*/
 void WDI_SetEnableSSR(wpt_boolean  enableSSR)
 {
    gWDICb.bEnableSSR = enableSSR;
@@ -28449,30 +21050,17 @@ void WDI_SetEnableSSR(wpt_boolean  enableSSR)
 
 
 #ifdef FEATURE_WLAN_LPHB
-/**
- @brief WDI_ProcessLphbWaitTimeoutInd -
-    This function will be invoked when FW detects low power
-    heart beat failure
-
- @param  pWDICtx : wdi context
-         pEventData : indication data
- @see
- @return Result of the function call
-*/
 WDI_Status
-WDI_ProcessLphbWaitTimeoutInd
+WDI_ProcessLphbInd
 (
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
 )
 {
   WDI_LowLevelIndType  wdiInd;
-  tHalLowPowerHeartBeatIndMsg *lphbIndicationParam;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  tHalLowPowerHeartBeatIndParam lphbIndicationParam;
+  
 
-  /*-------------------------------------------------------------------------
-  Sanity check
- -------------------------------------------------------------------------*/
   if ((NULL == pWDICtx) || (NULL == pEventData) ||
       (NULL == pEventData->pEventData))
   {
@@ -28482,21 +21070,20 @@ WDI_ProcessLphbWaitTimeoutInd
      return WDI_STATUS_E_FAILURE;
   }
 
-  /*-------------------------------------------------------------------------
-  Extract indication and send it to UMAC
- -------------------------------------------------------------------------*/
-  lphbIndicationParam = (tHalLowPowerHeartBeatIndMsg *)pEventData->pEventData;
+   wpalMemoryCopy(&lphbIndicationParam,
+                  pEventData->pEventData,
+                  sizeof(tHalLowPowerHeartBeatIndParam));
 
-  wdiInd.wdiIndicationType = WDI_LPHB_WAIT_TIMEOUT_IND;
+  wdiInd.wdiIndicationType = WDI_LPHB_IND;
   wdiInd.wdiIndicationData.wdiLPHBTimeoutInd.bssIdx =
-               lphbIndicationParam->lowPowerHeartBeatIndParams.bssIdx;
+               lphbIndicationParam.bssIdx;
   wdiInd.wdiIndicationData.wdiLPHBTimeoutInd.sessionIdx =
-               lphbIndicationParam->lowPowerHeartBeatIndParams.sessionIdx;
+               lphbIndicationParam.sessionIdx;
   wdiInd.wdiIndicationData.wdiLPHBTimeoutInd.protocolType =
-               lphbIndicationParam->lowPowerHeartBeatIndParams.protocolType;
+               lphbIndicationParam.protocolType;
   wdiInd.wdiIndicationData.wdiLPHBTimeoutInd.eventReason =
-               lphbIndicationParam->lowPowerHeartBeatIndParams.eventReason;
-  /*Notify UMAC*/
+               lphbIndicationParam.eventReason;
+  
   if (pWDICtx->wdiLowLevelIndCB)
   {
     pWDICtx->wdiLowLevelIndCB(&wdiInd, pWDICtx->pIndUserData);
@@ -28505,16 +21092,6 @@ WDI_ProcessLphbWaitTimeoutInd
   return WDI_STATUS_SUCCESS;
 }
 
-/**
- @brief WDI_ProcessLphbCfgRsp -
-    LPHB configuration response from FW
-
- @param  pWDICtx : wdi context
-         pEventData : indication data
-
- @see
- @return Result of the function call
-*/
 WDI_Status WDI_ProcessLphbCfgRsp
 (
   WDI_ControlBlockType*  pWDICtx,
@@ -28524,11 +21101,8 @@ WDI_Status WDI_ProcessLphbCfgRsp
    WDI_Status           wdiStatus;
    eHalStatus           halStatus;
    WDI_LphbCfgCb        wdiLphbCfgCb;
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-     Sanity check
-   -------------------------------------------------------------------------*/
    if ((NULL == pWDICtx) || (NULL == pEventData) ||
        (NULL == pEventData->pEventData))
    {
@@ -28540,15 +21114,12 @@ WDI_Status WDI_ProcessLphbCfgRsp
 
    wdiLphbCfgCb = (WDI_LphbCfgCb)pWDICtx->pfncRspCB;
 
-   /*-------------------------------------------------------------------------
-     Extract response and send it to UMAC
-   -------------------------------------------------------------------------*/
    halStatus = *((eHalStatus*)pEventData->pEventData);
    wdiStatus = WDI_HAL_2_WDI_STATUS(halStatus);
 
    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
               "LPHB Cfg Rsp Return status %d", wdiStatus);
-   /*Notify UMAC*/
+   
    if (NULL != wdiLphbCfgCb)
    {
       wdiLphbCfgCb(wdiStatus, pWDICtx->pRspCBUserData);
@@ -28557,16 +21128,6 @@ WDI_Status WDI_ProcessLphbCfgRsp
    return WDI_STATUS_SUCCESS;
 }
 
-/**
- @brief WDI_ProcessLPHBConfReq -
-    LPHB configuration request to FW
-
- @param  pWDICtx : wdi context
-         pEventData : indication data
-
- @see
- @return none
-*/
 WDI_Status WDI_ProcessLPHBConfReq
 (
   WDI_ControlBlockType*  pWDICtx,
@@ -28579,11 +21140,8 @@ WDI_Status WDI_ProcessLPHBConfReq
   wpt_uint16                     usDataOffset       = 0;
   wpt_uint16                     usSendSize         = 0;
   tHalLowPowerHeartBeatReq      *halLphbReqRarams;
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
-  /*-------------------------------------------------------------------------
-     Sanity check
-  -------------------------------------------------------------------------*/
   if ((NULL == pEventData) || (NULL == pEventData->pEventData))
   {
       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -28594,9 +21152,6 @@ WDI_Status WDI_ProcessLPHBConfReq
 
   pLphbReqParams = (WDI_LPHBReq *)pEventData->pEventData;
 
-   /*-----------------------------------------------------------------------
-     Get message buffer
-   -----------------------------------------------------------------------*/
   if ((WDI_STATUS_SUCCESS != WDI_GetMessageBuffer(pWDICtx,
                               WDI_LPHB_CFG_REQ,
                               sizeof(tHalLowPowerHeartBeatReqMsg),
@@ -28645,6 +21200,10 @@ WDI_Status WDI_ProcessLPHBConfReq
                                 pLphbReqParams->params.lphbTcpParamReq.src_port;
       halLphbReqRarams->options.tcpParams.destPort =
                                 pLphbReqParams->params.lphbTcpParamReq.dst_port;
+      halLphbReqRarams->options.tcpParams.timePeriodSec =
+                                pLphbReqParams->params.lphbTcpParamReq.timePeriodSec;
+      halLphbReqRarams->options.tcpParams.tcpSn =
+                                pLphbReqParams->params.lphbTcpParamReq.tcpSn;
       break;
 
     case WDI_LPHB_SET_TCP_PKT_FILTER_INDID:
@@ -28696,16 +21255,13 @@ WDI_Status WDI_ProcessLPHBConfReq
       break;
 
     case WDI_LPHB_SET_NETWORK_INFO_INDID:
-      /* NA */
+      
       break;
 
     default:
       break;
   }
 
-  /*-------------------------------------------------------------------------
-    Send Suspend Request to HAL
-  -------------------------------------------------------------------------*/
   pWDICtx->pfncRspCB          = pEventData->pCBfnc;
   pWDICtx->pReqStatusUserData = pEventData->pUserData;
 
@@ -28717,25 +21273,11 @@ WDI_Status WDI_ProcessLPHBConfReq
   return wdiStatus;
 }
 
-/**
- @brief WDI_LPHBConfReq -
-    LPHB configuration request API
-
- @param  lphbconfParam : configuration parameter
-         usrData : client context
-         lphbCfgCb : callback function pointer
-
- @see
- @return Success or fail status code
-*/
 WDI_Status WDI_LPHBConfReq(void *lphbconfParam,
                            void *usrData, WDI_LphbCfgCb lphbCfgCb)
 {
   WDI_EventInfoType      wdiEventData;
 
-  /*------------------------------------------------------------------------
-    Sanity Check
-  ------------------------------------------------------------------------*/
   if (eWLAN_PAL_FALSE == gWDIInitialized)
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -28744,9 +21286,6 @@ WDI_Status WDI_LPHBConfReq(void *lphbconfParam,
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-  ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_LPHB_CFG_REQ;
   wdiEventData.pEventData      = lphbconfParam;
   wdiEventData.uEventDataSize  = sizeof(WDI_LPHBReq);
@@ -28755,17 +21294,8 @@ WDI_Status WDI_LPHBConfReq(void *lphbconfParam,
 
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
-#endif /* FEATURE_WLAN_LPHB */
+#endif 
 
-/**
-  @brief WDI_ProcessIbssPeerInactivityInd
-  Process peer inactivity indication coming from HAL
-
-  @param pWDICtx: pointer to the WLAN DAL context
-         pEventData: pointer to the event information structure
-  @see
-  @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessIbssPeerInactivityInd
 (
@@ -28776,11 +21306,8 @@ WDI_ProcessIbssPeerInactivityInd
    WDI_LowLevelIndType  wdiInd;
    tIbssPeerInactivityIndMsg halIbssIndMsg;
 
-   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+   
 
-   /*-------------------------------------------------------------------------
-   Sanity check
-   -------------------------------------------------------------------------*/
    if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData ))
    {
@@ -28790,14 +21317,11 @@ WDI_ProcessIbssPeerInactivityInd
      return WDI_STATUS_E_FAILURE;
    }
 
-   /*-------------------------------------------------------------------------
-   Extract indication and send it to UMAC
-   -------------------------------------------------------------------------*/
    wpalMemoryCopy( &halIbssIndMsg.ibssPeerInactivityIndParams,
                   pEventData->pEventData,
                   sizeof(halIbssIndMsg.ibssPeerInactivityIndParams) );
 
-   /*Fill in the indication parameters*/
+   
    wdiInd.wdiIndicationType = WDI_IBSS_PEER_INACTIVITY_IND;
 
    wdiInd.wdiIndicationData.wdiIbssPeerInactivityInd.bssIdx
@@ -28810,24 +21334,15 @@ WDI_ProcessIbssPeerInactivityInd
                  halIbssIndMsg.ibssPeerInactivityIndParams.staAddr,
                  sizeof(tSirMacAddr));
 
-   /*Notify UMAC*/
+   
    pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
 
    return WDI_STATUS_SUCCESS;
 
-} /*WDI_ProcessIbssPeerInactivityInd*/
+} 
 
 #ifdef FEATURE_WLAN_BATCH_SCAN
 
-/**
- @brief Process stop batch indication from WDA
-
- @param pWDICtx:         pointer to the WLAN DAL context
-        pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessStopBatchScanInd
 (
@@ -28843,14 +21358,11 @@ WDI_ProcessStopBatchScanInd
   WDI_StopBatchScanIndType  *pWdiInd           = NULL;
 
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
          "%s", __func__);
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
 
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ))
   {
@@ -28860,9 +21372,6 @@ WDI_ProcessStopBatchScanInd
      return WDI_STATUS_E_FAILURE;
   }
   pWdiInd = (WDI_StopBatchScanIndType *)pEventData->pEventData;
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
 
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                         WDI_STOP_BATCH_SCAN_IND,
@@ -28882,22 +21391,10 @@ WDI_ProcessStopBatchScanInd
 
   pWDICtx->pReqStatusUserData = NULL;
   pWDICtx->pfncRspCB = NULL;
-  /*-------------------------------------------------------------------------
-    Send Stop batch scan indication to HAL
-  -------------------------------------------------------------------------*/
   wdiStatus =  WDI_SendIndication( pWDICtx, pSendBuffer, usSendSize);
   return (wdiStatus != WDI_STATUS_SUCCESS) ? wdiStatus:WDI_STATUS_SUCCESS_SYNC;
 }
 
-/**
- @brief This API is called to trigger batch scan results from FW
-
- @param pWDICtx:         pointer to the WLAN DAL context
-        pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessTriggerBatchScanResultInd
 (
@@ -28913,14 +21410,11 @@ WDI_ProcessTriggerBatchScanResultInd
   WDI_TriggerBatchScanResultIndType *pWdiInd           = NULL;
 
 
-  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 
   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
          "%s", __func__);
 
-  /*-------------------------------------------------------------------------
-    Sanity check
-  -------------------------------------------------------------------------*/
 
   if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ))
   {
@@ -28930,9 +21424,6 @@ WDI_ProcessTriggerBatchScanResultInd
      return WDI_STATUS_E_FAILURE;
   }
   pWdiInd = (WDI_TriggerBatchScanResultIndType *)pEventData->pEventData;
-  /*-----------------------------------------------------------------------
-    Get message buffer
-  -----------------------------------------------------------------------*/
 
   if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
                         WDI_TRIGGER_BATCH_SCAN_RESULT_IND,
@@ -28952,23 +21443,11 @@ WDI_ProcessTriggerBatchScanResultInd
 
   pWDICtx->pReqStatusUserData = NULL;
   pWDICtx->pfncRspCB = NULL;
-  /*-------------------------------------------------------------------------
-    Send trigger batch scan result indication to HAL
-  -------------------------------------------------------------------------*/
   wdiStatus =  WDI_SendIndication( pWDICtx, pSendBuffer, usSendSize);
   return (wdiStatus != WDI_STATUS_SUCCESS) ? wdiStatus:WDI_STATUS_SUCCESS_SYNC;
 }
 
 
-/**
- @brief Process set batch scan response from FW
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessSetBatchScanRsp
 (
@@ -28980,9 +21459,9 @@ WDI_ProcessSetBatchScanRsp
     WDI_SetBatchScanRspType *pSetBatchScanRsp;
 
     tHalBatchScanSetRspParam *pHalSetBatchScanRsp;
-    /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+    
 
-    /*sanity check*/
+    
     if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
     {
@@ -29012,28 +21491,19 @@ WDI_ProcessSetBatchScanRsp
         return WDI_STATUS_E_FAILURE;
     }
 
-    /*extract response and send it to UMAC*/
+    
     pHalSetBatchScanRsp = (tHalBatchScanSetRspParam *)pEventData->pEventData;
 
     pSetBatchScanRsp->nScansToBatch = pHalSetBatchScanRsp->supportedMscan;
 
-    /*Notify UMAC*/
+    
     wdiSetBatchScanCb(pSetBatchScanRsp, pWDICtx->pRspCBUserData);
 
     wpalMemoryFree(pSetBatchScanRsp);
 
     return WDI_STATUS_SUCCESS;
-}/*WDI_ProcessSetBatchScanRsp*/
+}
 
-/**
- @brief Process batch scan result indication from FW
-
- @param  pWDICtx:         pointer to the WLAN DAL context
-         pEventData:      pointer to the event information structure
-
- @see
- @return Result of the function call
-*/
 WDI_Status
 WDI_ProcessBatchScanResultInd
 (
@@ -29043,9 +21513,9 @@ WDI_ProcessBatchScanResultInd
 {
     void *pBatchScanResultInd;
     WDI_LowLevelIndType wdiInd;
-    /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+    
 
-    /*sanity check*/
+    
     if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
       ( NULL == pEventData->pEventData))
     {
@@ -29055,15 +21525,15 @@ WDI_ProcessBatchScanResultInd
         return WDI_STATUS_E_FAILURE;
     }
 
-    /*extract response and send it to UMAC*/
+    
     pBatchScanResultInd = (void *)pEventData->pEventData;
 
-    /*Fill in the indication parameters*/
+    
     wdiInd.wdiIndicationType = WDI_BATCH_SCAN_RESULT_IND;
 
     wdiInd.wdiIndicationData.pBatchScanResult = pBatchScanResultInd;
 
-    /*Notify UMAC*/
+    
     if (pWDICtx->wdiLowLevelIndCB)
     {
         pWDICtx->wdiLowLevelIndCB( &wdiInd, pWDICtx->pIndUserData );
@@ -29077,18 +21547,8 @@ WDI_ProcessBatchScanResultInd
     }
 
     return WDI_STATUS_SUCCESS;
-} /*End of WDI_ProcessBatchScanResultInd*/
+} 
 
-/**
- @brief WDI_ProcessSetBatchScanReq -
-    Set batch scan request to FW
-
- @param  pWDICtx : wdi context
-         pEventData : indication data
-
- @see
- @return none
-*/
 WDI_Status WDI_ProcessSetBatchScanReq
 (
     WDI_ControlBlockType*  pWDICtx,
@@ -29101,9 +21561,9 @@ WDI_Status WDI_ProcessSetBatchScanReq
     wpt_uint16               usDataOffset       = 0;
     wpt_uint16               usSendSize         = 0;
     tHalBatchScanSetParams  *pHalReq;
-    /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+    
 
-    /*sanity check*/
+    
     if ((NULL == pEventData) || (NULL == pEventData->pEventData))
     {
         WPAL_TRACE(eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
@@ -29116,7 +21576,7 @@ WDI_Status WDI_ProcessSetBatchScanReq
     pWdiReq = (WDI_SetBatchScanReqType *)pEventData->pEventData;
 
 
-    /*get message buffer*/
+    
     if ((WDI_STATUS_SUCCESS != WDI_GetMessageBuffer(pWDICtx,
                               WDI_SET_BATCH_SCAN_REQ,
                               sizeof(tHalBatchScanSetParams),
@@ -29137,7 +21597,7 @@ WDI_Status WDI_ProcessSetBatchScanReq
     pHalReq->scanInterval = pWdiReq->scanFrequency;
     pHalReq->numScan2Batch = pWdiReq->numberOfScansToBatch;
 
-    /*send set batch scan request to fw*/
+    
     pWDICtx->pfncRspCB          = pEventData->pCBfnc;
     pWDICtx->pReqStatusUserData = pEventData->pUserData;
 
@@ -29149,16 +21609,6 @@ WDI_Status WDI_ProcessSetBatchScanReq
     return wdiStatus;
 }
 
-/**
- @brief WDI_SetBatchScanReq
-    This API is called to set batch scan request in FW
-
- @param pBatchScanReqParam : pointer to set batch scan re param
-        usrData : Client context
-        setBatchScanRspCb : set batch scan resp callback
- @see
- @return SUCCESS or FAIL
-*/
 WDI_Status WDI_SetBatchScanReq
 (
     void *pBatchScanReqParam,
@@ -29168,7 +21618,7 @@ WDI_Status WDI_SetBatchScanReq
 {
     WDI_EventInfoType      wdiEventData;
 
-    /*sanity check*/
+    
     if (eWLAN_PAL_FALSE == gWDIInitialized)
     {
         WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -29177,7 +21627,7 @@ WDI_Status WDI_SetBatchScanReq
         return WDI_STATUS_E_NOT_ALLOWED;
     }
 
-    /* fill in event data and post to the main FSM */
+    
     wdiEventData.wdiRequest      = WDI_SET_BATCH_SCAN_REQ;
     wdiEventData.pEventData      = pBatchScanReqParam;
     wdiEventData.uEventDataSize  = sizeof(WDI_SetBatchScanReqType);
@@ -29187,23 +21637,11 @@ WDI_Status WDI_SetBatchScanReq
     return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-/**
- @brief WDI_StopbatchScanInd: Send stop batch scan indication to FW
-
- @param None
-
- @see
-
- @return Status of the request
-*/
 WDI_Status
 WDI_StopBatchScanInd(WDI_StopBatchScanIndType *pWdiReq)
 {
   WDI_EventInfoType      wdiEventData;
 
-  /*-------------------------------------------------------------------------
-    Sanity Check
-   ------------------------------------------------------------------------*/
   if (eWLAN_PAL_FALSE == gWDIInitialized)
   {
     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -29212,9 +21650,6 @@ WDI_StopBatchScanInd(WDI_StopBatchScanIndType *pWdiReq)
     return WDI_STATUS_E_NOT_ALLOWED;
   }
 
-  /*-------------------------------------------------------------------------
-    Fill in Event data and post to the Main FSM
-   ------------------------------------------------------------------------*/
   wdiEventData.wdiRequest      = WDI_STOP_BATCH_SCAN_IND;
   wdiEventData.pEventData      = pWdiReq;
   wdiEventData.uEventDataSize  = sizeof(WDI_StopBatchScanIndType);
@@ -29224,23 +21659,12 @@ WDI_StopBatchScanInd(WDI_StopBatchScanIndType *pWdiReq)
   return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-/**
- @brief WDI_TriggerBatchScanResultInd
-    This API is called to pull batch scan result from FW
-
- @param pWdiReq : pointer to get batch scan ind param
- @see
- @return SUCCESS or FAIL
-*/
 WDI_Status WDI_TriggerBatchScanResultInd
 (
     WDI_TriggerBatchScanResultIndType *pWdiReq
 )
 {
     WDI_EventInfoType      wdiEventData;
-    /*-------------------------------------------------------------------------
-      Sanity Check
-    ------------------------------------------------------------------------*/
     if (eWLAN_PAL_FALSE == gWDIInitialized)
     {
         WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
@@ -29249,9 +21673,6 @@ WDI_Status WDI_TriggerBatchScanResultInd
         return WDI_STATUS_E_NOT_ALLOWED;
     }
 
-    /*-------------------------------------------------------------------------
-      Fill in Event data and post to the Main FSM
-     ------------------------------------------------------------------------*/
     wdiEventData.wdiRequest      = WDI_TRIGGER_BATCH_SCAN_RESULT_IND;
     wdiEventData.pEventData      = pWdiReq;
     wdiEventData.uEventDataSize  = sizeof(WDI_TriggerBatchScanResultIndType);
@@ -29261,4 +21682,365 @@ WDI_Status WDI_TriggerBatchScanResultInd
     return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
 }
 
-#endif /*FEATURE_WLAN_BATCH_SCAN*/
+#endif 
+
+WDI_Status
+WDI_ProcessUpdateChanRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+)
+{
+  WDI_Status           wdiStatus;
+  eHalStatus           halStatus;
+  WDI_UpdateChannelRspCb   wdiUpdateChanRspCb;
+  
+
+  if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
+      ( NULL == pEventData->pEventData))
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
+                 "%s: Invalid parameters", __func__);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+
+  wdiUpdateChanRspCb = (WDI_UpdateChannelRspCb)pWDICtx->pfncRspCB;
+
+  halStatus = *((eHalStatus*)pEventData->pEventData);
+  wdiStatus   =   WDI_HAL_2_WDI_STATUS(halStatus);
+
+  wdiUpdateChanRspCb( wdiStatus, pWDICtx->pRspCBUserData);
+
+  return WDI_STATUS_SUCCESS;
+}
+
+#ifdef FEATURE_WLAN_CH_AVOID
+WDI_Status
+WDI_ProcessChAvoidInd
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+)
+{
+  WDI_LowLevelIndType  wdiInd;
+  tHalAvoidFreqRangeIndParams chAvoidIndicationParam;
+  wpt_uint16           rangeLoop;
+  
+
+  if ((NULL == pWDICtx) || (NULL == pEventData) ||
+      (NULL == pEventData->pEventData))
+  {
+     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+                 "%s: Invalid parameters", __func__);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+
+  wpalMemoryCopy(&chAvoidIndicationParam,
+                 pEventData->pEventData,
+                 sizeof(tHalAvoidFreqRangeIndParams));
+
+  wdiInd.wdiIndicationType = WDI_CH_AVOID_IND;
+  wdiInd.wdiIndicationData.wdiChAvoidInd.avoidRangeCount =
+               chAvoidIndicationParam.avoidCnt;
+  wpalMemoryCopy((void *)wdiInd.wdiIndicationData.wdiChAvoidInd.avoidFreqRange,
+                 (void *)chAvoidIndicationParam.avoidRange,
+                 wdiInd.wdiIndicationData.wdiChAvoidInd.avoidRangeCount *
+                 sizeof(WDI_ChAvoidFreqType));
+  WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
+          "%s: band count %d", __func__,
+          wdiInd.wdiIndicationData.wdiChAvoidInd.avoidRangeCount);
+  for (rangeLoop = 0; rangeLoop < chAvoidIndicationParam.avoidCnt; rangeLoop++)
+  {
+     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
+          "%s: srart freq %d, end freq %d", __func__,
+          wdiInd.wdiIndicationData.wdiChAvoidInd.avoidFreqRange[rangeLoop].startFreq,
+          wdiInd.wdiIndicationData.wdiChAvoidInd.avoidFreqRange[rangeLoop].endFreq);
+  }
+
+  
+  if (pWDICtx->wdiLowLevelIndCB)
+  {
+    pWDICtx->wdiLowLevelIndCB(&wdiInd, pWDICtx->pIndUserData);
+  }
+
+  return WDI_STATUS_SUCCESS;
+}
+#endif 
+
+WDI_Status
+WDI_RateUpdateInd
+(
+    WDI_RateUpdateIndParams  *wdiRateUpdateIndParams
+)
+{
+   WDI_EventInfoType      wdiEventData;
+   
+
+   if ( eWLAN_PAL_FALSE == gWDIInitialized )
+   {
+       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+                  "WDI API call before module is initialized - Fail request");
+
+       return WDI_STATUS_E_NOT_ALLOWED;
+   }
+
+    wdiEventData.wdiRequest      = WDI_RATE_UPDATE_IND;
+    wdiEventData.pEventData      = wdiRateUpdateIndParams;
+    wdiEventData.uEventDataSize  = sizeof(WDI_RateUpdateIndParams);
+    wdiEventData.pCBfnc          = NULL;
+    wdiEventData.pUserData       = NULL;
+
+    return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
+
+}
+
+WDI_Status
+WDI_ProcessRateUpdateInd
+(
+    WDI_ControlBlockType*  pWDICtx,
+    WDI_EventInfoType*     pEventData
+)
+{
+    wpt_uint8*              pSendBuffer        = NULL;
+    wpt_uint16              usDataOffset       = 0;
+    wpt_uint16              usSendSize         = 0;
+    WDI_RateUpdateIndParams *pwdiRateUpdateInd = NULL;
+    tHalRateUpdateInd       *pRateUpdateInd;
+    WDI_Status              wdiStatus;
+
+    
+
+    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
+           "%s", __func__);
+
+    if (( NULL == pEventData ) || ( NULL == pEventData->pEventData ))
+    {
+       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+                   "%s: Invalid parameters", __func__);
+       WDI_ASSERT(0);
+       return WDI_STATUS_E_FAILURE;
+    }
+    pwdiRateUpdateInd = (WDI_RateUpdateIndParams *)pEventData->pEventData;
+
+    if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer( pWDICtx,
+                          WDI_RATE_UPDATE_IND,
+                          sizeof(tHalRateUpdateParams),
+                          &pSendBuffer, &usDataOffset, &usSendSize))||
+                          ( usSendSize < (usDataOffset +
+                                 sizeof(tHalRateUpdateParams) )))
+    {
+       WPAL_TRACE( eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_FATAL,
+                "Unable to get send buffer in Rate Update Indication %p ",
+                  pEventData);
+       WDI_ASSERT(0);
+       return WDI_STATUS_E_FAILURE;
+    }
+
+    pRateUpdateInd = (tHalRateUpdateInd *)pSendBuffer;
+
+    
+    wpalMemoryCopy(pRateUpdateInd->halRateUpdateParams.bssid,
+                     pwdiRateUpdateInd->bssid, WDI_MAC_ADDR_LEN);
+
+    
+    pRateUpdateInd->halRateUpdateParams.ucastDataRateTxFlag =
+                             pwdiRateUpdateInd->ucastDataRateTxFlag;
+    pRateUpdateInd->halRateUpdateParams.reliableMcastDataRateTxFlag =
+                             pwdiRateUpdateInd->reliableMcastDataRateTxFlag;
+    pRateUpdateInd->halRateUpdateParams.mcastDataRate24GHzTxFlag =
+                             pwdiRateUpdateInd->mcastDataRate24GHzTxFlag;
+    pRateUpdateInd->halRateUpdateParams.mcastDataRate5GHzTxFlag =
+                             pwdiRateUpdateInd->mcastDataRate5GHzTxFlag;
+
+    
+    pRateUpdateInd->halRateUpdateParams.ucastDataRate =
+                             pwdiRateUpdateInd->ucastDataRate;
+    pRateUpdateInd->halRateUpdateParams.reliableMcastDataRate =
+                             pwdiRateUpdateInd->reliableMcastDataRate;
+    pRateUpdateInd->halRateUpdateParams.mcastDataRate24GHz =
+                             pwdiRateUpdateInd->mcastDataRate24GHz;
+    pRateUpdateInd->halRateUpdateParams.mcastDataRate5GHz =
+                             pwdiRateUpdateInd->mcastDataRate5GHz;
+
+    pWDICtx->wdiReqStatusCB     = pwdiRateUpdateInd->wdiReqStatusCB;
+    pWDICtx->pReqStatusUserData = pwdiRateUpdateInd->pUserData;
+
+    wdiStatus = WDI_SendIndication(pWDICtx, pSendBuffer, usSendSize);
+
+    return (wdiStatus != WDI_STATUS_SUCCESS) ?
+                 wdiStatus : WDI_STATUS_SUCCESS_SYNC;
+
+} 
+
+WDI_Status
+WDI_printRegInfo
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+)
+{
+   tHalRegDebugInfo *pRegTable;
+   tHalRegDebugInfoParams *pRegParams;
+   uint32 cnt=0;
+
+   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
+                  "%s: ", __func__);
+   if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
+       ( NULL == pEventData->pEventData))
+   {
+       WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
+                  "%s: Invalid parameters", __func__);
+       WDI_ASSERT(0);
+       return WDI_STATUS_E_FAILURE;
+   }
+
+   pRegParams  = (tHalRegDebugInfoParams *)pEventData->pEventData;
+
+   WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+          "%s: regCount: %x scenario: %x reasonCode: %x", __func__,
+           pRegParams->regCount, pRegParams->scenario, pRegParams->reasonCode);
+
+   pRegTable = (tHalRegDebugInfo *)(pRegParams+1); 
+
+   if (pRegParams->regCount <= 0)
+   {
+       WPAL_TRACE (eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+                   "%s incorrect parameters passed", __func__);
+       return WDI_STATUS_E_FAILURE;
+   }
+
+   while(pRegParams->regCount--)
+   {
+       WPAL_TRACE (eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+                   "%x: %x", pRegTable[cnt].regAddr, pRegTable[cnt].regValue);
+       cnt++;
+   }
+
+   return WDI_STATUS_SUCCESS;
+}
+
+WDI_Status
+WDI_ProcessGetBcnMissRateRsp
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+)
+{
+  WDI_GetBcnMissRateCb        wdiGetBcnMissRateCb;
+  tpHalBcnMissRateRspParams    pHalBcnMissRateRsp;
+
+  WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_INFO,
+                 "In %s",__func__);
+ 
+
+  if (( NULL == pWDICtx ) || ( NULL == pEventData ) ||
+      ( NULL == pEventData->pEventData))
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
+                 "%s: Invalid parameters", __func__);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+
+  pHalBcnMissRateRsp = (tHalBcnMissRateRspParams *)pEventData->pEventData;
+  wdiGetBcnMissRateCb = (WDI_GetBcnMissRateCb)pWDICtx->pfncRspCB;
+
+  
+  wdiGetBcnMissRateCb(pHalBcnMissRateRsp->status,
+                      pHalBcnMissRateRsp->bcnMissCnt, pWDICtx->pRspCBUserData);
+  return WDI_STATUS_SUCCESS;
+}
+
+WDI_Status
+WDI_ProcessGetBcnMissRateReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+)
+{
+  wpt_uint8*                   pSendBuffer         = NULL;
+  wpt_uint16                   usDataOffset        = 0;
+  wpt_uint16                   usSendSize          = 0;
+  wpt_uint8                    ucCurrentBSSSesIdx  = 0;
+  WDI_BSSSessionType*          pBSSSes             = NULL;
+  WDI_GetBcnMissRateCb        *wdiGetBcnMissRateCb;
+  tHalBcnMissRateReqParams    halBcnMissRateReq;
+
+
+  if (( NULL == pEventData ) || ( NULL == pEventData->pEventData) ||
+      ( NULL == pEventData->pCBfnc ) )
+  {
+     WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
+                 "%s: Invalid parameters", __func__);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+
+  wdiGetBcnMissRateCb   = (WDI_GetBcnMissRateCb *)pEventData->pCBfnc;
+
+  wpalMutexAcquire(&pWDICtx->wptMutex);
+
+  ucCurrentBSSSesIdx = WDI_FindAssocSession(pWDICtx,
+                                            pEventData->pEventData, &pBSSSes);
+  if ( NULL == pBSSSes )
+  {
+    WPAL_TRACE( eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+        "%s: Association sequence for this BSS does not yet exist. macBSSID"
+         MAC_ADDRESS_STR, __func__,
+         MAC_ADDR_ARRAY((wpt_uint8 *)(pEventData->pEventData)));
+    wpalMutexRelease(&pWDICtx->wptMutex);
+    return WDI_STATUS_E_NOT_ALLOWED;
+  }
+  wpalMutexRelease(&pWDICtx->wptMutex);
+
+  if (( WDI_STATUS_SUCCESS != WDI_GetMessageBuffer(
+                                  pWDICtx, WDI_GET_BCN_MISS_RATE_REQ,
+                                  sizeof(tHalBcnMissRateReqParams),
+                                 &pSendBuffer, &usDataOffset, &usSendSize)) ||
+      ( usSendSize < (usDataOffset + sizeof(tHalBcnMissRateReqParams))))
+  {
+     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL,  eWLAN_PAL_TRACE_LEVEL_WARN,
+                "Unable to get send buffer in get WDI_GET_BCN_MISS_RATE_REQ %p",
+                pEventData);
+     WDI_ASSERT(0);
+     return WDI_STATUS_E_FAILURE;
+  }
+
+  pWDICtx->wdiReqStatusCB = NULL;
+  pWDICtx->pReqStatusUserData = pEventData->pUserData;
+
+  halBcnMissRateReq.bssIdx = ucCurrentBSSSesIdx;
+
+  wpalMemoryCopy( pSendBuffer+usDataOffset,
+                  &halBcnMissRateReq,
+                  sizeof(tHalBcnMissRateReqParams));
+  return  WDI_SendMsg( pWDICtx, pSendBuffer, usSendSize, wdiGetBcnMissRateCb,
+                       pEventData->pUserData, WDI_GET_BCN_MISS_RATE_RSP);
+}
+
+WDI_Status WDI_GetBcnMissRate( void *pUserData,
+                                WDI_GetBcnMissRateCb wdiGetBcnMissRateCb,
+                                tANI_U8 *bssid )
+{
+    WDI_EventInfoType      wdiEventData;
+
+  
+
+  if ( eWLAN_PAL_FALSE == gWDIInitialized )
+  {
+    WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+              "WDI API call before module is initialized - Fail request");
+
+    return WDI_STATUS_E_NOT_ALLOWED;
+  }
+
+  wdiEventData.wdiRequest      = WDI_GET_BCN_MISS_RATE_REQ;
+  wdiEventData.pEventData      = bssid;
+  wdiEventData.uEventDataSize  = sizeof(tSirMacAddr);
+  wdiEventData.pCBfnc          = wdiGetBcnMissRateCb;
+  wdiEventData.pUserData       = pUserData;
+
+  return WDI_PostMainEvent(&gWDICb, WDI_REQUEST_EVENT, &wdiEventData);
+}

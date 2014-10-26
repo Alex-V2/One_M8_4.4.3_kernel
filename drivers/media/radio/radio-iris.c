@@ -1898,13 +1898,6 @@ static void hci_cc_fm_enable_rsp(struct radio_hci_dev *hdev,
 		return;
 	}
 
-	if (radio->mode == FM_RECV_TURNING_ON) {
-		radio->mode = FM_RECV;
-		iris_q_event(radio, IRIS_EVT_RADIO_READY);
-	} else if (radio->mode == FM_TRANS_TURNING_ON) {
-		radio->mode = FM_TRANS;
-		iris_q_event(radio, IRIS_EVT_RADIO_READY);
-	}
 	radio_hci_req_complete(hdev, rsp->status);
 }
 
@@ -3729,7 +3722,19 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 				radio->mode = FM_OFF;
 				goto END;
 			} else {
-				initialise_recv(radio);
+				retval = initialise_recv(radio);
+				if (retval < 0) {
+					FMDERR("Error while initialising"\
+						"radio %d\n", retval);
+					hci_cmd(HCI_FM_DISABLE_RECV_CMD,
+							radio->fm_hdev);
+					radio->mode = FM_OFF;
+					goto END;
+				}
+			}
+			if (radio->mode == FM_RECV_TURNING_ON) {
+				radio->mode = FM_RECV;
+				iris_q_event(radio, IRIS_EVT_RADIO_READY);
 			}
 			break;
 		case FM_TRANS:
@@ -3746,7 +3751,19 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 				radio->mode = FM_OFF;
 				goto END;
 			} else {
-				initialise_trans(radio);
+				retval = initialise_trans(radio);
+				if (retval < 0) {
+					FMDERR("Error while initialising"\
+							"radio %d\n", retval);
+					hci_cmd(HCI_FM_DISABLE_TRANS_CMD,
+								radio->fm_hdev);
+					radio->mode = FM_OFF;
+					goto END;
+				}
+			}
+			if (radio->mode == FM_TRANS_TURNING_ON) {
+				radio->mode = FM_TRANS;
+				iris_q_event(radio, IRIS_EVT_RADIO_READY);
 			}
 			break;
 		case FM_OFF:

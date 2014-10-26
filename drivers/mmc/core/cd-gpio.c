@@ -23,8 +23,8 @@ static struct workqueue_struct *enable_detection_workqueue;
 
 struct mmc_cd_gpio {
 	unsigned int gpio;
-	char label[0];
 	bool status;
+	char label[0];
 };
 
 void mmc_enable_detection(struct work_struct *work)
@@ -51,6 +51,25 @@ out:
 }
 EXPORT_SYMBOL(mmc_cd_get_status);
 
+int mmc_cd_send_uevent(struct mmc_host *host)
+{
+	char *envp[2];
+	char state_string[16];
+	int status;
+
+	status = mmc_cd_get_status(host);
+	if (unlikely(status < 0))
+		goto out;
+
+	snprintf(state_string, sizeof(state_string), "SWITCH_STATE=%d", status);
+	envp[0] = state_string;
+	envp[1] = NULL;
+	kobject_uevent_env(&host->class_dev.kobj, KOBJ_ADD, envp);
+
+out:
+	return status;
+}
+
 static irqreturn_t mmc_cd_gpio_irqt(int irq, void *dev_id)
 {
 	struct mmc_host *host = dev_id;
@@ -64,19 +83,19 @@ static irqreturn_t mmc_cd_gpio_irqt(int irq, void *dev_id)
 	if (unlikely(status < 0))
 		goto out;
 
-	if (status ^ cd->status) {
-		printk_ratelimited(KERN_INFO "%s: slot status change detected (%d -> %d), GPIO_ACTIVE_%s\n",
-				mmc_hostname(host), cd->status, status,
-				(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ?
-				"HIGH" : "LOW");
-		cd->status = status;
-		
-		host->caps |= host->caps_uhs;
-		host->redetect_cnt = 0;
-		host->crc_count = 0;
-		
-		mmc_detect_change(host, msecs_to_jiffies(100));
-	}
+	pr_info("%s: slot status change detected (%d -> %d), GPIO_ACTIVE_%s\n",
+			mmc_hostname(host), cd->status, status,
+			(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ?
+			"HIGH" : "LOW");
+	cd->status = status;
+	
+	host->caps |= host->caps_uhs;
+	host->redetect_cnt = 0;
+	host->crc_count = 0;
+	
+	mmc_detect_change(host, msecs_to_jiffies(host->expand_debounce+100));
+	mmc_cd_send_uevent(host);
+
 out:
 	return IRQ_HANDLED;
 }

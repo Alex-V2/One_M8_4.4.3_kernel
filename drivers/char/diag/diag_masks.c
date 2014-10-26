@@ -571,9 +571,9 @@ void diag_send_msg_mask_update(struct diag_smd_info *smd_info,
 		if (smd_info->ch) {
 			while (retry_count < 3) {
 				mutex_lock(&smd_info->smd_ch_mutex);
- 				size = smd_write(smd_info->ch, buf, header_size
- 					+ 4*(driver->msg_mask->msg_mask_size));
- 				mutex_unlock(&smd_info->smd_ch_mutex);
+				size = smd_write(smd_info->ch, buf, header_size
+					+ 4*(driver->msg_mask->msg_mask_size));
+				mutex_unlock(&smd_info->smd_ch_mutex);
 				if (size == -ENOMEM) {
 					retry_count++;
 					usleep_range(10000, 10100);

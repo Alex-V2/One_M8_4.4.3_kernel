@@ -38,20 +38,7 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
-/*
- * Airgo Networks, Inc proprietary. All rights reserved
- * sysEntryFunc.cc - This file has all the system level entry functions
- *                   for all the defined threads at system level.
- * Author:    V. K. Kandarpa
- * Date:      01/16/2002
- * History:-
- * Date       Modified by            Modification Information
- * --------------------------------------------------------------------------
- *
- */
-/* Standard include files */
 
-/* Application Specific include files */
 #include "sirCommon.h"
 #include "aniGlobal.h"
 
@@ -74,22 +61,6 @@ postPTTMsgApi(tpAniSirGlobal pMac, tSirMsgQ *pMsg);
 #include "vos_types.h"
 #include "vos_packet.h"
 
-// ---------------------------------------------------------------------------
-/**
- * sysInitGlobals
- *
- * FUNCTION:
- *    Initializes system level global parameters
- *
- * LOGIC:
- *
- * ASSUMPTIONS:
- *
- * NOTE:
- *
- * @param tpAniSirGlobal Sirius software parameter struct pointer
- * @return None
- */
 
 tSirRetStatus
 sysInitGlobals(tpAniSirGlobal pMac)
@@ -104,25 +75,6 @@ sysInitGlobals(tpAniSirGlobal pMac)
     return eSIR_SUCCESS;
 }
 
-// ---------------------------------------------------------------------------
-/**
- * sysBbtProcessMessageCore
- *
- * FUNCTION:
- * Process BBT messages
- *
- * LOGIC:
- *
- * ASSUMPTIONS:
- *
- * NOTE:
- *
- * @param tpAniSirGlobal A pointer to MAC params instance
- * @param pMsg message pointer
- * @param tANI_U32 type
- * @param tANI_U32 sub type
- * @return None
- */
 tSirRetStatus
 sysBbtProcessMessageCore(tpAniSirGlobal pMac, tpSirMsgQ pMsg, tANI_U32 type,
                          tANI_U32 subType)
@@ -155,7 +107,7 @@ sysBbtProcessMessageCore(tpAniSirGlobal pMac, tpSirMsgQ pMsg, tANI_U32 type,
                 MTRACE(macTrace(pMac,   TRACE_CODE_RX_MGMT_DROP, NO_SESSION, dropReason);)
                 goto fail;
             }
-            //Post the message to PE Queue
+            
             ret = (tSirRetStatus) limPostMsgApi(pMac, pMsg);
             if (ret != eSIR_SUCCESS)
             {
@@ -167,18 +119,10 @@ sysBbtProcessMessageCore(tpAniSirGlobal pMac, tpSirMsgQ pMsg, tANI_U32 type,
     else if (type == SIR_MAC_DATA_FRAME)
     {
 #ifdef FEATURE_WLAN_TDLS_INTERNAL
-       /*
-        * if we reached here, probably this frame can be TDLS frame.
-        */
        v_U16_t ethType = 0 ;
        v_U8_t *mpduHdr =  NULL ;
        v_U8_t *ethTypeOffset = NULL ;
 
-       /*
-        * Peek into payload and extract ethtype.
-        * In TDLS we can recieve TDLS frames with MAC HEADER (802.11) and also
-        * without MAC Header (Particularly TDLS action frames on direct link.
-        */
        mpduHdr = (v_U8_t *)WDA_GET_RX_MAC_HEADER(pBd) ;
 
 #define SIR_MAC_ETH_HDR_LEN                       (14)
@@ -198,7 +142,7 @@ sysBbtProcessMessageCore(tpAniSirGlobal pMac, tpSirMsgQ pMsg, tANI_U32 type,
 
            VOS_TRACE(VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
                                                    ("TDLS Data Frame \n")) ;
-           /* Post the message to PE Queue */
+           
            PELOGE(sysLog(pMac, LOGE, FL("posting to TDLS frame to lim\n"));)
 
            ret = (tSirRetStatus) limPostMsgApi(pMac, pMsg);
@@ -211,11 +155,11 @@ sysBbtProcessMessageCore(tpAniSirGlobal pMac, tpSirMsgQ pMsg, tANI_U32 type,
            else
                return eSIR_SUCCESS;
        }
-       /* fall through if ethType != TDLS, which is error case */
+       
 #endif
 #ifdef FEATURE_WLAN_CCX
         PELOGW(sysLog(pMac, LOGW, FL("IAPP Frame...\n")););
-        //Post the message to PE Queue
+        
         ret = (tSirRetStatus) limPostMsgApi(pMac, pMsg);
         if (ret != eSIR_SUCCESS)
         {
@@ -247,18 +191,18 @@ fail:
 
 void sysLog(tpAniSirGlobal pMac, tANI_U32 loglevel, const char *pString,...)
 {
-    // Verify against current log level
+    
     if ( loglevel > pMac->utils.gLogDbgLevel[LOG_INDEX_FOR_MODULE( SIR_SYS_MODULE_ID )] )
         return;
     else
     {
         va_list marker;
 
-        va_start( marker, pString );     /* Initialize variable arguments. */
+        va_start( marker, pString );     
 
         logDebug(pMac, SIR_SYS_MODULE_ID, loglevel, pString, marker);
 
-        va_end( marker );              /* Reset variable arguments.      */
+        va_end( marker );              
     }
 }
 

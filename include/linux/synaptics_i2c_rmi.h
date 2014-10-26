@@ -26,11 +26,12 @@
 #define SYNAPTICS_FW_3_2_PACKRAT 1115999
 #define SYNAPTICS_FW_NOCAL_PACKRAT 1293981
 #define SYNAPTICS_FW_2IN1_PACKRAT 1396865
+#define SYNAPTICS_FW_35_COVER 1661078
 
 #define SYN_CFG_BLK_UNIT	(16)
 #define SYN_CONFIG_SIZE 	(32 * SYN_CFG_BLK_UNIT)
 #define SYN_CONFIG_SIZE_35XX 	(64 * SYN_CFG_BLK_UNIT)
-#define SYN_MAX_PAGE 4
+#define SYN_MAX_PAGE 5
 #define SYN_BL_PAGE 1
 #define SYN_VK_ATTR_STRING	(25)
 #define SYN_F01DATA_BASEADDR 0x0013
@@ -91,7 +92,7 @@ struct synaptics_config {
 	uint32_t pl_y_max;
 	uint8_t  config[SYN_CONFIG_SIZE_35XX];
 	uint8_t vkey_setting;
-	uint8_t cover_setting[7];
+	uint8_t cover_setting[9];
 };
 
 struct synaptics_i2c_rmi_platform_data {
@@ -162,7 +163,8 @@ struct synaptics_i2c_rmi_platform_data {
 	uint8_t multitouch_calibration;
 	uint8_t psensor_detection;
 	uint8_t PixelTouchThreshold_bef_unlock;
-	uint8_t cover_setting[7];
+	uint8_t cover_setting[9];
+	uint16_t hall_block_touch_time;
 };
 
 struct page_description {

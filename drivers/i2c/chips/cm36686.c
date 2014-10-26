@@ -164,6 +164,7 @@ struct cm36686_info {
 	uint8_t dark_level;
 	int use__PS2v85;
 	uint32_t *correction_table;
+	int SR_3v_used;
 };
 
 static int fb_notifier_callback(struct notifier_block *self,
@@ -705,7 +706,7 @@ static void sensor_irq_do_work(struct work_struct *work)
 	enable_irq(lpi->irq);
 }
 
-static uint8_t mid_value(uint16_t value[], uint16_t size)
+static uint16_t mid_value(uint16_t value[], uint16_t size)
 {
 	int i = 0, j = 0;
 	uint16_t temp = 0;
@@ -2289,7 +2290,11 @@ static int cm36686_ldo_init(int init)
 		return -1;
 	}
 	if (!init) {
-		regulator_set_voltage(lpi->sr_2v85, 0, 2850000);
+		
+		if(lpi->SR_3v_used)
+			regulator_set_voltage(lpi->sr_2v85, 0, 3000000);
+		else
+			regulator_set_voltage(lpi->sr_2v85, 0, 2850000);
 		return 0;
 	}
 	if (lp_info->use__PS2v85) {
@@ -2309,7 +2314,11 @@ static int cm36686_ldo_init(int init)
 	}
 
 	D("[PS][cm36686] %s: lpi->sr_2v85 = 0x%p\n", __func__, lpi->sr_2v85);
-	rc = regulator_set_voltage(lpi->sr_2v85, 2850000, 2850000);
+	
+	if(lpi->SR_3v_used)
+		rc = regulator_set_voltage(lpi->sr_2v85, 3000000, 3000000);
+	else
+		rc = regulator_set_voltage(lpi->sr_2v85, 2850000, 2850000);
 	if (rc) {
 		pr_err("[PS][cm36686] %s: unable to set voltage for sr 2v85\n", __func__);
 		return rc;
@@ -2361,6 +2370,11 @@ static int cm36686_parse_dt(struct device *dev, struct cm36686_platform_data *pd
 	prop = of_find_property(dt, "cm36686,use__PS2v85", NULL);
 	if (prop) {
 		of_property_read_u32(dt, "cm36686,use__PS2v85", &pdata->use__PS2v85);
+	}
+
+	prop = of_find_property(dt, "cm36686,SR_3v_used", NULL);
+	if (prop) {
+		of_property_read_u32(dt, "cm36686,SR_3v_used", &pdata->SR_3v_used);
 	}
 
 	prop = of_find_property(dt, "cm36686,levels", NULL);
@@ -2573,6 +2587,7 @@ static int __devinit cm36686_probe(struct i2c_client *client,
 	lpi->emmc_ps_kadc1 = pdata->emmc_ps_kadc1;
 	lpi->emmc_ps_kadc2 = pdata->emmc_ps_kadc2;
 	lpi->use__PS2v85 = pdata->use__PS2v85;
+	lpi->SR_3v_used = pdata->SR_3v_used;
 	lp_info = lpi;
 
 	ret = cm36686_read_chip_id(lpi);

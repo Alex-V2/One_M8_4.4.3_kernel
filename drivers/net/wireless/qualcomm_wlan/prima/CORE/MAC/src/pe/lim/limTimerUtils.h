@@ -39,24 +39,12 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- *
- * Airgo Networks, Inc proprietary. All rights reserved.
- * This file limTimerUtils.h contains the utility definitions
- * LIM uses for timer handling.
- * Author:        Chandra Modumudi
- * Date:          02/13/02
- * History:-
- * Date           Modified by    Modification Information
- * --------------------------------------------------------------------
- */
 #ifndef __LIM_TIMER_UTILS_H
 #define __LIM_TIMER_UTILS_H
 
 #include "limTypes.h"
 
 
-// Timer related functions
 enum
 {
     eLIM_MIN_CHANNEL_TIMER,
@@ -104,7 +92,6 @@ enum
 #define LIM_INSERT_SINGLESHOTNOA_TIMEOUT_VALUE  500
 
 
-// Timer Handler functions
 v_UINT_t limCreateTimers(tpAniSirGlobal);
 void limTimerHandler(void *, tANI_U32);
 void limAuthResponseTimerHandler(void *, tANI_U32);
@@ -115,7 +102,6 @@ void limDeactivateAndChangeTimer(tpAniSirGlobal, tANI_U32);
 void limHeartBeatDeactivateAndChangeTimer(tpAniSirGlobal, tpPESession);
 void limReactivateHeartBeatTimer(tpAniSirGlobal, tpPESession);
 void limDummyPktExpTimerHandler(void *, tANI_U32);
-void limSendDisassocFrameThresholdHandler(void *, tANI_U32);
 void limCnfWaitTmerHandler(void *, tANI_U32);
 void limKeepaliveTmerHandler(void *, tANI_U32);
 void limDeactivateAndChangePerStaIdTimer(tpAniSirGlobal, tANI_U32, tANI_U16);
@@ -128,25 +114,6 @@ void limQuietTimerHandler(void *, tANI_U32);
 void limQuietBssTimerHandler(void *, tANI_U32);
 void limCBScanIntervalTimerHandler(void *, tANI_U32);
 void limCBScanDurationTimerHandler(void *, tANI_U32);
-/**
- * limActivateHearBeatTimer()
- *
- *
- * @brief: This function is called to activate heartbeat timer
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- * NA
- *
- * @note   staId for eLIM_AUTH_RSP_TIMER is auth Node Index.
- *
- * @param  pMac    - Pointer to Global MAC structure
- * @param  psessionEntry - Pointer to PE session entry
- *
- * @return TX_SUCCESS - timer is activated
- *         errors - fail to start the timer
- */
 v_UINT_t limActivateHearBeatTimer(tpAniSirGlobal pMac, tpPESession psessionEntry);
 
 #if 0
@@ -155,4 +122,4 @@ void limWPSOverlapTimerHandler(void *pMacGlobal, tANI_U32 param);
 #ifdef WLAN_ACTIVEMODE_OFFLOAD_FEATURE
 void limMissedBeaconInActiveMode(void *pMacGlobal, tpPESession psessionEntry);
 #endif
-#endif /* __LIM_TIMER_UTILS_H */
+#endif 

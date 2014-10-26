@@ -113,6 +113,7 @@ static struct alarm batt_charger_ctrl_alarm;
 static struct work_struct batt_charger_ctrl_work;
 struct workqueue_struct *batt_charger_ctrl_wq;
 static unsigned int charger_ctrl_stat;
+static unsigned int ftm_charger_ctrl_stat;
 
 static int test_power_monitor;
 static int test_ftm_mode;
@@ -447,6 +448,49 @@ static ssize_t htc_battery_charger_switch(struct device *dev,
 	return count;
 }
 
+static ssize_t htc_battery_ftm_charger_stat(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
+{
+	int i = 0;
+
+	i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", ftm_charger_ctrl_stat);
+
+	return i;
+}
+
+static ssize_t htc_battery_ftm_charger_switch(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	unsigned long enable = 0;
+	int rc = 0;
+
+	rc = strict_strtoul(buf, 10, &enable);
+	if (rc)
+		return rc;
+
+	BATT_LOG("Set charger_control:%lu", enable);
+	if (enable >= FTM_END_CHARGER)
+		return -EINVAL;
+
+	if (!battery_core_info.func.func_ftm_charger_control) {
+		BATT_ERR("No charger control function!");
+		return -ENOENT;
+	}
+
+	rc = battery_core_info.func.func_ftm_charger_control(enable);
+	if (rc < 0) {
+		BATT_ERR("charger control failed!");
+		return rc;
+	}
+	ftm_charger_ctrl_stat = enable;
+
+	alarm_cancel(&batt_charger_ctrl_alarm);
+
+	return count;
+}
+
 static ssize_t htc_battery_set_phone_call(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count)
@@ -683,6 +727,8 @@ static struct device_attribute htc_set_delta_attrs[] = {
 		htc_battery_trigger_store_battery_data),
 	__ATTR(qb_mode_shutdown, S_IWUSR | S_IWGRP, NULL,
 		htc_battery_qb_mode_shutdown_status),
+	__ATTR(ftm_charger_control, S_IWUSR | S_IWGRP, htc_battery_ftm_charger_stat,
+		htc_battery_ftm_charger_switch),
 };
 
 static struct device_attribute htc_battery_rt_attrs[] = {
@@ -693,6 +739,7 @@ static struct device_attribute htc_battery_rt_attrs[] = {
 #if defined(CONFIG_MACH_DUMMY)
 	__ATTR(usb_temp_now, S_IRUGO, htc_battery_rt_attr_show, NULL),
 #endif
+	__ATTR(batt_id_now, S_IRUGO, htc_battery_rt_attr_show, NULL),
 };
 
 
@@ -898,7 +945,7 @@ static int htc_power_get_property(struct power_supply *psy,
 				psy->type == POWER_SUPPLY_TYPE_USB)
 			val->intval = usb_voltage_max;
 		else
-			return -EINVAL;
+			return val->intval  = 0;
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
 		val->intval = psy->type;
@@ -1120,6 +1167,20 @@ static void batt_charger_ctrl_alarm_handler(struct alarm *alarm)
 	queue_work(batt_charger_ctrl_wq, &batt_charger_ctrl_work);
 }
 
+static unsigned int get_htc_debug_flag(void)
+{
+
+        unsigned int cfg = 0 ;
+    
+        if (get_tamper_sf() == 0) {
+                if ((get_kernel_flag() & KERNEL_FLAG_KEEP_CHARG_ON)
+					|| (get_kernel_flag() & KERNEL_FLAG_ENABLE_FAST_CHARGE)) {
+                        cfg = 1 ;
+                }
+        }
+	return cfg;
+}
+
 void htc_battery_update_batt_uevent(void)
 {
 	power_supply_changed(&htc_power_supplies[BATTERY_SUPPLY]);
@@ -1134,6 +1195,7 @@ int htc_battery_core_update_changed(void)
 	int is_send_ac_uevent = 0;
 	int is_send_wireless_charger_uevent = 0;
 	static int batt_temp_over_68c_count = 0;
+	unsigned int dbg_cfg = 0 ;
 
 	if (battery_register) {
 		BATT_ERR("No battery driver exists.");
@@ -1278,10 +1340,13 @@ int htc_battery_core_update_changed(void)
 	battery_core_info.update_time = jiffies;
 	mutex_unlock(&battery_core_info.info_lock);
 
+	
+	dbg_cfg = get_htc_debug_flag();
+
 	BATT_EMBEDDED("ID=%d,level=%d,level_raw=%d,vol=%d,temp=%d,current=%d,"
 		"chg_src=%d,chg_en=%d,full_bat=%d,over_vchg=%d,"
 		"batt_state=%d,cable_ready=%d,overload=%d,ui_chg_full=%d,"
-		"usb_temp=%d,usb_overheat=%d",
+		"usb_temp=%d,usb_overheat=%d,CFG=0x%x",
 			battery_core_info.rep.batt_id,
 			battery_core_info.rep.level,
 			battery_core_info.rep.level_raw,
@@ -1297,7 +1362,8 @@ int htc_battery_core_update_changed(void)
 			battery_core_info.rep.overload,
 			battery_core_info.htc_charge_full,
 			battery_core_info.rep.usb_temp,
-			battery_core_info.rep.usb_overheat);
+			battery_core_info.rep.usb_overheat,
+			dbg_cfg);
 
 
 	
@@ -1386,6 +1452,9 @@ int htc_battery_core_register(struct device *dev,
 	if (htc_battery->func_qb_mode_shutdown_status)
 		battery_core_info.func.func_qb_mode_shutdown_status =
 					htc_battery->func_qb_mode_shutdown_status;
+	if (htc_battery->func_ftm_charger_control)
+		battery_core_info.func.func_ftm_charger_control =
+					htc_battery->func_ftm_charger_control;
 
 	
 	for (i = 0; i < ARRAY_SIZE(htc_power_supplies); i++) {

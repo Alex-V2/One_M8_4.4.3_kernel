@@ -33,7 +33,8 @@ else
     WLAN_BLD_DIR := vendor/qcom/opensource/wlan
 endif
 
-ifeq ($(call is-android-codename,JELLY_BEAN),true)
+# DLKM_DIR was moved for JELLY_BEAN (PLATFORM_SDK 16)
+ifeq ($(call is-platform-sdk-version-at-least,16),true)
        DLKM_DIR := $(TOP)/device/htc/common/dlkm
 else
        DLKM_DIR := build/dlkm
@@ -58,7 +59,7 @@ LOCAL_SRC_FILES    := firmware_bin/$(LOCAL_MODULE)
 include $(BUILD_PREBUILT)
 
 
-ifneq (, $(filter a5dtu htc_a5dtu a5ul htc_a5ul a5chl htc_a5chl a5tl htc_a5tl a5dug htc_a5dug a5dwg htc_a5dwg a3qhdul htc_a3qhdul a3ul htc_a3ul a3tl htc_a3tl a3cl htc_a3cl a11chl htc_a11chl a11ulaio htc_a11ul8x26 a11ul htc_a11ul, $(TARGET_PRODUCT)))
+ifneq (, $(filter a5dtu htc_a5dtu a5ul htc_a5ul a5chl htc_a5chl a5tl htc_a5tl a5dug htc_a5dug a5dwg htc_a5dwg a3qhdul htc_a3qhdul a3qhdcl htc_a3qhdcl a3ul htc_a3ul a3tl htc_a3tl a3cl htc_a3cl a11chl htc_a11chl a11ulaio htc_a11ul8x26 a11ul htc_a11ul  a5dugl htc_a5dugl a5dwgl htc_a5dwgl, $(TARGET_PRODUCT)))
  include $(CLEAR_VARS)
  LOCAL_MODULE       := WCNSS_qcom_cfg.ini
  LOCAL_MODULE_TAGS  := optional

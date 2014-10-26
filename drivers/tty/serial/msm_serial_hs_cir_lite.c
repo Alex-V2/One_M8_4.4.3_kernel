@@ -1659,7 +1659,7 @@ static int __devinit msm_serial_hsl_probe_cir(struct platform_device *pdev)
 	struct cir_platform_data *pdata;
 	int ret;
 	u32 line;
-
+	D("%s\n",__func__);
 	if (pdev->id == -1)
 		pdev->id = atomic_inc_return(&msm_serial_hsl_next_id) - 1;
 

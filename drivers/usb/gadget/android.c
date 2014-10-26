@@ -1464,7 +1464,7 @@ static ssize_t acm_baud_rate_store(
 	}
 
 	if (_f_acm == NULL) {
-		USB_ERR("%s: acm didnt init\n", __func__);
+		USB_WARNING("%s: acm didnt init\n", __func__);
 		return size;
 	}
 
@@ -1490,7 +1490,7 @@ static ssize_t acm_baud_rate_show(struct device *dev, struct device_attribute *a
 	struct tty_struct *port_tty = NULL;
 
 	if (_f_acm == NULL) {
-		USB_ERR("%s: acm didnt init\n", __func__);
+		USB_WARNING("%s: acm didnt init\n", __func__);
 		return size;
 	}
 
@@ -2020,6 +2020,7 @@ struct mass_storage_function_config {
 	struct fsg_common *common;
 };
 
+#define MAX_LUN_NAME 8
 static int mass_storage_function_init(struct android_usb_function *f,
 					struct usb_composite_dev *cdev)
 {
@@ -2055,8 +2056,6 @@ static int mass_storage_function_init(struct android_usb_function *f,
 		config->fsg.nluns = 1;
 		config->fsg.luns[0].removable = 1;
 	}
-
-
 
 	common = fsg_common_init(NULL, cdev, &config->fsg);
 	if (IS_ERR(common)) {
@@ -2484,8 +2483,37 @@ static ssize_t projector2_width_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", config->set_display_info.wWidth);
 }
 
+#if HSML_VERSION_12
+#define cHSML_WIDTH_SIZE        2
+
+static ssize_t projector2_width_store(struct device *dev,
+        struct device_attribute *attr, const char *buff, size_t size)
+{
+struct android_usb_function *f = dev_get_drvdata(dev);
+struct hsml_protocol *config = f->config;
+u16 uValue;
+u8 aucWidth[cHSML_WIDTH_SIZE];
+
+    if (size <= cHSML_WIDTH_SIZE) {
+        memset(aucWidth, 0, sizeof(aucWidth));
+        memcpy(aucWidth, buff, size);
+        uValue = be16_to_cpu(*((__le16 *) aucWidth));
+        config->set_display_info.wWidth = uValue;
+        return size;
+    } else {
+        printk(KERN_ERR "%s: size is invalid %d/%d\n", __func__, size, cHSML_WIDTH_SIZE);
+    }
+    return -EINVAL;
+}
+#endif
+
 static DEVICE_ATTR(client_width, S_IRUGO | S_IWUSR, projector2_width_show,
-						    NULL);
+#if !HSML_VERSION_12
+                            NULL
+#else
+                            projector2_width_store
+#endif
+        );
 
 static ssize_t projector2_height_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -2495,8 +2523,36 @@ static ssize_t projector2_height_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", config->set_display_info.wHeight);
 }
 
+#if HSML_VERSION_12
+static ssize_t projector2_height_store(struct device *dev,
+        struct device_attribute *attr, const char *buff, size_t size)
+{
+struct android_usb_function *f = dev_get_drvdata(dev);
+struct hsml_protocol *config = f->config;
+u16 uValue;
+u8 aucWidth[cHSML_WIDTH_SIZE];
+
+    if (size <= cHSML_WIDTH_SIZE) {
+        memset(aucWidth, 0, sizeof(aucWidth));
+        memcpy(aucWidth, buff, size);
+        uValue = be16_to_cpu(*((__le16 *) aucWidth));
+        config->set_display_info.wHeight = uValue;
+        return size;
+    } else {
+        printk(KERN_ERR "%s: size is invalid %d/%d\n", __func__, size, cHSML_WIDTH_SIZE);
+    }
+
+    return -EINVAL;
+}
+#endif
+
 static DEVICE_ATTR(client_height, S_IRUGO | S_IWUSR, projector2_height_show,
-						    NULL);
+#if !HSML_VERSION_12
+                            NULL
+#else
+                            projector2_height_store
+#endif
+                            );
 
 static ssize_t projector2_maxfps_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -2521,6 +2577,10 @@ static DEVICE_ATTR(client_pixel_format, S_IRUGO | S_IWUSR, projector2_pixel_form
 						    NULL);
 
 static DEVICE_ATTR(client_context_info, S_IRUGO | S_IWUSR, NULL, context_info_store);
+#if HSML_VERSION_12
+static DEVICE_ATTR(client_ver, S_IRUGO | S_IWUSR, projector2_ver_show, NULL);
+static DEVICE_ATTR(client_uuid, S_IRUGO | S_IWUSR, NULL, projector2_uuid_store);
+#endif
 
 static struct device_attribute *projector2_function_attributes[] = {
 	&dev_attr_client_width,
@@ -2528,10 +2588,12 @@ static struct device_attribute *projector2_function_attributes[] = {
 	&dev_attr_client_maxfps,
 	&dev_attr_client_pixel_format,
 	&dev_attr_client_context_info,
+#if HSML_VERSION_12
+	&dev_attr_client_ver,
+	&dev_attr_client_uuid,
+#endif
 	NULL
 };
-
-
 
 struct android_usb_function projector2_function = {
 	.name		= "projector2",
@@ -3291,6 +3353,8 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 	struct android_configuration	*conf;
 	int value = -EOPNOTSUPP;
 	unsigned long flags;
+	bool do_work = false;
+	bool prev_configured = false;
 
 	req->zero = 0;
 	req->complete = composite_setup_complete;
@@ -3314,6 +3378,8 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 			}
 		}
 
+	if (cdev->config)
+		prev_configured = true;
 	if (value < 0)
 		value = acc_ctrlrequest(cdev, c);
 
@@ -3329,13 +3395,15 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (!dev->connected) {
 		dev->connected = 1;
-		schedule_work(&dev->work);
+		do_work = true;
 	} else if (c->bRequest == USB_REQ_SET_CONFIGURATION &&
 						cdev->config) {
-		schedule_work(&dev->work);
+		if (!prev_configured)
+			do_work = true;
 	}
 	spin_unlock_irqrestore(&cdev->lock, flags);
-
+	if (do_work)
+		schedule_work(&dev->work);
 	return value;
 }
 
@@ -3360,11 +3428,6 @@ static void android_disconnect(struct usb_gadget *gadget)
 	dev->connected = 0;
 	schedule_work(&dev->work);
 	spin_unlock_irqrestore(&cdev->lock, flags);
-
-	if (switch_get_state(&ml_switch)) {
-		switch_set_state(&ml_switch, 0);
-		pr_info("%s:[mirror_link] ml_switch set 0\n", __func__);
-	}
 }
 
 static void android_suspend(struct usb_gadget *gadget)
@@ -3570,6 +3633,10 @@ static int __devinit android_probe(struct platform_device *pdev)
 		}
 
 		pdata->streaming_func_count = len;
+
+		ret = of_property_read_u32(pdev->dev.of_node,
+				"qcom,android-usb-uicc-nluns",
+				&pdata->uicc_nluns);
 	} else {
 		pdata = pdev->dev.platform_data;
 	}

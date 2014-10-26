@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011,2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2011,2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -89,8 +89,6 @@ enum msm_tlmm_misc_reg {
 	TLMM_CDC_HDRV_PULL_CTL = 0x2058,
 };
 
-void msm_tlmm_misc_reg_write(enum msm_tlmm_misc_reg misc_reg, int val);
-
 #ifdef CONFIG_MSM_GPIOMUX
 
 int msm_gpiomux_init(size_t ngpio);
@@ -118,6 +116,11 @@ int msm_gpiomux_write(unsigned gpio, enum msm_gpiomux_setting which,
 	struct gpiomux_setting *setting, struct gpiomux_setting *old_setting);
 
 void __msm_gpiomux_write(unsigned gpio, struct gpiomux_setting val);
+
+int msm_tlmm_misc_reg_read(enum msm_tlmm_misc_reg misc_reg);
+
+void msm_tlmm_misc_reg_write(enum msm_tlmm_misc_reg misc_reg, int val);
+
 #else
 static inline int msm_gpiomux_init(size_t ngpio)
 {
@@ -143,5 +146,16 @@ static inline int msm_gpiomux_write(unsigned gpio,
 {
 	return -ENOSYS;
 }
+
+static inline int msm_tlmm_misc_reg_read(enum msm_tlmm_misc_reg misc_reg)
+{
+	return -ENOSYS;
+}
+
+static inline void msm_tlmm_misc_reg_write(enum msm_tlmm_misc_reg misc_reg,
+						int val)
+{
+}
+
 #endif
 #endif

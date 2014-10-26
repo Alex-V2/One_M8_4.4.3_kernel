@@ -18,33 +18,35 @@ DEFINE_MSM_MUTEX(imx214_mut);
 static struct msm_sensor_ctrl_t imx214_s_ctrl;
 
 static struct msm_sensor_power_setting imx214_power_setting[] = {
+#ifdef CONFIG_REGULATOR_NCP6924
 	{
 		.seq_type = SENSOR_GPIO,
-		.seq_val = SENSOR_GPIO_STANDBY,
+		.seq_val = SENSOR_GPIO_STANDBY,  
 		.config_val = GPIO_OUT_HIGH,
 		.delay = 1,
 	},
+#endif
 	{
-		.seq_type = SENSOR_VREG_NCP6924,
-		.seq_val = NCP6924_VDIG,
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VDIG,
 		.config_val = 1,
 		.delay = 1,
 	},
 	{
-		.seq_type = SENSOR_VREG_NCP6924,
-		.seq_val = NCP6924_VANA,
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VANA,
 		.config_val = 1,
 		.delay = 1,
 	},
 	{
-		.seq_type = SENSOR_VREG_NCP6924,
-		.seq_val = NCP6924_VIO,
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VIO,
 		.config_val = 1,
 		.delay = 1,
 	},
 	{
-		.seq_type = SENSOR_VREG_NCP6924,
-		.seq_val = NCP6924_VAF,
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VAF,
 		.config_val = 1,
 		.delay = 1,
 	},
@@ -387,9 +389,9 @@ int32_t imx214_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 	    {
 	        pr_info("%s read_fuseid\n",__func__);
 	        rc1 = imx214_read_fuseid(NULL, s_ctrl);
+	        first = 1;
 	    }
 	}
-	first = 1;
 	return rc;
 }
 

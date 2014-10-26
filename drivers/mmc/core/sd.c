@@ -982,11 +982,12 @@ static void mmc_sd_remove(struct mmc_host *host)
 	BUG_ON(!host->card);
 	printk(KERN_INFO "%s: %s, claimed : %d, claim_cnt : %d\n", mmc_hostname(host),
 		__func__, host->claimed, host->claim_cnt);
+
+	mmc_exit_clk_scaling(host);
 	mmc_remove_card(host->card);
 
 	mmc_claim_host(host);
 	host->card = NULL;
-	mmc_exit_clk_scaling(host);
 	mmc_release_host(host);
 	printk(KERN_INFO "%s: %s, claimed : %d, claim_cnt : %d\n", mmc_hostname(host),
 		__func__, host->claimed, host->claim_cnt);

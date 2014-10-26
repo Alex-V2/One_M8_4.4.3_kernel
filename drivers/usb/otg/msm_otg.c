@@ -42,6 +42,7 @@
 #include <linux/mfd/pm8xxx/pm8921-charger.h>
 #include <linux/mfd/pm8xxx/misc.h>
 #include <linux/mhl_8334.h>
+#include <linux/qpnp/qpnp-adc.h>
 
 #include <mach/scm.h>
 #include <mach/clk.h>
@@ -511,8 +512,10 @@ static int msm_otg_link_clk_reset(struct msm_otg *motg, bool assert)
 			dev_dbg(motg->phy.dev, "block_reset DEASSERT\n");
 			ret = clk_reset(motg->core_clk, CLK_RESET_DEASSERT);
 			ndelay(200);
-			clk_prepare_enable(motg->core_clk);
-			clk_prepare_enable(motg->pclk);
+			ret = clk_prepare_enable(motg->core_clk);
+			WARN(ret, "USB core_clk enable failed\n");
+			ret = clk_prepare_enable(motg->pclk);
+			WARN(ret, "USB pclk enable failed\n");
 		}
 		if (ret)
 			dev_err(motg->phy.dev, "usb hs_clk deassert failed\n");
@@ -1143,8 +1146,10 @@ static int msm_otg_resume(struct msm_otg *motg)
 	}
 
 	if (motg->lpm_flags & CLOCKS_DOWN) {
-		clk_prepare_enable(motg->core_clk);
-		clk_prepare_enable(motg->pclk);
+		ret = clk_prepare_enable(motg->core_clk);
+		WARN(ret, "USB core_clk enable failed\n");
+		ret = clk_prepare_enable(motg->pclk);
+		WARN(ret, "USB pclk enable failed\n");
 		motg->lpm_flags &= ~CLOCKS_DOWN;
 	}
 
@@ -1332,6 +1337,16 @@ psy_error:
 	return -ENXIO;
 }
 
+static void msm_otg_set_online_status(struct msm_otg *motg)
+{
+	if (!psy)
+		dev_dbg(motg->phy.dev, "no usb power supply registered\n");
+
+	
+	if (power_supply_set_online(psy, false))
+		dev_dbg(motg->phy.dev, "error setting power supply property\n");
+}
+
 static void msm_otg_notify_charger(struct msm_otg *motg, unsigned mA)
 {
 	struct usb_gadget *g = motg->phy.otg->gadget;
@@ -1350,6 +1365,9 @@ static void msm_otg_notify_charger(struct msm_otg *motg, unsigned mA)
 		dev_err(motg->phy.dev,
 			"Failed notifying %d charger type to PMIC\n",
 							motg->chg_type);
+
+	if (motg->online && motg->cur_power == 0  && mA == 0)
+		msm_otg_set_online_status(motg);
 
 	if (motg->cur_power == mA)
 		return;
@@ -1373,6 +1391,12 @@ static void msm_otg_notify_usb_attached(struct usb_phy *phy)
 
 }
 
+int msm_usb_get_connect_type(void)
+{
+	if (!the_msm_otg)
+		return 0;
+	return the_msm_otg->connect_type;
+}
 
 static int msm_otg_set_power(struct usb_phy *phy, unsigned mA)
 {
@@ -2338,6 +2362,11 @@ static void msm_chg_detect_work(struct work_struct *w)
 	case USB_CHG_STATE_SECONDARY_DONE:
 		motg->chg_state = USB_CHG_STATE_DETECTED;
 	case USB_CHG_STATE_DETECTED:
+		if (motg->chg_type == USB_DCP_CHARGER &&
+			motg->ext_chg_opened) {
+				init_completion(&motg->ext_chg_wait);
+				motg->ext_chg_active = DEFAULT;
+		}
 		msm_otg_notify_chg_type(motg);
 		msm_chg_block_off(motg);
 		msm_chg_enable_aca_det(motg);
@@ -2417,14 +2446,17 @@ static void msm_otg_wait_for_ext_chg_done(struct msm_otg *motg)
 	unsigned long t;
 
 
-	if (motg->ext_chg_active) {
+	if (motg->ext_chg_active == ACTIVE) {
 
+do_wait:
 		pr_debug("before msm_otg ext chg wait\n");
 
 		t = wait_for_completion_timeout(&motg->ext_chg_wait,
 				msecs_to_jiffies(3000));
 		if (!t)
 			pr_err("msm_otg ext chg wait timeout\n");
+		else if (motg->ext_chg_active == ACTIVE)
+			goto do_wait;
 		else
 			pr_debug("msm_otg ext chg wait done\n");
 	}
@@ -2451,8 +2483,10 @@ static void msm_otg_sm_work(struct work_struct *w)
 			otg_state_string(otg->phy->state), (unsigned) motg->inputs);
 	mutex_lock(&smwork_sem);
 	pm_runtime_resume(otg->phy->dev);
-	if (motg->pm_done)
+	if (motg->pm_done) {
 		pm_runtime_get_sync(otg->phy->dev);
+		motg->pm_done = 0;
+	}
 	pr_debug("%s work\n", otg_state_string(otg->phy->state));
 	switch (otg->phy->state) {
 	case OTG_STATE_UNDEFINED:
@@ -2502,11 +2536,6 @@ static void msm_otg_sm_work(struct work_struct *w)
 				case USB_DCP_CHARGER:
 					
 					ulpi_write(otg->phy, 0x2, 0x85);
-					if (motg->ext_chg_opened) {
-						init_completion(
-							&motg->ext_chg_wait);
-						motg->ext_chg_active = true;
-					}
 					
 				case USB_PROPRIETARY_CHARGER:
 					msm_otg_notify_charger(motg,
@@ -2575,10 +2604,13 @@ static void msm_otg_sm_work(struct work_struct *w)
 			motg->chg_type = USB_INVALID_CHARGER;
 			msm_otg_notify_charger(motg, 0);
 			if (dcp) {
+				if (motg->ext_chg_active == DEFAULT)
+					motg->ext_chg_active = INACTIVE;
 				msm_otg_wait_for_ext_chg_done(motg);
 				
 				ulpi_write(otg->phy, 0x2, 0x86);
 			}
+			msm_chg_block_off(motg);
 			msm_otg_reset(otg->phy);
 			if (motg->connect_type != CONNECT_TYPE_NONE) {
 				motg->connect_type = CONNECT_TYPE_NONE;
@@ -3516,6 +3548,27 @@ static ssize_t msm_otg_bus_write(struct file *file, const char __user *ubuf,
 	return count;
 }
 
+static int
+otg_get_prop_usbin_voltage_now(struct msm_otg *motg)
+{
+	int rc = 0;
+	struct qpnp_vadc_result results;
+
+	if (IS_ERR_OR_NULL(motg->vadc_dev)) {
+		motg->vadc_dev = qpnp_get_vadc(motg->phy.dev, "usbin");
+		if (IS_ERR(motg->vadc_dev))
+			return PTR_ERR(motg->vadc_dev);
+	}
+
+	rc = qpnp_vadc_read(motg->vadc_dev, USBIN, &results);
+	if (rc) {
+		pr_err("Unable to read usbin rc=%d\n", rc);
+		return 0;
+	} else {
+		return results.physical;
+	}
+}
+
 static int otg_power_get_property_usb(struct power_supply *psy,
 				  enum power_supply_property psp,
 				  union power_supply_propval *val)
@@ -3544,6 +3597,9 @@ static int otg_power_get_property_usb(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
 		val->intval = motg->usbin_health;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		val->intval = otg_get_prop_usbin_voltage_now(motg);
 		break;
 	default:
 		return -EINVAL;
@@ -3616,6 +3672,7 @@ static enum power_supply_property otg_pm_power_props_usb[] = {
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_SCOPE,
 	POWER_SUPPLY_PROP_TYPE,
+	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 };
 
 const struct file_operations msm_otg_bus_fops = {
@@ -3930,20 +3987,60 @@ msm_otg_ext_chg_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		pr_debug("%s: LPM block request %d\n", __func__, val);
 		if (val) { 
 			if (motg->chg_type == USB_DCP_CHARGER) {
+				motg->ext_chg_active = ACTIVE;
 				if (pm_runtime_suspended(motg->phy.dev))
 					pm_runtime_resume(motg->phy.dev);
 				else
 					pm_runtime_get_sync(motg->phy.dev);
 			} else {
-				motg->ext_chg_active = false;
+				motg->ext_chg_active = INACTIVE;
 				complete(&motg->ext_chg_wait);
 				ret = -ENODEV;
 			}
 		} else {
-			motg->ext_chg_active = false;
+			motg->ext_chg_active = INACTIVE;
 			complete(&motg->ext_chg_wait);
-			pm_runtime_put(motg->phy.dev);
+			flush_work(&motg->sm_work);
+			pm_runtime_put_noidle(motg->phy.dev);
+			motg->pm_done = 1;
+			pm_runtime_suspend(motg->phy.dev);
 		}
+		break;
+	case MSM_USB_EXT_CHG_VOLTAGE_INFO:
+		if (get_user(val, (int __user *)arg)) {
+			pr_err("%s: get_user failed\n\n", __func__);
+			ret = -EFAULT;
+			break;
+		}
+
+		if (val == USB_REQUEST_5V)
+			pr_debug("%s:voting 5V voltage request\n", __func__);
+		else if (val == USB_REQUEST_9V)
+			pr_debug("%s:voting 9V voltage request\n", __func__);
+		break;
+	case MSM_USB_EXT_CHG_RESULT:
+		if (get_user(val, (int __user *)arg)) {
+			pr_err("%s: get_user failed\n\n", __func__);
+			ret = -EFAULT;
+			break;
+		}
+
+		if (!val)
+			pr_debug("%s:voltage request successful\n", __func__);
+		else
+			pr_debug("%s:voltage request failed\n", __func__);
+		break;
+	case MSM_USB_EXT_CHG_TYPE:
+		if (get_user(val, (int __user *)arg)) {
+			pr_err("%s: get_user failed\n\n", __func__);
+			ret = -EFAULT;
+			break;
+		}
+
+		if (val)
+			pr_debug("%s:charger is external charger\n", __func__);
+		else
+			pr_debug("%s:charger is not ext charger\n", __func__);
 		break;
 	default:
 		ret = -EINVAL;
@@ -4076,11 +4173,147 @@ static ssize_t dpdm_pulldown_enable_store(struct device *dev,
 static DEVICE_ATTR(dpdm_pulldown_enable, S_IRUGO | S_IWUSR,
 		dpdm_pulldown_enable_show, dpdm_pulldown_enable_store);
 
+#ifdef CONFIG_MACH_DUMMY
+static int usb_phy_setting_A3CL[9] = {
+	0x44,0x80,
+	0x6c,0x81,
+	0x34,0x82,
+	0x03,0x83,
+	0xffffffff
+};
+#elif defined(CONFIG_MACH_DUMMY)
+static int usb_phy_setting_A3ULQHD[9] = {
+	0x44,0x80,
+	0x6c,0x81,
+	0x34,0x82,
+	0x03,0x83,
+	0xffffffff
+};
+#elif defined(CONFIG_MACH_DUMMY)
+static int usb_phy_setting_A3TL[9] = {
+	0x44,0x80,
+	0x6c,0x81,
+	0x34,0x82,
+	0x03,0x83,
+	0xffffffff
+};
+#if 0
+static int usb_phy_setting_A3UL[9] = {	
+	0x44,0x80,
+	0x5e,0x81,
+	0x30,0x82,
+	0x13,0x83,
+	0xffffffff
+};
+static char *MID_LIST[] = {
+	"0P9O1",
+	"0P9O2",
+	"0P9O3",
+};
+#endif
+#elif defined(CONFIG_MACH_DUMMY)
+static int usb_phy_setting_MEMUL[9] = {
+	0x44,0x80,
+	0x4f,0x81,
+	0x3c,0x82,
+	0x13,0x83,
+	0xffffffff
+};
+static int usb_phy_setting_MEMUL_PVT[9] = {
+	0x44,0x80,
+	0x3b,0x81,
+	0x3c,0x82,
+	0x13,0x83,
+	0xffffffff
+};
+#elif defined(CONFIG_MACH_DUMMY)
+static int usb_phy_setting_MEMWL[9] = {
+	0x44,0x80,
+	0x4f,0x81,
+	0x3c,0x82,
+	0x13,0x83,
+	0xffffffff
+};
+static int usb_phy_setting_MEMWL_PVT[9] = {
+	0x44,0x80,
+	0x3b,0x81,
+	0x3c,0x82,
+	0x13,0x83,
+	0xffffffff
+};
+#elif defined(CONFIG_MACH_DUMMY)
+static int usb_phy_setting_A5DWG[9] = {
+	0x44,0x80,
+	0x39,0x81,
+	0x31,0x82,
+	0x13,0x83,
+	0xffffffff
+};
+#elif defined(CONFIG_MACH_DUMMY)
+static int usb_phy_setting_A5UL[9] = {
+	0x44,0x80,
+	0x3c,0x81,
+	0x3d,0x82,
+	0x13,0x83,
+	0xffffffff
+};
+#elif defined(CONFIG_MACH_DUMMY)
+static int usb_phy_setting_A5TL[9] = {
+	0x44,0x80,
+	0x3c,0x81,
+	0x3d,0x82,
+	0x13,0x83,
+	0xffffffff
+};
+#elif defined(CONFIG_MACH_DUMMY)
+static int usb_phy_setting_A11UL[9] = {
+	0x44,0x80,
+	0x39,0x81,
+	0x3c,0x82,
+	0x13,0x83,
+	0xffffffff
+};
+static int usb_phy_setting_A11UL_PVT[9] = {
+	0x44,0x80,
+	0x3b,0x81,
+	0x3c,0x82,
+	0x13,0x83,
+	0xffffffff
+};
+#endif
 
 int *htc_msm_otg_get_phy_init(int *phy_init)
 {
 	__maybe_unused char *mid;
 	__maybe_unused int i;
+#ifdef CONFIG_MACH_DUMMY
+	return usb_phy_setting_A3CL;
+#elif defined(CONFIG_MACH_DUMMY)
+	return usb_phy_setting_A3ULQHD;
+#elif defined(CONFIG_MACH_DUMMY)
+	return usb_phy_setting_A3TL;
+#elif defined(CONFIG_MACH_DUMMY)
+	if (of_machine_pcbid() == 0x80)
+		return usb_phy_setting_MEMWL_PVT;
+	else
+		return usb_phy_setting_MEMWL;
+#elif defined(CONFIG_MACH_DUMMY)
+	if (of_machine_pcbid() == 0x80)
+		return usb_phy_setting_MEMUL_PVT;
+	else
+		return usb_phy_setting_MEMUL;
+#elif defined(CONFIG_MACH_DUMMY)
+	return usb_phy_setting_A5DWG;
+#elif defined(CONFIG_MACH_DUMMY)
+	return usb_phy_setting_A5UL;
+#elif defined(CONFIG_MACH_DUMMY)
+	return usb_phy_setting_A5TL;
+#elif defined(CONFIG_MACH_DUMMY)
+	if (of_machine_pcbid() == 0x80)
+		return usb_phy_setting_A11UL_PVT;
+	else
+		return usb_phy_setting_A11UL;
+#endif
 	printk("[USB] use dt phy init\n");
 	return phy_init;
 }
