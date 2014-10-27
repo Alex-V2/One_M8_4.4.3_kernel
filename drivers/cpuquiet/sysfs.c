@@ -37,6 +37,7 @@ struct cpuquiet_sysfs_attr {
 
 static struct kobject *cpuquiet_global_kobject;
 struct cpuquiet_dev *cpuquiet_cpu_devices[CONFIG_NR_CPUS];
+unsigned int gov_enabled = 1;
 
 static ssize_t show_current_governor(char *buf)
 {
@@ -104,14 +105,59 @@ static ssize_t available_governors_show(char *buf)
 	return ret;
 }
 
+static ssize_t show_enabled(char *buf)
+{
+	ssize_t ret;
+
+	mutex_lock(&cpuquiet_lock);
+
+	if (cpuquiet_curr_governor)
+		ret = sprintf(buf, "%u\n", (gov_enabled==0) ? 0 : 1);
+	else
+		ret = sprintf(buf, "n/a\n");
+
+	mutex_unlock(&cpuquiet_lock);
+
+	return ret;
+
+}
+
+static ssize_t store_enabled(const char *buf, size_t count)
+{
+	unsigned int old_enabled;
+	char *p = (char *)buf;
+
+	if ((count <= 0) || (p[1] != '0' && p[1] !== '1'))
+		return 0;
+
+	if (!cpuquiet_curr_governor)
+		return -EINVAL;
+
+	old_enabled = gov_enabled;
+	gov_enabled = simple_strtoul(buf, NULL, 0);
+
+	if (gov_enabled == 1) {
+		if (!old_enabled && cpuquiet_curr_governor->start)
+			cpuquiet_curr_governor->start();
+	} else {
+		if (old_enabled && cpuquiet_curr_governor->stop)
+			cpuquiet_curr_governor->stop();
+	}
+
+	return count;
+}
+
 struct cpuquiet_sysfs_attr attr_current_governor = __ATTR(current_governor,
 			0644, show_current_governor, store_current_governor);
 struct cpuquiet_sysfs_attr attr_governors = __ATTR_RO(available_governors);
+struct cpuquiet_sysfs_attr attr_enabled = __ATTR(enabled,
+			0644, show_enabled, store_enabled);
 
 
 static struct attribute *cpuquiet_default_attrs[] = {
 	&attr_current_governor.attr,
 	&attr_governors.attr,
+	&attr_enabled.attr,
 	NULL
 };
 

@@ -31,6 +31,10 @@
 // from cpuquiet.c
 extern unsigned int cpq_max_cpus(void);
 extern unsigned int cpq_min_cpus(void);
+// from cpuquiet_driver.c
+extern unsigned int best_core_to_turn_up (void);
+// from core.c
+extern unsigned long avg_nr_running(void);
 
 #define CPUNAMELEN 8
 
@@ -244,7 +248,7 @@ static void balanced_work_func(struct work_struct *work)
 
 		/* cpu speed is up and balanced - one more on-line */
 		case CPU_SPEED_BALANCED:
-			cpu = cpumask_next_zero(0, cpu_online_mask);
+			cpu = best_core_to_turn_up ();
 			if (cpu < nr_cpu_ids)
 				up = true;
 			break;
@@ -441,7 +445,10 @@ static int balanced_start(void)
 	err = balanced_sysfs();
 	if (err)
 		return err;
-	
+
+	if (!gov_enabled)
+		return 0;
+
 	balanced_wq = alloc_workqueue("cpuquiet-balanced",
 			WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_HIGHPRI, 1);
 	if (!balanced_wq)

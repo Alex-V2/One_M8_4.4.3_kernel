@@ -6,6 +6,9 @@
 #
 
 obj-$(CONFIG_CPUQUIET_FRAMEWORK)+= cpuquiet/
+obj-$(CONFIG_INTELLI_PLUG)	+= cpuintelli/
+obj-$(CONFIG_MAKO_HOTPLUG)	+= cpumako/
+
 # GPIO must come after pinctrl as gpios may need to mux pins etc
 obj-y				+= pinctrl/
 obj-y				+= gpio/

@@ -33,4 +33,7 @@ void cpuquiet_add_dev(struct device *cpu_dev, unsigned int cpu);
 void cpuquiet_remove_dev(unsigned int cpu);
 int cpuquiet_cpu_kobject_init(struct kobject *kobj, struct kobj_type *type,
 				char *name, int cpu);
+// from sysfs.c
+extern unsigned int gov_enabled;
+
 #endif

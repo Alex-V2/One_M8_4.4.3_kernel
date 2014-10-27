@@ -2364,6 +2364,10 @@ source "drivers/cpuidle/Kconfig"
 
 source "drivers/cpuquiet/Kconfig"
 
+source "drivers/cpuintelli/Kconfig"
+
+source "drivers/cpumako/Kconfig"
+
 endmenu
 
 config CPU_FREQ_MSM

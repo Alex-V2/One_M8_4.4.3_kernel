@@ -26,6 +26,10 @@
 extern unsigned int cpq_max_cpus(void);
 extern unsigned int cpq_min_cpus(void);
 extern bool cpq_is_suspended(void);
+// from cpuquiet_driver.c
+extern unsigned int best_core_to_turn_up (void);
+//from core.c
+extern unsigned long avg_cpu_nr_running(unsigned int cpu);
 
 typedef enum {
 	DISABLED,
@@ -73,7 +77,7 @@ static unsigned int get_lightest_loaded_cpu_n(void)
 	int i;
 
 	for_each_online_cpu(i) {
-		unsigned int nr_runnables = get_avg_nr_running(i);
+		unsigned int nr_runnables = avg_cpu_nr_running(i);
 
 		if (i > 0 && min_avg_runnables > nr_runnables) {
 			cpu = i;
@@ -166,7 +170,7 @@ static bool __rq_stats_work_func(void)
 		sample = true;
 		break;
 	case UP:
-		cpu = cpumask_next_zero(0, cpu_online_mask);
+		cpu = best_core_to_turn_up ();
 		up = true;
 		sample = true;
 		break;
@@ -434,6 +438,9 @@ static int rq_stats_start(void)
 	err = rq_stats_sysfs();
 	if (err)
 		return err;
+
+	if (!gov_enabled)
+		return 0;
 
 	rq_stats_wq = alloc_workqueue("cpuquiet-rq_stats", WQ_HIGHPRI, 0);
 	if (!rq_stats_wq)

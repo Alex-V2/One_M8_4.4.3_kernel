@@ -78,6 +78,18 @@ unsigned inline int cpq_min_cpus(void)
 	return num_cpu_check(min_cpus);
 }
 
+unsigned int best_core_to_turn_up (void) {
+/* mitigate high temperature, 0 -> 3 -> 2 -> 1 */
+	if (!cpu_online (3))
+		return 3;
+	if (!cpu_online (2))
+		return 2;
+	if (!cpu_online (1))
+		return 1;
+	return nr_cpu_ids;
+}
+EXPORT_SYMBOL(best_core_to_turn_up);
+
 static inline void show_status(const char* extra)
 {
 	hotplug_info("%s Mask=[%d%d%d%d]\n",
@@ -144,7 +156,7 @@ static void __cpuinit min_max_constraints_workfunc(struct work_struct *work)
 
 	for (;count > 0; count--) {
 		if (up) {
-			cpu = cpumask_next_zero(0, cpu_online_mask);
+			cpu = best_core_to_turn_up ();
 			if (cpu < nr_cpu_ids){
 				show_status("UP");
 				cpu_up(cpu);
