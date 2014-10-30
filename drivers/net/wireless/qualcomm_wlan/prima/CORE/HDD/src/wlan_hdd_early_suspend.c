@@ -2131,6 +2131,13 @@ err_vosstop:
    vos_stop(pVosContext);
 
 err_vosclose:
+   if(!isSsrPanicOnFailure())
+   {
+       pHddCtx->isLogpInProgress = FALSE;
+       vos_set_reinit_in_progress(VOS_MODULE_ID_VOSS, FALSE);
+       return VOS_STATUS_E_FAILURE;
+   }
+
    vos_close(pVosContext);
    vos_sched_close(pVosContext);
    if (pHddCtx)

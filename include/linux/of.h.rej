@@ -1,0 +1,10 @@
+--- include/linux/of.h
++++ include/linux/of.h
+@@ -32,6 +32,7 @@
+ extern unsigned int is_m8;
+ extern unsigned int is_m8wl;
+ extern unsigned int is_m8whl;
++extern unsigned int is_m8dug;
+ //--
+ 
+ struct property {

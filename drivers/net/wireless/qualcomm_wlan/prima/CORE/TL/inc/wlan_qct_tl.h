@@ -907,4 +907,10 @@ WLANTL_TLDebugMessage
   v_BOOL_t displaySnapshot
 );
 
+v_VOID_t
+WLANTL_FatalError
+(
+ v_VOID_t
+);
+
 #endif 

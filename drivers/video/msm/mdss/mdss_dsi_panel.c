@@ -26,11 +26,16 @@
 #include <mach/debug_display.h>
 #include <linux/msm_mdp.h>
 
+#include <linux/moduleparam.h>
+
 #define DT_CMD_HDR 6
 #define WLED_MAX_LEVEL	4095
 
 DEFINE_LED_TRIGGER(bl_led_trigger);
 DEFINE_LED_TRIGGER(bl_led_i2c_trigger);
+
+bool backlight_dimmer = false;
+module_param(backlight_dimmer, bool, 0755);
 
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -206,10 +211,15 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 
 	pr_debug("%s: level=%d\n", __func__, level);
 
-	if (!pinfo->act_brt)
-		led_pwm1[1] = (unsigned char)shrink_pwm(level, ctrl->pwm_min, ctrl->pwm_default, ctrl->pwm_max);
-	else
+	if (!pinfo->act_brt) {
+		if (backlight_dimmer) {
+			led_pwm1[1] = (unsigned char)shrink_pwm(level, 1, 25, 125);
+		} else {
+			led_pwm1[1] = (unsigned char)shrink_pwm(level, ctrl->pwm_min, ctrl->pwm_default, ctrl->pwm_max);
+		}
+	} else {
 		led_pwm1[1] = (unsigned char)linear_pwm(level, pinfo->max_brt, pinfo->bl_max);
+	}
 
 	led_pwm1[2] = led_pwm1[1];
 	memset(&cmdreq, 0, sizeof(cmdreq));

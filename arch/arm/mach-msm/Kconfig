@@ -1916,6 +1916,17 @@ config MSM_DEVFREQ_CPUBW
 	  agnostic interface to so that some of the devfreq governors can be
 	  shared across SoCs.
 
+config MSM_CPUFREQ_LIMITER
+	tristate "MSM CPU frequency limiter"
+	default n
+	help
+	  This driver limits MSM CPU frequency through sysfs file system.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cpufreq_stats.
+
+	  If in doubt, say N.
+
 config MSM_AVS_HW
 	bool "Enable Adaptive Voltage Scaling (AVS)"
 	default n
@@ -3102,6 +3113,48 @@ config MACH_M8
         bool "MSM8974 M8"
         help
           Support for HTC MSM8974 M8
+
+config MACH_M8_DUG_DTB
+        depends on ARCH_MSM8974
+        bool "MSM8974 M8_DUG"
+        help
+          Support for HTC MSM8974 M8_DUG
+
+config MACH_M8_DUG_DTB
+        depends on ARCH_MSM8974
+        bool "MSM8974 M8_DUG"
+        help
+          Support for HTC MSM8974 M8_DUG
+
+config MACH_M8_DUG_DTB
+        depends on ARCH_MSM8974
+        bool "MSM8974 M8_DUG"
+        help
+          Support for HTC MSM8974 M8_DUG
+
+config MACH_M8_DUG_DTB
+        depends on ARCH_MSM8974
+        bool "MSM8974 M8_DUG"
+        help
+          Support for HTC MSM8974 M8_DUG
+
+config MACH_M8_WHL
+        depends on ARCH_MSM8974
+        bool "MSM8974 M8_WHL"
+        help
+          Support for HTC MSM8974 M8_WHL
+
+config MACH_M8_WL
+        depends on ARCH_MSM8974
+        bool "MSM8974 M8_WL"
+        help
+          Support for HTC MSM8974 M8_WL
+
+config MACH_M8_DUG_DTB
+        depends on ARCH_MSM8974
+        bool "MSM8974 M8_DUG"
+        help
+          Support for HTC MSM8974 M8_DUG
 
 config PROJECT_NAME
         string "Project Name"

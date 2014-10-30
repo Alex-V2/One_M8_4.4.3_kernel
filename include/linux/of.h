@@ -28,6 +28,13 @@
 typedef u32 phandle;
 typedef u32 ihandle;
 
+//lyapota
+extern unsigned int is_m8;
+extern unsigned int is_m8wl;
+extern unsigned int is_m8whl;
+extern unsigned int is_m8dug;
+//--
+
 struct property {
 	char	*name;
 	int	length;

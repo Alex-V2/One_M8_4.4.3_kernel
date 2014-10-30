@@ -1694,28 +1694,28 @@
 
                qcom,gpu-pwrlevel@0 {
                        reg = <0>;
-                       qcom,gpu-freq = <694000000>;
+                       qcom,gpu-freq = <644000000>;
                        qcom,bus-freq = <14>;
                        qcom,io-fraction = <101>;
                };
 
                qcom,gpu-pwrlevel@1 {
                        reg = <1>;
-                       qcom,gpu-freq = <568000000>;
+                       qcom,gpu-freq = <518000000>;
                        qcom,bus-freq = <11>;
                        qcom,io-fraction = <101>;
                };
 
                qcom,gpu-pwrlevel@2 {
                        reg = <2>;
-                       qcom,gpu-freq = <452000000>;
+                       qcom,gpu-freq = <402000000>;
                        qcom,bus-freq = <8>;
                        qcom,io-fraction = <101>;
                };
 
                qcom,gpu-pwrlevel@3 {
                        reg = <3>;
-                       qcom,gpu-freq = <336000000>;
+                       qcom,gpu-freq = <286000000>;
                        qcom,bus-freq = <5>;
                        qcom,io-fraction = <101>;
                };

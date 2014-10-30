@@ -1,0 +1,18 @@
+--- arch/arm/mach-msm/include/mach/board.h
++++ arch/arm/mach-msm/include/mach/board.h
+@@ -510,11 +510,12 @@
+  *       unprepare_disable) is controlled by i2c-transaction's begining and
+  *       ending. When false, the clock's state is controlled by runtime-pm
+  *       events.
+- * @active_only when set, votes when system active and removes the vote when
+- *       system goes idle (optimises for performance). When unset, voting using
+- *       runtime pm (optimizes for power).
+  * @master_id master id number of the i2c core or its wrapper (BLSP/GSBI).
+  *       When zero, clock path voting is disabled.
++ * @noise_rjct_sda Number of low samples on data line to consider it low.
++ *       Range of values is 0-3. When missing default to 0.
++ * @noise_rjct_scl Number of low samples on clock line to consider it low.
++ *       Range of values is 0-3. When missing default to 0.
+  */
+ struct msm_i2c_platform_data {
+ 	int clk_freq;

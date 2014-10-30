@@ -1,0 +1,202 @@
+--- drivers/i2c/busses/i2c-qup.c
++++ drivers/i2c/busses/i2c-qup.c
+@@ -494,6 +499,20 @@
+ 	}
+ }
+ 
++static const char *i2c_qup_clk_name(struct qup_i2c_dev *dev, struct clk *clk)
++{
++	return (clk == dev->clk) ? "core_clk" : "iface_clk";
++}
++
++static void
++i2c_qup_clk_prepare_enable(struct qup_i2c_dev *dev, struct clk *clk)
++{
++	int ret = clk_prepare_enable(clk);
++	if (ret)
++		dev_err(dev->dev, "error on clk_prepare_enable(%s):%d\n",
++					i2c_qup_clk_name(dev, clk), ret);
++}
++
+ static void i2c_qup_pm_suspend_clk(struct qup_i2c_dev *dev)
+ {
+ 	uint32_t status;
+@@ -513,29 +532,27 @@
+ 
+ static void i2c_qup_pm_resume_clk(struct qup_i2c_dev *dev)
+ {
+-	clk_prepare_enable(dev->clk);
++	i2c_qup_clk_prepare_enable(dev, dev->clk);
+ 	if (!dev->pdata->keep_ahb_clk_on)
+-		clk_prepare_enable(dev->pclk);
++		i2c_qup_clk_prepare_enable(dev, dev->pclk);
+ }
+ 
+-static void i2c_qup_pm_suspend(struct qup_i2c_dev *dev)
++static void i2c_qup_suspend(struct qup_i2c_dev *dev)
+ {
+-	if (dev->pwr_state == MSM_I2C_PM_SUSPENDED) {
+-		dev_err(dev->dev, "attempt to suspend when suspended\n");
++	if (dev->pwr_state != MSM_I2C_PM_ACTIVE) {
++		dev_err(dev->dev, "attempt to suspend when not active\n");
+ 		return;
+ 	}
+ 
+ 	if (!dev->pdata->clk_ctl_xfer)
+ 		i2c_qup_pm_suspend_clk(dev);
+ 
+-	if (!dev->pdata->active_only)
+-		i2c_qup_clk_path_unvote(dev);
++	i2c_qup_clk_path_unvote(dev);
+ 
+ 	i2c_qup_gpio_free(dev);
+-	dev->pwr_state = MSM_I2C_PM_SUSPENDED;
+ }
+ 
+-static void i2c_qup_pm_resume(struct qup_i2c_dev *dev)
++static void i2c_qup_resume(struct qup_i2c_dev *dev)
+ {
+ 	if (dev->pwr_state == MSM_I2C_PM_ACTIVE)
+ 		return;
+@@ -543,8 +560,7 @@
+ 	i2c_qup_gpio_request(dev);
+ 
+ 	i2c_qup_clk_path_postponed_register(dev);
+-	if (!dev->pdata->active_only)
+-		i2c_qup_clk_path_vote(dev);
++	i2c_qup_clk_path_vote(dev);
+ 
+ 	if (!dev->pdata->clk_ctl_xfer)
+ 		i2c_qup_pm_resume_clk(dev);
+@@ -931,19 +930,19 @@
+ 	mutex_lock(&dev->mlock);
+ 	if (dev->pwr_state >= MSM_I2C_SYS_SUSPENDING) {
+ 		dev_err(dev->dev,
+-			"xfer not allowed when ctrl is suspended addr:0x%x\n",
++			"xfer not allowed when systems is suspendeding. slv-addr:0x%x\n",
+ 			msgs->addr);
+ 		mutex_unlock(&dev->mlock);
+ 		return -EIO;
+ 	}
+-	if (!pm_runtime_enabled(dev->dev)) {
+-		dev_dbg(dev->dev, "Runtime PM FEATURE is disabled\n");
+-		i2c_qup_pm_resume(dev);
+-	} else {
+-		pm_runtime_get_sync(dev->dev);
++	/* request runtime-PM to go active */
++	pm_runtime_get_sync(dev->dev);
++	/* if runtime PM callback was not invoked */
++	if (dev->pwr_state != MSM_I2C_PM_ACTIVE) {
++		dev_info(dev->dev, "Runtime PM-callback was not invoked.\n");
++		i2c_qup_resume(dev);
+ 	}
+ 
+-
+ 	if (dev->pdata->clk_ctl_xfer)
+ 		i2c_qup_pm_resume_clk(dev);
+ 
+@@ -1253,8 +1239,9 @@
+ 	{"qcom,scl-gpio",      gpios,               DT_OPTIONAL,  DT_GPIO, -1},
+ 	{"qcom,sda-gpio",      gpios + 1,           DT_OPTIONAL,  DT_GPIO, -1},
+ 	{"qcom,clk-ctl-xfer", &pdata->clk_ctl_xfer, DT_OPTIONAL,  DT_BOOL, -1},
+-	{"qcom,active-only",  &pdata->active_only,  DT_OPTIONAL,  DT_BOOL,  0},
+-	{NULL,                 NULL,                0,            0,        0},
++	{"qcom,noise-rjct-scl", &pdata->noise_rjct_scl, DT_OPTIONAL, DT_U32, 0},
++	{"qcom,noise-rjct-sda", &pdata->noise_rjct_sda, DT_OPTIONAL, DT_U32, 0},
++	{NULL,                                    NULL,           0,      0, 0},
+ 	};
+ 
+ 	for (itr = map; itr->dt_name ; ++itr) {
+@@ -1623,7 +1614,7 @@
+ 	mutex_lock(&dev->mlock);
+ 	dev->pwr_state = MSM_I2C_SYS_SUSPENDING;
+ 	mutex_unlock(&dev->mlock);
+-	i2c_qup_pm_suspend(dev);
++	i2c_qup_suspend(dev);
+ 	dev->pwr_state = MSM_I2C_SYS_SUSPENDED;
+ 	mutex_destroy(&dev->mlock);
+ 	platform_set_drvdata(pdev, NULL);
+@@ -1664,7 +1653,8 @@
+ 	struct platform_device *pdev = to_platform_device(device);
+ 	struct qup_i2c_dev *dev = platform_get_drvdata(pdev);
+ 	dev_dbg(device, "pm_runtime: suspending...\n");
+-	i2c_qup_pm_suspend(dev);
++	i2c_qup_suspend(dev);
++	dev->pwr_state = MSM_I2C_PM_SUSPENDED;
+ 	return 0;
+ }
+ 
+@@ -1673,40 +1663,47 @@
+ 	struct platform_device *pdev = to_platform_device(device);
+ 	struct qup_i2c_dev *dev = platform_get_drvdata(pdev);
+ 	dev_dbg(device, "pm_runtime: resuming...\n");
+-	i2c_qup_pm_resume(dev);
++	i2c_qup_resume(dev);
+ 	return 0;
+ }
+ 
+-static int i2c_qup_pm_suspend_sys(struct device *device)
++static int i2c_qup_pm_suspend_sys_noirq(struct device *device)
+ {
+ 	struct platform_device *pdev = to_platform_device(device);
+ 	struct qup_i2c_dev *dev = platform_get_drvdata(pdev);
+-	/* Acquire mutex to ensure current transaction is over */
+-	mutex_lock(&dev->mlock);
+-	dev->pwr_state = MSM_I2C_SYS_SUSPENDING;
+-	mutex_unlock(&dev->mlock);
+-	if (!pm_runtime_enabled(device) || !pm_runtime_suspended(device)) {
++
++	if (dev->pwr_state == MSM_I2C_PM_ACTIVE) {
+ 		dev_dbg(device, "system suspend\n");
+-		i2c_qup_pm_suspend(dev);
++		i2c_qup_suspend(dev);
+ 		/*
+-		 * set the device's runtime PM status to 'suspended'
++		 * Synchronize runtime-pm and system-pm states:
++		 * at this point we are already suspended. However, the
++		 * runtime-PM framework still thinks that we are active.
++		 * The three calls below let the runtime-PM know that we are
++		 * suspended already without re-invoking the suspend callback
+ 		 */
+ 		pm_runtime_disable(device);
+ 		pm_runtime_set_suspended(device);
+ 		pm_runtime_enable(device);
+ 	}
++	/*
++	 * Conceptually, here we are in runtime-suspended state and
++	 * transitioning to sys-suspend state (in reality both suspends are the
++	 * same).
++	 */
+ 	dev->pwr_state = MSM_I2C_SYS_SUSPENDED;
+ 	return 0;
+ }
+ 
+-static int i2c_qup_pm_resume_sys(struct device *device)
++/* set internal state flag as out of system suspend */
++static int i2c_qup_pm_resume_sys_noirq(struct device *device)
+ {
+ 	struct platform_device *pdev = to_platform_device(device);
+ 	struct qup_i2c_dev *dev = platform_get_drvdata(pdev);
+ 	/*
+-	 * Rely on runtime-PM to call resume in case it is enabled
+-	 * Even if it's not enabled, rely on 1st client transaction to do
+-	 * clock ON and gpio configuration
++	 * Nothing to be done on system-pm rusume except keeping track that it
++	 * took place. Actual resuming (e.g. activation of clocks) is triggerd
++	 * by a transfer request.
+ 	 */
+ 	dev_dbg(device, "system resume\n");
+ 	dev->pwr_state = MSM_I2C_PM_SUSPENDED;
+@@ -1715,10 +1712,8 @@
+ #endif 
+ 
+ static const struct dev_pm_ops i2c_qup_dev_pm_ops = {
+-	SET_SYSTEM_SLEEP_PM_OPS(
+-		i2c_qup_pm_suspend_sys,
+-		i2c_qup_pm_resume_sys
+-	)
++	.suspend_noirq = i2c_qup_pm_suspend_sys_noirq,
++	.resume_noirq  = i2c_qup_pm_resume_sys_noirq,
+ 	SET_RUNTIME_PM_OPS(
+ 		i2c_qup_pm_suspend_runtime,
+ 		i2c_qup_pm_resume_runtime,

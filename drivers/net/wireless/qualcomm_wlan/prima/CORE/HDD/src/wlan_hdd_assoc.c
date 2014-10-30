@@ -1220,6 +1220,7 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
             if (NULL == bss)
             {
                 printk(KERN_WARNING "[WLAN][WRN]: Not able to create BSS entry\n");
+                netif_carrier_off(dev);
                 return eHAL_STATUS_FAILURE;
             }
 #ifdef WLAN_FEATURE_VOWIFI_11R

@@ -177,4 +177,6 @@ void wpalFwDumpReq(wpt_uint32 cmd, wpt_uint32 arg1, wpt_uint32 arg2,
 void wpalDevicePanic(void);
 
 int  wpalIsWDresetInProgress(void);
+
+int  wpalIsSsrPanicOnFailure(void);
 #endif 

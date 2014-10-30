@@ -4450,6 +4450,27 @@ WLANTL_TxThreadDebugHandler
    return;
 }
 
+v_VOID_t
+WLANTL_FatalErrorHandler
+(
+ v_PVOID_t *pVosContext
+)
+{
+
+   TLLOGE(VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_FATAL,
+        "WLAN TL: %s Enter ", __func__));
+
+   if ( NULL == pVosContext )
+   {
+        TLLOGE(VOS_TRACE(VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
+                        "%s: Global VoS Context or TL Context are NULL",
+                        __func__));
+        return;
+   }
+
+   vos_wlanRestart();
+}
+
 
 v_VOID_t
 WLANTL_TLDebugMessage
@@ -4476,6 +4497,29 @@ WLANTL_TLDebugMessage
    return;
 }
 
+
+v_VOID_t
+WLANTL_FatalError
+(
+ v_VOID_t
+)
+{
+   vos_msg_t vosMsg;
+   VOS_STATUS status;
+
+   vosMsg.reserved = 0;
+   vosMsg.bodyptr  = NULL;
+   vosMsg.type     = WLANTL_TX_FATAL_ERROR;
+
+   status = vos_tx_mq_serialize( VOS_MODULE_ID_TL, &vosMsg);
+   if(status != VOS_STATUS_SUCCESS)
+   {
+       TLLOGE(VOS_TRACE(VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
+                        "%s: TX Msg Posting Failed with status: %d",
+                        __func__,status));
+   }
+   return;
+}
 
 VOS_STATUS
 WLANTL_STATxConn
@@ -5038,7 +5082,6 @@ WLANTL_STATxAuth
   {
     
     ucTxFlag |= HAL_USE_BD_RATE_MASK;
-    ucTxFlag |= HAL_USE_FW_IN_TX_PATH;
   }
 
   vosStatus = (VOS_STATUS)WDA_DS_BuildTxPacketInfo( pvosGCtx, 
@@ -6033,6 +6076,10 @@ WLANTL_TxProcessMsg
   case WLANTL_TX_SNAPSHOT:
     WLANTL_TxThreadDebugHandler(pvosGCtx);
     WDA_TransportChannelDebug(NULL, VOS_TRUE, VOS_FALSE);
+    break;
+
+  case WLANTL_TX_FATAL_ERROR:
+    WLANTL_FatalErrorHandler(pvosGCtx);
     break;
 
   default:

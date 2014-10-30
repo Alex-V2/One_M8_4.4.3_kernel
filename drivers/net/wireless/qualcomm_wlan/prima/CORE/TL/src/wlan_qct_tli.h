@@ -181,6 +181,9 @@ typedef enum
   
   WLANTL_TX_SNAPSHOT = 6,
 
+  
+  WLANTL_TX_FATAL_ERROR = 7,
+
   WLANTL_TX_MAX
 }WLANTL_TxSignalsType;
 

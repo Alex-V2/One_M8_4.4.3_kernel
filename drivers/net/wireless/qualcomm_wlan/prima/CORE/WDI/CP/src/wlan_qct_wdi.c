@@ -15481,7 +15481,8 @@ WDI_ResponseTimerCB
     wpalWcnssResetIntr();
     if(wpalIsWDresetInProgress())
     {
-        wpalDevicePanic();
+      if(wpalIsSsrPanicOnFailure())
+          wpalDevicePanic();
     }
     
     wpalTimerStart(&pWDICtx->ssrTimer, WDI_SSR_TIMEOUT);

@@ -295,3 +295,8 @@ int  wpalIsWDresetInProgress(void)
    return isWDresetInProgress();
 }
 
+int  wpalIsSsrPanicOnFailure(void)
+{
+   return isSsrPanicOnFailure();
+}
+

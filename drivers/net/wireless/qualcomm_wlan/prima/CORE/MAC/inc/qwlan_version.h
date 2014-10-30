@@ -61,7 +61,7 @@ BRIEF DESCRIPTION:
 #define QWLAN_VERSION_PATCH            3
 #define QWLAN_VERSION_EXTRA            ""
 #define QWLAN_VERSION_BUILD            172
-#define HTC_VERSIONSTR                 "-LA.3.5.2-htc-029"
+#define HTC_VERSIONSTR                 "-LA.3.5.2-htc-032"
 #define QWLAN_VERSIONSTR               "3.2.3.172"HTC_VERSIONSTR
 
 #endif 

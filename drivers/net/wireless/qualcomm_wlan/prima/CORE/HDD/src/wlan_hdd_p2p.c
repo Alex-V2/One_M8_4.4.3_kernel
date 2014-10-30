@@ -977,6 +977,7 @@ int wlan_hdd_mgmt_tx( struct wiphy *wiphy, struct net_device *dev,
     if( goAdapter && ( ieee80211_frequency_to_channel(chan->center_freq)
                          == goAdapter->sessionCtx.ap.operatingChannel ) )
     {
+        wait = 0;
         goto send_frame;
     }
 #endif

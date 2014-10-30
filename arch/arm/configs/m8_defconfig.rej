@@ -1,13 +1,10 @@
 --- arch/arm/configs/m8_defconfig
 +++ arch/arm/configs/m8_defconfig
-@@ -32,6 +32,10 @@
- # CONFIG_DEFAULT_FIOPS is not set
- # CONFIG_DEFAULT_SIO is not set
+@@ -8,6 +8,7 @@
+ CONFIG_MACH_M8_DTB=y
+ CONFIG_MACH_M8_WHL_DTB=y
+ CONFIG_MACH_M8_WL_DTB=y
++CONFIG_MACH_M8_DUG_DTB=y
  
-+#***
-+# MAKO HOTPLUG
-+#***
-+CONFIG_MAKO_HOTPLUG=y
+ CONFIG_SOUND_CONTROL_HAX_3_GPL=y
  
- #***
- # INTELLI PLUG
