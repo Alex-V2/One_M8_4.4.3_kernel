@@ -1,0 +1,20 @@
+--- drivers/thermal/msm_thermal.c
++++ drivers/thermal/msm_thermal.c
+@@ -887,7 +887,7 @@
+ 		return -EINVAL;
+ 
+ 	while (!kthread_should_stop()) {
+-		wait_for_completion(&hotplug_notify_complete);
++		wait_for_completion_interruptible(&hotplug_notify_complete);
+ 		INIT_COMPLETION(hotplug_notify_complete);
+ 		mask = 0;
+ 
+@@ -1315,7 +1315,7 @@
+ 	uint32_t cpu = 0, max_freq_req = 0, min_freq_req = 0;
+ 
+ 	while (!kthread_should_stop()) {
+-		wait_for_completion(&freq_mitigation_complete);
++		wait_for_completion_interruptible(&freq_mitigation_complete);
+ 		INIT_COMPLETION(freq_mitigation_complete);
+ 
+ 		get_online_cpus();
