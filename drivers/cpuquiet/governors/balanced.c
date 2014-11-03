@@ -36,6 +36,9 @@ extern unsigned int best_core_to_turn_up (void);
 // from core.c
 extern unsigned long avg_nr_running(void);
 
+// from sysfs.c
+extern unsigned int gov_enabled;
+
 #define CPUNAMELEN 8
 
 #define UP_DELAY_MS			70
@@ -229,6 +232,9 @@ static void balanced_work_func(struct work_struct *work)
 	unsigned int min_cpus = cpq_min_cpus();
 	
 	CPU_SPEED_BALANCE balance;
+
+	if (!gov_enabled)
+		return;
 
 	switch (balanced_state) {
 	case IDLE:
@@ -446,9 +452,6 @@ static int balanced_start(void)
 	if (err)
 		return err;
 
-	if (!gov_enabled)
-		return 0;
-
 	balanced_wq = alloc_workqueue("cpuquiet-balanced",
 			WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_HIGHPRI, 1);
 	if (!balanced_wq)
@@ -498,4 +501,5 @@ MODULE_LICENSE("GPL");
 // must not be in fs_initcall else it will crash in balanced_start
 module_init(init_balanced);
 module_exit(exit_balanced);
+
 

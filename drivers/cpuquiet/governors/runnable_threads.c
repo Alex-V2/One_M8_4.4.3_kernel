@@ -34,6 +34,9 @@ extern unsigned int best_core_to_turn_up (void);
 extern unsigned long avg_nr_running(void);
 extern unsigned long avg_cpu_nr_running(unsigned int cpu);
 
+// from sysfs.c
+extern unsigned int gov_enabled;
+
 typedef enum {
 	DISABLED,
 	IDLE,
@@ -114,6 +117,9 @@ static void runnables_work_func(struct work_struct *work)
 	bool up = false;
 	bool sample = false;
 	unsigned int cpu = nr_cpu_ids;
+
+	if (!gov_enabled)
+		return;
 
 	mutex_lock(&runnables_work_lock);
 
@@ -254,9 +260,6 @@ static int runnables_start(void)
 	if (err)
 		return err;
 
-	if (!gov_enabled)
-		return 0;
-
 	runnables_wq = alloc_workqueue("cpuquiet-runnables", WQ_HIGHPRI, 0);
 	if (!runnables_wq)
 		return -ENOMEM;
@@ -291,3 +294,4 @@ static void __exit exit_runnables(void)
 MODULE_LICENSE("GPL");
 module_init(init_runnables);
 module_exit(exit_runnables);
+

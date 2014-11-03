@@ -34,6 +34,9 @@ extern unsigned int best_core_to_turn_up (void);
 //from core.c
 extern unsigned long avg_cpu_nr_running(unsigned int cpu);
 
+// from sysfs.c
+extern unsigned int gov_enabled;
+
 typedef enum {
 	DISABLED,
 	IDLE,
@@ -326,6 +329,9 @@ static void load_stats_work_func(struct work_struct *work)
 {
 	bool sample = false;
 
+	if (!gov_enabled)
+		return;
+
 	mutex_lock(&load_stats_work_lock);
 
 	update_load_stats_state();
@@ -546,6 +552,9 @@ static void load_stats_device_free(void)
 
 static void load_stats_touch_event(void)
 {	
+	if (!gov_enabled)
+		return;
+
 	if (!cpq_is_suspended() && input_boost_enabled && !input_boost_running){
 		if (input_boost_task_alive)
 			wake_up_process(input_boost_task);
@@ -573,9 +582,6 @@ static int load_stats_start(void)
 	err = load_stats_sysfs();
 	if (err)
 		return err;
-
-	if (!gov_enabled)
-		return 0;
 
 	load_stats_wq = alloc_workqueue("cpuquiet-load_stats", WQ_HIGHPRI, 0);
 	if (!load_stats_wq)
@@ -630,3 +636,4 @@ static void __exit exit_load_stats(void)
 MODULE_LICENSE("GPL");
 module_init(init_load_stats);
 module_exit(exit_load_stats);
+

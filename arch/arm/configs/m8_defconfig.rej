@@ -1,10 +1,13 @@
 --- arch/arm/configs/m8_defconfig
 +++ arch/arm/configs/m8_defconfig
-@@ -8,6 +8,7 @@
+@@ -6,8 +6,8 @@
+ #***
+ CONFIG_MACH_M8=y
  CONFIG_MACH_M8_DTB=y
- CONFIG_MACH_M8_WHL_DTB=y
- CONFIG_MACH_M8_WL_DTB=y
-+CONFIG_MACH_M8_DUG_DTB=y
+-CONFIG_MACH_M8_WHL_DTB=n
+-CONFIG_MACH_M8_WL_DTB=n
++CONFIG_MACH_M8_WHL_DTB=y
++CONFIG_MACH_M8_WL_DTB=y
  
  CONFIG_SOUND_CONTROL_HAX_3_GPL=y
  

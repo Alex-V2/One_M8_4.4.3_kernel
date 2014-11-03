@@ -24,6 +24,9 @@
 
 #include "cpuquiet.h"
 
+unsigned int gov_enabled = 0;
+EXPORT_SYMBOL_GPL(gov_enabled);
+
 struct cpuquiet_dev {
 	unsigned int cpu;
 	struct kobject kobj;
@@ -37,7 +40,6 @@ struct cpuquiet_sysfs_attr {
 
 static struct kobject *cpuquiet_global_kobject;
 struct cpuquiet_dev *cpuquiet_cpu_devices[CONFIG_NR_CPUS];
-unsigned int gov_enabled = 1;
 
 static ssize_t show_current_governor(char *buf)
 {
@@ -109,14 +111,10 @@ static ssize_t show_enabled(char *buf)
 {
 	ssize_t ret;
 
-	mutex_lock(&cpuquiet_lock);
-
 	if (cpuquiet_curr_governor)
 		ret = sprintf(buf, "%u\n", (gov_enabled==0) ? 0 : 1);
 	else
 		ret = sprintf(buf, "n/a\n");
-
-	mutex_unlock(&cpuquiet_lock);
 
 	return ret;
 
@@ -124,25 +122,21 @@ static ssize_t show_enabled(char *buf)
 
 static ssize_t store_enabled(const char *buf, size_t count)
 {
-	unsigned int old_enabled;
-	char *p = (char *)buf;
+	unsigned long num;
 
-	if ((count <= 0) || (p[1] != '0' && p[1] !== '1'))
-		return 0;
-
-	if (!cpuquiet_curr_governor)
+	if ( !cpuquiet_curr_governor || strict_strtoul(buf, 10, &num) )
 		return -EINVAL;
 
-	old_enabled = gov_enabled;
-	gov_enabled = simple_strtoul(buf, NULL, 0);
+	if (num < 0 || num > 1)
+		return -EINVAL;
 
-	if (gov_enabled == 1) {
-		if (!old_enabled && cpuquiet_curr_governor->start)
-			cpuquiet_curr_governor->start();
-	} else {
-		if (old_enabled && cpuquiet_curr_governor->stop)
-			cpuquiet_curr_governor->stop();
-	}
+        if (gov_enabled == (int) num)
+		return count;
+
+	gov_enabled = (int) num;
+
+       if (gov_enabled)
+		cpuquiet_switch_governor(cpuquiet_curr_governor);
 
 	return count;
 }
@@ -335,3 +329,4 @@ void cpuquiet_remove_dev(unsigned int cpu)
 	if (cpu < CONFIG_NR_CPUS && cpuquiet_cpu_devices[cpu])
 		kobject_put(&cpuquiet_cpu_devices[cpu]->kobj);
 }
+
