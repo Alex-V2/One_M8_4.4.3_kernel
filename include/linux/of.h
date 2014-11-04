@@ -32,6 +32,7 @@ typedef u32 ihandle;
 extern unsigned int is_m8;
 extern unsigned int is_m8wl;
 extern unsigned int is_m8whl;
+extern unsigned int is_m8dug;
 //--
 
 struct property {

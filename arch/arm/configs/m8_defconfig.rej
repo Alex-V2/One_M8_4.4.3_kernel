@@ -1,13 +1,10 @@
 --- arch/arm/configs/m8_defconfig
 +++ arch/arm/configs/m8_defconfig
-@@ -6,8 +6,8 @@
+@@ -59,6 +59,7 @@
  #***
- CONFIG_MACH_M8=y
- CONFIG_MACH_M8_DTB=y
--CONFIG_MACH_M8_WHL_DTB=n
--CONFIG_MACH_M8_WL_DTB=n
-+CONFIG_MACH_M8_WHL_DTB=y
-+CONFIG_MACH_M8_WL_DTB=y
+ CONFIG_KEXEC=y
+ CONFIG_KEXEC_HARDBOOT=y
++CONFIG_ATAGS_PROC=y
  
- CONFIG_SOUND_CONTROL_HAX_3_GPL=y
  
+ ################## HTC ##################

@@ -182,19 +182,6 @@ int snd_hax_reg_access(unsigned int reg)
 }
 EXPORT_SYMBOL(snd_hax_reg_access);
 
-static bool calc_checksum(unsigned int a, unsigned int b, unsigned int c)
-{
-	unsigned char chksum = 0;
-
-	chksum = ~((a & 0xff) + (b & 0xff));
-
-	if (chksum == (c & 0xff)) {
-		return true;
-	} else {
-		return false;
-	}
-}
-
 static ssize_t cam_mic_gain_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
@@ -211,10 +198,9 @@ static ssize_t cam_mic_gain_store(struct kobject *kobj,
 
 	sscanf(buf, "%u %u", &lval, &chksum);
 
-	if (calc_checksum(lval, 0, chksum)) {
-		taiko_write(fauxsound_codec_ptr,
-			TAIKO_A_CDC_TX4_VOL_CTL_GAIN, lval);
-	}
+	taiko_write(fauxsound_codec_ptr,
+		TAIKO_A_CDC_TX4_VOL_CTL_GAIN, lval);
+
 	return count;
 }
 
@@ -233,10 +219,9 @@ static ssize_t mic_gain_store(struct kobject *kobj,
 
 	sscanf(buf, "%u %u", &lval, &chksum);
 
-	if (calc_checksum(lval, 0, chksum)) {
-		taiko_write(fauxsound_codec_ptr,
-			TAIKO_A_CDC_TX3_VOL_CTL_GAIN, lval);
-	}
+	taiko_write(fauxsound_codec_ptr,
+		TAIKO_A_CDC_TX3_VOL_CTL_GAIN, lval);
+
 	return count;
 
 }
@@ -259,12 +244,11 @@ static ssize_t speaker_gain_store(struct kobject *kobj,
 
 	sscanf(buf, "%u %u %u", &lval, &rval, &chksum);
 
-	if (calc_checksum(lval, rval, chksum)) {
-		taiko_write(fauxsound_codec_ptr,
-			TAIKO_A_CDC_RX7_VOL_CTL_B2_CTL, lval);
-		taiko_write(fauxsound_codec_ptr,
-			TAIKO_A_CDC_RX7_VOL_CTL_B2_CTL, rval);
-	}
+	taiko_write(fauxsound_codec_ptr,
+		TAIKO_A_CDC_RX7_VOL_CTL_B2_CTL, lval);
+	taiko_write(fauxsound_codec_ptr,
+		TAIKO_A_CDC_RX7_VOL_CTL_B2_CTL, rval);
+
 	return count;
 }
 
@@ -285,12 +269,11 @@ static ssize_t headphone_gain_store(struct kobject *kobj,
 
 	sscanf(buf, "%u %u %u", &lval, &rval, &chksum);
 
-	if (calc_checksum(lval, rval, chksum)) {
-		taiko_write(fauxsound_codec_ptr,
-			TAIKO_A_CDC_RX3_VOL_CTL_B2_CTL, lval);
-		taiko_write(fauxsound_codec_ptr,
-			TAIKO_A_CDC_RX5_VOL_CTL_B2_CTL, rval);
-	}
+	taiko_write(fauxsound_codec_ptr,
+		TAIKO_A_CDC_RX3_VOL_CTL_B2_CTL, lval);
+	taiko_write(fauxsound_codec_ptr,
+		TAIKO_A_CDC_RX5_VOL_CTL_B2_CTL, rval);
+
 	return count;
 }
 
@@ -311,7 +294,6 @@ static ssize_t headphone_pa_gain_store(struct kobject *kobj,
 
 	sscanf(buf, "%u %u %u", &lval, &rval, &chksum);
 
-	if (calc_checksum(lval, rval, chksum)) {
 	gain = taiko_read(fauxsound_codec_ptr, TAIKO_A_RX_HPH_L_GAIN);
 	out = (gain & 0xf0) | lval;
 	taiko_write(fauxsound_codec_ptr, TAIKO_A_RX_HPH_L_GAIN, out);
@@ -327,7 +309,7 @@ static ssize_t headphone_pa_gain_store(struct kobject *kobj,
 	status = taiko_read(fauxsound_codec_ptr, TAIKO_A_RX_HPH_R_STATUS);
 	out = (status & 0x0f) | (rval << 4);
 	taiko_write(fauxsound_codec_ptr, TAIKO_A_RX_HPH_R_STATUS, out);
-	}
+
 	return count;
 }
 
@@ -357,10 +339,9 @@ static ssize_t sound_reg_write_store(struct kobject *kobj,
         unsigned int out, chksum;
 
 	sscanf(buf, "%u %u", &out, &chksum);
-	if (calc_checksum(out, 0, chksum)) {
-		if (selected_reg != 0xdeadbeef)
-			taiko_write(fauxsound_codec_ptr, selected_reg, out);
-	}
+	if (selected_reg != 0xdeadbeef)
+		taiko_write(fauxsound_codec_ptr, selected_reg, out);
+
 	return count;
 }
 
