@@ -44,6 +44,8 @@
 
 extern unsigned long arg_cpu_oc;
 
+extern unsigned long arg_cpu_oc;
+
 struct clk_register_data {
 	char *name;
 	u32 offset;

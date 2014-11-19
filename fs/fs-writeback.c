@@ -1390,4 +1390,3 @@ int sync_inode_metadata(struct inode *inode, int wait)
 	return sync_inode(inode, &wbc);
 }
 EXPORT_SYMBOL(sync_inode_metadata);
-

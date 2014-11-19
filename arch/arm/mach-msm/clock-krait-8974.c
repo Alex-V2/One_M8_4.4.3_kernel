@@ -32,17 +32,16 @@
 #include "clock-krait.h"
 #include "clock.h"
 
+#ifdef CONFIG_HTC_POWER_DEBUG
+#include <linux/debugfs.h>
+#endif
+
 #ifdef CONFIG_PERFLOCK
 #include <mach/perflock.h>
 #endif
 
-//elementalx
 unsigned long arg_cpu_oc = 0;
 static int arg_vdd_uv = 0;
-int pvs_number = 0;
-module_param_named(cpu_oc_current, arg_cpu_oc, long, S_IRUGO | S_IWUSR);
-module_param_named(vdd_uv_current, arg_vdd_uv, int, S_IRUGO);
-module_param(pvs_number, int, 0755); 
 
 static int __init cpufreq_read_cpu_oc(char *cpu_oc)
 {
@@ -59,6 +58,8 @@ static int __init cpufreq_read_cpu_oc(char *cpu_oc)
 }
 __setup("cpu_oc=", cpufreq_read_cpu_oc);
 
+
+
 static int __init cpufreq_read_vdd_uv(char *vdd_uv)
 {
 	long arg, err;
@@ -72,7 +73,6 @@ static int __init cpufreq_read_vdd_uv(char *vdd_uv)
 	return 0;
 }
 __setup("vdd_uv=", cpufreq_read_vdd_uv);
-
 
 DEFINE_FIXED_DIV_CLK(hfpll_src_clk, 1, NULL);
 DEFINE_FIXED_DIV_CLK(acpu_aux_clk, 2, NULL);
@@ -505,14 +505,8 @@ static void get_krait_bin_format_b(struct platform_device *pdev,
 		break;
 	}
 
+	
 	if (pte_efuse & BIT(3)) {
-
-		//elementalx
-		if (arg_cpu_oc == 0 && *speed == 1)
-			arg_cpu_oc = 2803200;
-		else if (arg_cpu_oc == 0 && *speed == 3)
-			arg_cpu_oc = 2803200;
-					
 		dev_info(&pdev->dev, "Speed bin: %d\n", *speed);
 	} else {
 		dev_warn(&pdev->dev, "Speed bin not set. Defaulting to 0!\n");
@@ -522,10 +516,6 @@ static void get_krait_bin_format_b(struct platform_device *pdev,
 	
 	pte_efuse = readl_relaxed(base + 0x4) & BIT(21);
 	if (pte_efuse) {
-
-		//elementalx
-		pvs_number = *pvs;
-
 		dev_info(&pdev->dev, "PVS bin: %d\n", *pvs);
 	} else {
 		dev_warn(&pdev->dev, "PVS bin not set. Defaulting to 0!\n");
@@ -536,6 +526,52 @@ static void get_krait_bin_format_b(struct platform_device *pdev,
 
 	devm_iounmap(&pdev->dev, base);
 }
+
+#ifdef CONFIG_HTC_POWER_DEBUG
+int htc_pvs = 0;
+int htc_speed = 0;
+int htc_pvs_ver = 0;
+static void htc_get_pvs_info(int speed, int pvs, int pvs_ver)
+{
+	htc_pvs = pvs;
+	htc_speed = speed;
+	htc_pvs_ver = pvs_ver;
+}
+
+static int pvs_info_show(struct seq_file *m, void *unused)
+{
+	seq_printf(m, "pvs%d-speed%d-bin-v%d\n", htc_pvs, htc_speed, htc_pvs_ver);
+	return 0;
+}
+
+static int pvs_info_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, pvs_info_show, inode->i_private);
+}
+
+static const struct file_operations pvs_info_fops = {
+        .open = pvs_info_open,
+        .read = seq_read,
+        .llseek = seq_lseek,
+        .release = seq_release,
+};
+
+static int htc_pvs_debugfs_init(void)
+{
+	static struct dentry *debugfs_pvs_base;
+
+	debugfs_pvs_base = debugfs_create_dir("htc_pvs", NULL);
+
+	if (!debugfs_pvs_base)
+		return -ENOMEM;
+
+	if (!debugfs_create_file("pvs_info", S_IRUGO, debugfs_pvs_base,
+                                NULL, &pvs_info_fops))
+		return -ENOMEM;
+
+	return 0;
+}
+#endif
 
 static int parse_tbl(struct device *dev, char *prop, int num_cols,
 		u32 **col1, u32 **col2, u32 **col3)
@@ -645,6 +681,7 @@ static void krait_update_uv(int *uv, int num, int boost_uv)
 			uv[i] += boost_uv;
 	}
 
+
 	switch (arg_vdd_uv) {
 
 	case 1:
@@ -657,6 +694,47 @@ static void krait_update_uv(int *uv, int num, int boost_uv)
 		uv[1] -= 45000;
 		break;
 	}
+}
+
+static void krait_update_freq(unsigned long *freq, int *uv, int *ua, int num, int speed)
+{
+
+	if (speed == 3 && arg_cpu_oc <= 2803200) {
+		printk("elementalx: uv=%d freq=%lu ua=%d\n", uv[num-1], freq[num-1]/1000, ua[num-1]);
+		return;
+	}
+
+	freq[num-1] = arg_cpu_oc*1000;
+
+	switch (arg_cpu_oc) {
+
+	case 2342400:
+		ua[num-1] = 751;
+		uv[num-1] = min(1200000, uv[num-1] + 15000);
+		break;
+	case 2457600:
+		ua[num-1] = 802;
+		uv[num-1] = min(1200000, uv[num-1] + 35000);
+		break;
+	case 2572800:
+		ua[num-1] = 831;
+		uv[num-1] = min(1200000, uv[num-1] + 50000);
+		break;
+	case 2649600:
+		ua[num-1] = 866;
+		uv[num-1] = min(1200000, uv[num-1] + 65000);
+		break;
+	case 2726400:
+		ua[num-1] = 900;
+		uv[num-1] = min(1200000, uv[num-1] + 80000);
+		break;
+	case 2803200:
+		ua[num-1] = 937;
+		uv[num-1] = min(1200000, uv[num-1] + 95000);
+		break;
+	}
+
+	printk("elementalx: uv=%d freq=%lu ua=%d\n", uv[num-1], freq[num-1]/1000, ua[num-1]);
 }
 
 static char table_name[] = "qcom,speedXX-pvsXX-bin-vXX";
@@ -737,9 +815,9 @@ static int clock_krait_8974_driver_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct clk *c;
 	int speed, pvs, pvs_ver, config_ver, rows, cpu;
-	unsigned long *freq = 0, cur_rate, aux_rate;
-	int *uv = 0, *ua = 0;
-	u32 *dscr = 0, vco_mask, config_val;
+	unsigned long *freq, cur_rate, aux_rate;
+	int *uv, *ua;
+	u32 *dscr, vco_mask, config_val;
 	int ret;
 
 	vdd_l2.regulator[0] = devm_regulator_get(dev, "l2-dig");
@@ -827,9 +905,13 @@ static int clock_krait_8974_driver_probe(struct platform_device *pdev)
 	}
 
 	get_krait_bin_format_b(pdev, &speed, &pvs, &pvs_ver);
-	snprintf(table_name, ARRAY_SIZE(table_name),
+	snprintf(table_name, ARRAY_SIZE(table_name) - 1,
 			"qcom,speed%d-pvs%d-bin-v%d", speed, pvs, pvs_ver);
 
+#ifdef CONFIG_HTC_POWER_DEBUG
+	htc_pvs_debugfs_init();
+	htc_get_pvs_info(speed, pvs, pvs_ver);
+#endif
 	rows = parse_tbl(dev, table_name, 3,
 			(u32 **) &freq, (u32 **) &uv, (u32 **) &ua);
 	if (rows < 0) {
@@ -846,6 +928,9 @@ static int clock_krait_8974_driver_probe(struct platform_device *pdev)
 			rows = ret;
 		}
 	}
+
+	if (arg_cpu_oc > 0)
+		krait_update_freq(freq, uv, ua, rows, speed);
 
 	krait_update_uv(uv, rows, pvs ? 25000 : 0);
 

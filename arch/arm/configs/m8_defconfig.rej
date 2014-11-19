@@ -1,10 +1,17 @@
 --- arch/arm/configs/m8_defconfig
 +++ arch/arm/configs/m8_defconfig
-@@ -59,6 +59,7 @@
- #***
- CONFIG_KEXEC=y
- CONFIG_KEXEC_HARDBOOT=y
-+CONFIG_ATAGS_PROC=y
+@@ -7,13 +7,7 @@
+ #
+ # PRONTO WLAN Module
+ #
+-# CONFIG_PRONTO_WLAN is not set
+-CONFIG_PRIMA_WLAN_LFR=y
+-CONFIG_PRIMA_WLAN_OKC=y
+-CONFIG_PRIMA_WLAN_11AC_HIGH_TP=y
+-CONFIG_QCOM_TDLS=y
+-CONFIG_QCOM_VOWIFI_11R=y
+-CONFIG_ENABLE_LINUX_REG=y
++CONFIG_PRONTO_WLAN=m
  
- 
- ################## HTC ##################
+ # CONFIG_ARM_PATCH_PHYS_VIRT is not set
+ CONFIG_EXPERIMENTAL=y

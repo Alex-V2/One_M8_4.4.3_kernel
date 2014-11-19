@@ -93,11 +93,6 @@
 extern int update_preset_lcdc_lut(void);
 #endif
 
-#ifdef CONFIG_KEXEC_HARDBOOT
-#include <linux/memblock.h>
-#include <asm/setup.h>
-#endif
-
 #if defined(CONFIG_FB_MSM_MDSS_HDMI_MHL_SII8240_SII8558) && defined(CONFIG_HTC_MHL_DETECTION)
 #include "../../../drivers/video/msm/mdss/sii8240_8558/mhl_platform.h"
 #endif
@@ -449,11 +444,6 @@ static struct android_usb_platform_data android_usb_pdata = {
 	.usb_rmnet_interface = "smd,bam",
 	.usb_diag_interface = "diag",
 	.fserial_init_string = "smd:modem,tty,tty:autobot,tty:serial,tty:autobot,tty:acm",
-
-	.nluns = 1,
-	.cdrom_lun = 0x1,
-	.vzw_unmount_cdrom = 0,
-
 #ifdef CONFIG_MACH_DUMMY
 	.match = m8wl_usb_product_id_match,
 #endif
@@ -478,38 +468,30 @@ static void htc_8974_add_usb_devices(void)
 	mid = board_mid();
 
 	if (board_mfg_mode() == 0) {
-#ifdef CONFIG_MACH_M8_WHL
-		if (is_m8whl) {
-			android_usb_pdata.nluns = 2;
-			android_usb_pdata.cdrom_lun = 0x2;
-		} else {
+#ifdef CONFIG_MACH_DUMMY
+		android_usb_pdata.nluns = 2;
+		android_usb_pdata.cdrom_lun = 0x2;
 #elif defined(CONFIG_MACH_DUMMY)
-			android_usb_pdata.nluns = 2;
-			android_usb_pdata.cdrom_lun = 0x2;
+		android_usb_pdata.nluns = 2;
+		android_usb_pdata.cdrom_lun = 0x2;
 #elif defined(CONFIG_MACH_MEC_WHL)
-			android_usb_pdata.nluns = 2;
-			android_usb_pdata.cdrom_lun = 0x2;
+		android_usb_pdata.nluns = 2;
+		android_usb_pdata.cdrom_lun = 0x2;
 #else
-			android_usb_pdata.nluns = 1;
-			android_usb_pdata.cdrom_lun = 0x1;
+		android_usb_pdata.nluns = 1;
+		android_usb_pdata.cdrom_lun = 0x1;
 #endif
-#ifdef CONFIG_MACH_M8_WHL
-		}
-#endif
+
 	}
 #ifdef CONFIG_MACH_M8
-	if (is_m8)
-		android_usb_pdata.product_id	= 0x061A;
-#elif defined(CONFIG_MACH_M8_WL)
-	if (is_m8wl) {
-		android_usb_pdata.product_id	= 0x0616;
-		android_usb_pdata.vzw_unmount_cdrom = 1;
-	}
-#elif defined(CONFIG_MACH_M8_WHL)
-	if (is_m8whl)
-		android_usb_pdata.product_id	= 0x061A;
-	else if (is_m8dug)
-		android_usb_pdata.product_id	= 0x063B;
+	android_usb_pdata.product_id	= 0x061A;
+#elif defined(CONFIG_MACH_DUMMY)
+	android_usb_pdata.product_id	= 0x0616;
+	android_usb_pdata.vzw_unmount_cdrom = 1;
+	android_usb_pdata.nluns = 2;
+        android_usb_pdata.cdrom_lun = 0x3;
+#elif defined(CONFIG_MACH_DUMMY)
+	android_usb_pdata.product_id	= 0x061A;
 #elif defined(CONFIG_MACH_DUMMY)
 	android_usb_pdata.product_id	= 0x0623;
 #elif defined(CONFIG_MACH_DUMMY)
@@ -883,27 +865,7 @@ static void __init htc_8974_map_io(void)
 
 void __init htc_8974_init_early(void)
 {
-#ifdef CONFIG_KEXEC_HARDBOOT
-	// Reserve space for hardboot page - just after ram_console,
-	// at the start of second memory bank
-	int ret;
-	phys_addr_t start;
-	struct membank* bank;
-
-	if (meminfo.nr_banks < 2) {
-		pr_err("%s: not enough membank\n", __func__);
-		return;
-	}
 	
-	bank = &meminfo.bank[1];
-	start = bank->start + SZ_1M + HTC_8974_PERSISTENT_RAM_SIZE;
-	ret = memblock_remove(start, SZ_1M);
-	if(!ret)
-		pr_info("Hardboot page reserved at 0x%X\n", start);
-	else
-		pr_err("Failed to reserve space for hardboot page at 0x%X!\n", start);
-#endif
-
 	persistent_ram_early_init(&htc_8974_persistent_ram);
 
 #ifdef CONFIG_HTC_DEBUG_FOOTPRINT

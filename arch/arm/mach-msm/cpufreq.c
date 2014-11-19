@@ -75,13 +75,6 @@ struct cpufreq_work_struct {
 static DEFINE_PER_CPU(struct cpufreq_work_struct, cpufreq_work);
 static struct workqueue_struct *msm_cpufreq_wq;
 
-/* maxscroff */
-uint32_t maxscroff_freq = 1190400;
-uint32_t maxscroff = 1; 
-
-/* ex max freq */
-uint32_t ex_max_freq;
-
 struct cpufreq_suspend_t {
 	struct mutex suspend_mutex;
 	int device_suspended;
@@ -294,6 +287,9 @@ static int msm_cpufreq_verify(struct cpufreq_policy *policy)
 
 static unsigned int msm_cpufreq_get_freq(unsigned int cpu)
 {
+	if (is_clk && is_sync)
+		cpu = 0;
+
 	if (is_clk)
 		return clk_get_rate(cpu_clk[cpu]) / 1000;
 
@@ -376,6 +372,14 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
 		|| cpu_is_msm8610() || (is_clk && is_sync))
 		cpumask_setall(policy->cpus);
 
+	cpu_work = &per_cpu(cpufreq_work, policy->cpu);
+	INIT_WORK(&cpu_work->work, set_cpu_work);
+	init_completion(&cpu_work->complete);
+
+	
+	if (is_clk && !cpu_clk[policy->cpu])
+		return 0;
+
 	if (cpufreq_frequency_table_cpuinfo(policy, table)) {
 #ifdef CONFIG_MSM_CPU_FREQ_SET_MIN_MAX
 		policy->cpuinfo.min_freq = CONFIG_MSM_CPU_FREQ_MIN;
@@ -413,10 +417,6 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
 	policy->cpuinfo.transition_latency =
 		acpuclk_get_switch_time() * NSEC_PER_USEC;
 
-	cpu_work = &per_cpu(cpufreq_work, policy->cpu);
-	INIT_WORK(&cpu_work->work, set_cpu_work);
-	init_completion(&cpu_work->complete);
-
 	return 0;
 }
 
@@ -439,28 +439,48 @@ static int __cpuinit msm_cpufreq_cpu_callback(struct notifier_block *nfb,
 		per_cpu(cpufreq_suspend, cpu).device_suspended = 0;
 		break;
 	case CPU_DEAD:
-	case CPU_UP_CANCELED:
 		if (is_clk) {
 			clk_disable_unprepare(cpu_clk[cpu]);
 			clk_disable_unprepare(l2_clk);
 			update_l2_bw(NULL);
 		}
 		break;
-	case CPU_UP_PREPARE:
-		set_hotplug_on_footprint(cpu, HOF_ENTER);
+	case CPU_UP_CANCELED:
 		if (is_clk) {
-			set_hotplug_on_footprint(cpu, HOF_BEFORE_PREPARE_ENABLE_L2);
-			rc = clk_prepare_enable(l2_clk);
+			clk_unprepare(cpu_clk[cpu]);
+			clk_unprepare(l2_clk);
+			update_l2_bw(NULL);
+		}
+		break;
+	case CPU_UP_PREPARE:
+		set_hotplug_on_footprint(cpu, HOF_ENTER_PREPARE);
+		if (is_clk) {
+			set_hotplug_on_footprint(cpu, HOF_BEFORE_PREPARE_L2);
+			rc = clk_prepare(l2_clk);
 			if (rc < 0)
 				return NOTIFY_BAD;
-			set_hotplug_on_footprint(cpu, HOF_BEFORE_PREPARE_ENABLE_CPU);
-			rc = clk_prepare_enable(cpu_clk[cpu]);
+			set_hotplug_on_footprint(cpu, HOF_BEFORE_PREPARE_CPU);
+			rc = clk_prepare(cpu_clk[cpu]);
 			if (rc < 0)
 				return NOTIFY_BAD;
 			set_hotplug_on_footprint(cpu, HOF_BEFORE_UPDATE_L2_BW);
 			update_l2_bw(&cpu);
 		}
-		set_hotplug_on_footprint(cpu, HOF_LEAVE);
+		set_hotplug_on_footprint(cpu, HOF_LEAVE_PREPARE);
+		break;
+	case CPU_STARTING:
+		set_hotplug_on_footprint(cpu, HOF_ENTER_ENABLE);
+		if (is_clk) {
+			set_hotplug_on_footprint(cpu, HOF_BEFORE_ENABLE_L2);
+			rc = clk_enable(l2_clk);
+			if (rc < 0)
+				return NOTIFY_BAD;
+			set_hotplug_on_footprint(cpu, HOF_BEFORE_ENABLE_CPU);
+			rc = clk_enable(cpu_clk[cpu]);
+			if (rc < 0)
+				return NOTIFY_BAD;
+		}
+		set_hotplug_on_footprint(cpu, HOF_LEAVE_ENABLE);
 		break;
 	default:
 		break;
@@ -495,137 +515,8 @@ static int msm_cpufreq_resume(struct cpufreq_policy *policy)
 	return 0;
 }
 
-/** max freq interface **/
-
-static ssize_t show_ex_max_freq(struct cpufreq_policy *policy, char *buf)
-{
-	if (!ex_max_freq)
-		ex_max_freq = policy->max;
-
-	return sprintf(buf, "%u\n", ex_max_freq);
-}
-
-static ssize_t store_ex_max_freq(struct cpufreq_policy *policy,
-		const char *buf, size_t count)
-{
-	unsigned int freq = 0;
-	int ret, cpu;
-	int index;
-	struct cpufreq_frequency_table *freq_table = cpufreq_frequency_get_table(policy->cpu);
-
-	if (!freq_table)
-		return -EINVAL;
-
-	ret = sscanf(buf, "%u", &freq);
-	if (ret != 1)
-		return -EINVAL;
-
-	mutex_lock(&per_cpu(cpufreq_suspend, policy->cpu).suspend_mutex);
-
-	ret = cpufreq_frequency_table_target(policy, freq_table, freq,
-			CPUFREQ_RELATION_H, &index);
-	if (ret)
-		goto out;
-
-	ex_max_freq = freq_table[index].frequency;
-
-	for_each_possible_cpu(cpu) {
-		msm_cpufreq_set_freq_limits(cpu, MSM_CPUFREQ_NO_LIMIT, ex_max_freq);
-	}
-	cpufreq_update_policy(cpu);
-
-	ret = count;
-
-out:
-	mutex_unlock(&per_cpu(cpufreq_suspend, policy->cpu).suspend_mutex);
-	return ret;
-}
-
-struct freq_attr msm_cpufreq_attr_ex_max_freq = {
-	.attr = { .name = "ex_max_freq",
-		.mode = 0666,
-	},
-	.show = show_ex_max_freq,
-	.store = store_ex_max_freq,
-};
-/** end max freq interface **/
-
-/** maxscreen off sysfs interface **/
-
-static ssize_t show_max_screen_off_khz(struct cpufreq_policy *policy, char *buf)
-{
-	return sprintf(buf, "%u\n", maxscroff_freq);
-}
-
-static ssize_t store_max_screen_off_khz(struct cpufreq_policy *policy,
-		const char *buf, size_t count)
-{
-	unsigned int freq = 0;
-	int ret;
-	int index;
-	struct cpufreq_frequency_table *freq_table = cpufreq_frequency_get_table(policy->cpu);
-
-	if (!freq_table)
-		return -EINVAL;
-
-	ret = sscanf(buf, "%u", &freq);
-	if (ret != 1)
-		return -EINVAL;
-
-	mutex_lock(&per_cpu(cpufreq_suspend, policy->cpu).suspend_mutex);
-
-	ret = cpufreq_frequency_table_target(policy, freq_table, freq,
-			CPUFREQ_RELATION_H, &index);
-	if (ret)
-		goto out;
-
-	maxscroff_freq = freq_table[index].frequency;
-
-	ret = count;
-
-out:
-	mutex_unlock(&per_cpu(cpufreq_suspend, policy->cpu).suspend_mutex);
-	return ret;
-}
-
-struct freq_attr msm_cpufreq_attr_max_screen_off_khz = {
-	.attr = { .name = "screen_off_max_freq",
-		.mode = 0666,
-	},
-	.show = show_max_screen_off_khz,
-	.store = store_max_screen_off_khz,
-};
-
-static ssize_t show_max_screen_off(struct cpufreq_policy *policy, char *buf)
-{
-	return sprintf(buf, "%u\n", maxscroff);
-}
-
-static ssize_t store_max_screen_off(struct cpufreq_policy *policy,
-		const char *buf, size_t count)
-{
-	if (buf[0] >= '0' && buf[0] <= '1' && buf[1] == '\n')
-            if (maxscroff != buf[0] - '0') 
-		        maxscroff = buf[0] - '0';
-
-	return count;
-}
-
-struct freq_attr msm_cpufreq_attr_max_screen_off = {
-	.attr = { .name = "screen_off_max",
-		.mode = 0666,
-	},
-	.show = show_max_screen_off,
-	.store = store_max_screen_off,
-};
-
-/** end maxscreen off sysfs interface **/
-
 static struct freq_attr *msm_freq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
-	&msm_cpufreq_attr_max_screen_off_khz,
- 	&msm_cpufreq_attr_max_screen_off,
-	&msm_cpufreq_attr_ex_max_freq,
 	NULL,
 };
 
@@ -694,14 +585,11 @@ static int cpufreq_parse_dt(struct device *dev)
 		if (i > 0 && f <= freq_table[i-1].frequency)
 			break;
 
-		//elementalx
-		if (f > arg_cpu_oc) {
-			nf = i;
-			break;
-		}
-
 		freq_table[i].index = i;
 		freq_table[i].frequency = f;
+
+		if (arg_cpu_oc > 0)	
+			freq_table[14].frequency = arg_cpu_oc;
 
 		if (l2_clk) {
 			f = clk_round_rate(l2_clk, data[j++] * 1000);
@@ -720,6 +608,7 @@ static int cpufreq_parse_dt(struct device *dev)
 
 	freq_table[i].index = i;
 	freq_table[i].frequency = CPUFREQ_TABLE_END;
+
 
 #ifdef CONFIG_MSM_CPU_VOLTAGE_CONTROL
 	/* Create frequence table with unrounded values */
@@ -775,6 +664,7 @@ const struct file_operations msm_cpufreq_fops = {
 	.release	= seq_release,
 };
 #endif
+
 
 #ifdef CONFIG_MSM_CPU_VOLTAGE_CONTROL
 int use_for_scaling(unsigned int freq)

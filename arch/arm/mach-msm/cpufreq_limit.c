@@ -146,3 +146,4 @@ MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Paul Reioux <reioux@gmail.com>");
 MODULE_DESCRIPTION("Krait CPU frequency Limit Driver");
 
+

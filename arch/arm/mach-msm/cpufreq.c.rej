@@ -1,72 +1,95 @@
 --- arch/arm/mach-msm/cpufreq.c
 +++ arch/arm/mach-msm/cpufreq.c
-@@ -54,6 +54,9 @@
- static unsigned int freq_index[NR_CPUS];
- static unsigned int max_freq_index;
- static struct cpufreq_frequency_table *freq_table;
-+#ifdef CONFIG_MSM_CPU_VOLTAGE_CONTROL
-+static struct cpufreq_frequency_table *krait_freq_table;
-+#endif
- static unsigned int *l2_khz;
- static bool is_clk;
- static bool is_sync;
-@@ -472,6 +475,9 @@
- 		freq_table[i].index = i;
- 		freq_table[i].frequency = f;
+@@ -75,6 +75,10 @@
+ static DEFINE_PER_CPU(struct cpufreq_work_struct, cpufreq_work);
+ static struct workqueue_struct *msm_cpufreq_wq;
  
-+		if (arg_cpu_oc > 0)	
-+			freq_table[14].frequency = arg_cpu_oc;
++/* maxscroff */
++uint32_t maxscroff_freq = 1190400;
++uint32_t maxscroff = 1; 
 +
- 		if (l2_clk) {
- 			f = clk_round_rate(l2_clk, data[j++] * 1000);
- 			if (IS_ERR_VALUE(f)) {
-@@ -490,6 +496,21 @@
- 	freq_table[i].index = i;
- 	freq_table[i].frequency = CPUFREQ_TABLE_END;
- 
-+
-+#ifdef CONFIG_MSM_CPU_VOLTAGE_CONTROL
-+	/* Create frequence table with unrounded values */
-+	krait_freq_table = devm_kzalloc(dev, (nf + 1) * sizeof(*krait_freq_table),
-+					GFP_KERNEL);
-+	if (!krait_freq_table)
-+		return -ENOMEM;
-+
-+	*krait_freq_table = *freq_table;
-+
-+	for (i = 0, j = 0; i < nf; i++, j += 3)
-+		krait_freq_table[i].frequency = data[j];
-+	krait_freq_table[i].frequency = CPUFREQ_TABLE_END;
-+#endif
-+
- 	devm_kfree(dev, data);
- 
+ struct cpufreq_suspend_t {
+ 	struct mutex suspend_mutex;
+ 	int device_suspended;
+@@ -392,8 +396,81 @@
  	return 0;
-@@ -531,6 +552,27 @@
- };
- #endif
+ }
  
++/** maxscreen off sysfs interface **/
 +
-+#ifdef CONFIG_MSM_CPU_VOLTAGE_CONTROL
-+int use_for_scaling(unsigned int freq)
++static ssize_t show_max_screen_off_khz(struct cpufreq_policy *policy, char *buf)
 +{
-+	unsigned int i, cpu_freq;
++	return sprintf(buf, "%u\n", maxscroff_freq);
++}
 +
-+	if (!krait_freq_table)
++static ssize_t store_max_screen_off_khz(struct cpufreq_policy *policy,
++		const char *buf, size_t count)
++{
++	unsigned int freq = 0;
++	int ret;
++	int index;
++	struct cpufreq_frequency_table *freq_table = cpufreq_frequency_get_table(policy->cpu);
++
++	if (!freq_table)
 +		return -EINVAL;
 +
-+	for (i = 0; krait_freq_table[i].frequency != CPUFREQ_TABLE_END; i++) {
-+		cpu_freq = krait_freq_table[i].frequency;
-+		if (cpu_freq == CPUFREQ_ENTRY_INVALID)
-+			continue;
-+		if (freq == cpu_freq)
-+			return freq;
-+	}
++	ret = sscanf(buf, "%u", &freq);
++	if (ret != 1)
++		return -EINVAL;
 +
-+	return -EINVAL;
++	mutex_lock(&per_cpu(cpufreq_suspend, policy->cpu).suspend_mutex);
++
++	ret = cpufreq_frequency_table_target(policy, freq_table, freq,
++			CPUFREQ_RELATION_H, &index);
++	if (ret)
++		goto out;
++
++	maxscroff_freq = freq_table[index].frequency;
++
++	ret = count;
++
++out:
++	mutex_unlock(&per_cpu(cpufreq_suspend, policy->cpu).suspend_mutex);
++	return ret;
 +}
-+#endif
 +
- static int __init msm_cpufreq_probe(struct platform_device *pdev)
- {
- 	struct device *dev = &pdev->dev;
++struct freq_attr msm_cpufreq_attr_max_screen_off_khz = {
++	.attr = { .name = "screen_off_max_freq",
++		.mode = 0644,
++	},
++	.show = show_max_screen_off_khz,
++	.store = store_max_screen_off_khz,
++};
++
++static ssize_t show_max_screen_off(struct cpufreq_policy *policy, char *buf)
++{
++	return sprintf(buf, "%u\n", maxscroff);
++}
++
++static ssize_t store_max_screen_off(struct cpufreq_policy *policy,
++		const char *buf, size_t count)
++{
++	if (buf[0] >= '0' && buf[0] <= '1' && buf[1] == '\n')
++            if (maxscroff != buf[0] - '0') 
++		        maxscroff = buf[0] - '0';
++
++	return count;
++}
++
++struct freq_attr msm_cpufreq_attr_max_screen_off = {
++	.attr = { .name = "screen_off_max",
++		.mode = 0644,
++	},
++	.show = show_max_screen_off,
++	.store = store_max_screen_off,
++};
++
++/** end maxscreen off sysfs interface **/
++
+ static struct freq_attr *msm_freq_attr[] = {
+ 	&cpufreq_freq_attr_scaling_available_freqs,
++	&msm_cpufreq_attr_max_screen_off_khz,
++ 	&msm_cpufreq_attr_max_screen_off,
+ 	NULL,
+ };
+ 

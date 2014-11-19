@@ -36,11 +36,6 @@ extern unsigned long msm_cpufreq_get_bw(void)
 }
 #endif
 
-#endif
-
-#ifndef __ARCH_ARM_MACH_MSM_MACH_CPUFREQ_H
-#define __ARCH_ARM_MACH_MSM_MACH_CPUFREQ_H
-
 #define MSM_CPUFREQ_NO_LIMIT 0xFFFFFFFF
 
 #ifdef CONFIG_CPU_FREQ_MSM
@@ -67,4 +62,4 @@ static inline int msm_cpufreq_set_freq_limits(
 }
 #endif
 
-#endif /* __ARCH_ARM_MACH_MSM_MACH_CPUFREQ_H */
+#endif /* __MACH_CPUFREQ_H */

@@ -350,16 +350,9 @@ int blk_queue_start_tag(struct request_queue *q, struct request *rq)
 	 */
 	max_depth = bqt->max_depth;
 	if (!rq_is_sync(rq) && max_depth > 1) {
-		switch (max_depth) {
-		case 2:
+		max_depth -= 2;
+		if (!max_depth)
 			max_depth = 1;
-			break;
-		case 3:
-			max_depth = 2;
-			break;
-		default:
-			max_depth -= 2;
-		}
 		if (q->in_flight[BLK_RW_ASYNC] > max_depth)
 			return 1;
 	}
@@ -404,4 +397,3 @@ void blk_queue_invalidate_tags(struct request_queue *q)
 		blk_requeue_request(q, list_entry_rq(tmp));
 }
 EXPORT_SYMBOL(blk_queue_invalidate_tags);
-
