@@ -1,0 +1,87 @@
+--- sound/soc/codecs/wcd9320.c
++++ sound/soc/codecs/wcd9320.c
+@@ -3136,6 +3225,7 @@
+ }
+ 
+ #if 0
++/* called under codec_resource_lock acquisition */
+ static int taiko_enable_mbhc_micbias(struct snd_soc_codec *codec, bool enable)
+ {
+ 	int rc;
+@@ -6098,14 +6276,14 @@
+ 		taiko_codec_enable_dmic, SND_SOC_DAPM_PRE_PMU |
+ 		SND_SOC_DAPM_POST_PMD),
+ 
+-	
++	/* Sidetone */
+ 	SND_SOC_DAPM_MUX("IIR1 INP1 MUX", SND_SOC_NOPM, 0, 0, &iir1_inp1_mux),
+ 	SND_SOC_DAPM_MIXER("IIR1", TAIKO_A_CDC_CLK_SD_CTL, 0, 0, NULL, 0),
+ 
+ 	SND_SOC_DAPM_MUX("IIR2 INP1 MUX", SND_SOC_NOPM, 0, 0, &iir2_inp1_mux),
+ 	SND_SOC_DAPM_MIXER("IIR2", TAIKO_A_CDC_CLK_SD_CTL, 1, 0, NULL, 0),
+ 
+-	
++	/* AUX PGA */
+ 	SND_SOC_DAPM_ADC_E("AUX_PGA_Left", NULL, TAIKO_A_RX_AUX_SW_CTL, 7, 0,
+ 		taiko_codec_enable_aux_pga, SND_SOC_DAPM_PRE_PMU |
+ 		SND_SOC_DAPM_POST_PMD),
+@@ -6349,35 +6536,41 @@
+ 		}
+ 	}
+ 
+-	
++	/* Set micbias capless mode with tail current */
++	value = (pdata->micbias.bias1_cap_mode == MICBIAS_EXT_BYP_CAP ?
++		 0x00 : 0x16);
++	snd_soc_update_bits(codec, TAIKO_A_MICB_1_CTL, 0x1E, value);
+ 	value = (pdata->micbias.bias2_cap_mode == MICBIAS_EXT_BYP_CAP ?
+ 		 0x00 : 0x16);
+ 	snd_soc_update_bits(codec, TAIKO_A_MICB_2_CTL, 0x1E, value);
++	value = (pdata->micbias.bias3_cap_mode == MICBIAS_EXT_BYP_CAP ?
++		 0x00 : 0x16);
++	snd_soc_update_bits(codec, TAIKO_A_MICB_3_CTL, 0x1E, value);
+ 	value = (pdata->micbias.bias4_cap_mode == MICBIAS_EXT_BYP_CAP ?
+ 		 0x00 : 0x16);
+ 	snd_soc_update_bits(codec, TAIKO_A_MICB_4_CTL, 0x1E, value);
+ 
+-	
++	/* Set the DMIC sample rate */
+ 	if (pdata->mclk_rate == TAIKO_MCLK_CLK_9P6MHZ) {
+ 		switch (pdata->dmic_sample_rate) {
+-		case WCD9XXX_DMIC_SAMPLE_RATE_2P4MHZ:
+-			dmic_sample_rate_value = WCD9XXX_DMIC_SAMPLE_RATE_DIV_4;
+-			dmic_b1_ctl_value = WCD9XXX_DMIC_B1_CTL_DIV_4;
+-			dmic_b2_ctl_value = WCD9XXX_DMIC_B2_CTL_DIV_4;
+-			anc_ctl_value = WCD9XXX_ANC_DMIC_X2_OFF;
++		case TAIKO_DMIC_SAMPLE_RATE_2P4MHZ:
++			dmic_sample_rate_value = TAIKO_DMIC_SAMPLE_RATE_DIV_4;
++			dmic_b1_ctl_value = TAIKO_DMIC_B1_CTL_DIV_4;
++			dmic_b2_ctl_value = TAIKO_DMIC_B2_CTL_DIV_4;
++			anc_ctl_value = TAIKO_ANC_DMIC_X2_OFF;
+ 			break;
+-		case WCD9XXX_DMIC_SAMPLE_RATE_4P8MHZ:
+-			dmic_sample_rate_value = WCD9XXX_DMIC_SAMPLE_RATE_DIV_2;
+-			dmic_b1_ctl_value = WCD9XXX_DMIC_B1_CTL_DIV_2;
+-			dmic_b2_ctl_value = WCD9XXX_DMIC_B2_CTL_DIV_2;
+-			anc_ctl_value = WCD9XXX_ANC_DMIC_X2_ON;
++		case TAIKO_DMIC_SAMPLE_RATE_4P8MHZ:
++			dmic_sample_rate_value = TAIKO_DMIC_SAMPLE_RATE_DIV_2;
++			dmic_b1_ctl_value = TAIKO_DMIC_B1_CTL_DIV_2;
++			dmic_b2_ctl_value = TAIKO_DMIC_B2_CTL_DIV_2;
++			anc_ctl_value = TAIKO_ANC_DMIC_X2_ON;
+ 			break;
+-		case WCD9XXX_DMIC_SAMPLE_RATE_3P2MHZ:
+-		case WCD9XXX_DMIC_SAMPLE_RATE_UNDEFINED:
+-			dmic_sample_rate_value = WCD9XXX_DMIC_SAMPLE_RATE_DIV_3;
+-			dmic_b1_ctl_value = WCD9XXX_DMIC_B1_CTL_DIV_3;
+-			dmic_b2_ctl_value = WCD9XXX_DMIC_B2_CTL_DIV_3;
+-			anc_ctl_value = WCD9XXX_ANC_DMIC_X2_OFF;
++		case TAIKO_DMIC_SAMPLE_RATE_3P2MHZ:
++		case TAIKO_DMIC_SAMPLE_RATE_UNDEFINED:
++			dmic_sample_rate_value = TAIKO_DMIC_SAMPLE_RATE_DIV_3;
++			dmic_b1_ctl_value = TAIKO_DMIC_B1_CTL_DIV_3;
++			dmic_b2_ctl_value = TAIKO_DMIC_B2_CTL_DIV_3;
++			anc_ctl_value = TAIKO_ANC_DMIC_X2_OFF;
+ 			break;
+ 		default:
+ 			pr_err("%s Invalid sample rate %d for mclk %d\n",

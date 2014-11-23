@@ -1,0 +1,118 @@
+--- sound/soc/codecs/wcd9xxx-common.c
++++ sound/soc/codecs/wcd9xxx-common.c
+@@ -1203,10 +1514,20 @@
+ 	pr_debug("%s: enter %s\n", __func__, is_enable ? "enable" : "disable");
+ 
+ 	if (is_enable) {
+-		wcd9xxx_clsh_comp_req(codec, clsh_d, CLSH_COMPUTE_HPH_L, true);
+-		wcd9xxx_clsh_comp_req(codec, clsh_d, CLSH_COMPUTE_HPH_R, true);
++		if (req_state == WCD9XXX_CLSH_STATE_HPHL)
++			wcd9xxx_clsh_comp_req(codec, clsh_d,
++						CLSH_COMPUTE_HPH_L, true);
++		if (req_state == WCD9XXX_CLSH_STATE_HPHR)
++			wcd9xxx_clsh_comp_req(codec, clsh_d,
++						CLSH_COMPUTE_HPH_R, true);
+ 	} else {
+ 		dev_dbg(codec->dev, "%s: stub fallback to hph_st\n", __func__);
++		if (req_state == WCD9XXX_CLSH_STATE_HPHL)
++			wcd9xxx_clsh_comp_req(codec, clsh_d,
++						CLSH_COMPUTE_HPH_L, false);
++		if (req_state == WCD9XXX_CLSH_STATE_HPHR)
++			wcd9xxx_clsh_comp_req(codec, clsh_d,
++						CLSH_COMPUTE_HPH_R, false);
+ 	}
+ }
+ 
+@@ -1310,16 +1672,31 @@
+ 
+ 	switch (clsh_event) {
+ 	case WCD9XXX_CLSH_EVENT_PRE_DAC:
+-		
++		/* PRE_DAC event should be used only for Enable */
+ 		BUG_ON(req_type != WCD9XXX_CLSH_REQ_ENABLE);
+ 
+ 		old_state = cdc_clsh_d->state;
+ 		new_state = old_state | req_state;
+ 
+-		(*clsh_state_fp[req_state]) (codec, cdc_clsh_d, req_state,
++		if (!wcd9xxx_clsh_is_state_valid(new_state)) {
++			dev_dbg(codec->dev,
++				"%s: classH not a valid new state: %s\n",
++				__func__,
++				state_to_str(new_state, msg0, sizeof(msg0)));
++			return;
++		}
++		if (new_state == old_state) {
++			dev_dbg(codec->dev,
++				"%s: classH already in requested state: %s\n",
++				__func__,
++				state_to_str(new_state, msg0, sizeof(msg0)));
++			return;
++		}
++		(*clsh_state_fp[new_state]) (codec, cdc_clsh_d, req_state,
+ 					     req_type);
+ 		cdc_clsh_d->state = new_state;
+-		dev_dbg(codec->dev, "%s: ClassH state transition from %s to %s\n",
++		dev_dbg(codec->dev,
++			"%s: ClassH state transition from %s to %s\n",
+ 			__func__, state_to_str(old_state, msg0, sizeof(msg0)),
+ 			state_to_str(cdc_clsh_d->state, msg1, sizeof(msg1)));
+ 
+@@ -1330,7 +1707,23 @@
+ 			new_state = old_state & (~req_state);
+ 
+ 			if (new_state < NUM_CLSH_STATES) {
+-				(*clsh_state_fp[req_state]) (codec, cdc_clsh_d,
++				if (!wcd9xxx_clsh_is_state_valid(old_state)) {
++					dev_dbg(codec->dev,
++						"%s:Invalid old state:%s\n",
++						__func__,
++						state_to_str(old_state, msg0,
++						sizeof(msg0)));
++					return;
++				}
++				if (new_state == old_state) {
++					dev_dbg(codec->dev,
++					"%s: clsH already in old state: %s\n",
++					__func__,
++					state_to_str(new_state, msg0,
++					sizeof(msg0)));
++					return;
++				}
++				(*clsh_state_fp[old_state]) (codec, cdc_clsh_d,
+ 							     req_state,
+ 							     req_type);
+ 				cdc_clsh_d->state = new_state;
+@@ -1341,7 +1734,7 @@
+ 						     sizeof(msg1)));
+ 
+ 			} else {
+-				dev_dbg(codec->dev, "%s: wrong new state = %x\n",
++				dev_dbg(codec->dev, "%s:wrong new state=0x%x\n",
+ 						__func__, new_state);
+ 			}
+ 		} else if (!(cdc_clsh_d->state & WCD9XXX_CLSH_STATE_LO)) {
+@@ -1372,6 +1765,23 @@
+ 	clsh_state_fp[WCD9XXX_CLSH_STATE_HPH_ST] =
+ 						wcd9xxx_clsh_state_hph_st;
+ 	clsh_state_fp[WCD9XXX_CLSH_STATE_LO] = wcd9xxx_clsh_state_lo;
++	clsh_state_fp[WCD9XXX_CLSH_STATE_HPHL_EAR] =
++						wcd9xxx_clsh_state_hph_ear;
++	clsh_state_fp[WCD9XXX_CLSH_STATE_HPHR_EAR] =
++						wcd9xxx_clsh_state_hph_ear;
++	clsh_state_fp[WCD9XXX_CLSH_STATE_HPH_ST_EAR] =
++						wcd9xxx_clsh_state_hph_ear;
++	clsh_state_fp[WCD9XXX_CLSH_STATE_HPHL_LO] = wcd9xxx_clsh_state_hph_lo;
++	clsh_state_fp[WCD9XXX_CLSH_STATE_HPHR_LO] = wcd9xxx_clsh_state_hph_lo;
++	clsh_state_fp[WCD9XXX_CLSH_STATE_HPH_ST_LO] =
++						wcd9xxx_clsh_state_hph_lo;
++	clsh_state_fp[WCD9XXX_CLSH_STATE_EAR_LO] = wcd9xxx_clsh_state_ear_lo;
++	clsh_state_fp[WCD9XXX_CLSH_STATE_HPHL_EAR_LO] =
++						wcd9xxx_clsh_state_hph_ear_lo;
++	clsh_state_fp[WCD9XXX_CLSH_STATE_HPHR_EAR_LO] =
++						wcd9xxx_clsh_state_hph_ear_lo;
++	clsh_state_fp[WCD9XXX_CLSH_STATE_HPH_ST_EAR_LO] =
++						wcd9xxx_clsh_state_hph_ear_lo;
+ 
+ }
+ EXPORT_SYMBOL_GPL(wcd9xxx_clsh_init);
